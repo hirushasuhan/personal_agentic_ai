@@ -165,7 +165,8 @@ def read_sandbox_results(output_dir: str) -> Dict:
         raise ValueError("results.json too large")
     with open(path, "rb") as f:
         try:
-            data = json.loads(f.read().decode("utf-8"))
+            # utf-8-sig: Windows PowerShell 5.1 `Set-Content -Encoding utf8` writes a BOM; tolerate it.
+            data = json.loads(f.read().decode("utf-8-sig"))
         except (ValueError, UnicodeDecodeError):
             raise ValueError("results.json is not valid UTF-8 JSON")
     if not isinstance(data, dict) or set(data) != set(_RESULT_SCHEMA):

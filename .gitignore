@@ -37,3 +37,8 @@ bin/
 .pytest_cache/
 .mypy_cache/
 *.log
+
+# Secrets - never commit signing material
+*.key
+*.pem
+release.key

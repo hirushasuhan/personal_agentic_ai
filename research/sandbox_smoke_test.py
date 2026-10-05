@@ -1,155 +1,146 @@
 """
-Windows Sandbox Smoke Test Harness (ADR-003 Gate)
-Proves that code running inside Windows Sandbox cannot reach:
-  1. The external network (airgap enforcement)
-  2. Host filesystem outside explicitly mapped directories
-  3. The mapped read-only input folder (write protection)
+Windows Sandbox smoke test (ADR-003 gate).
 
-And proves that the single output folder transmits compliant results.json.
-Uses native PowerShell inside Windows Sandbox (no Python install needed in the guest).
+The gate is PASSED only when a probe running INSIDE a generated sandbox writes a results.json that
+`read_sandbox_results()` accepts with tests_failed == 0. Generating the .wsb alone proves nothing, so:
+
+  python sandbox_smoke_test.py                  # generate + validate the .wsb, print instructions  -> exit 2 (gate NOT proven)
+  python sandbox_smoke_test.py --launch --wait 180   # also start Windows Sandbox and wait for results -> exit 0 only on a real pass
+
+Probe (native PowerShell, nothing to install in the guest) checks: no usable network (TCP, DNS, adapters),
+the host's staging path is invisible, the input mapping is read-only, only expected folders are mapped.
+Close the sandbox window when finished: it is disposable and everything inside is discarded.
 """
 
-import json
+import argparse
 import os
 import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
 
-from sandbox_policy import SandboxSpec, make_wsb, validate_wsb, read_sandbox_results
+from sandbox_policy import SandboxSpec, make_wsb, read_sandbox_results, validate_wsb
 
-PROBE_PS1 = r'''# Windows Sandbox Probe Script (runs inside the guest)
+SANDBOX_EXE = r"C:\Windows\System32\WindowsSandbox.exe"
+
+PROBE_PS1 = r'''# Windows Sandbox probe (runs inside the guest)
 $ErrorActionPreference = "Continue"
-
-$passed = 0
-$failed = 0
-$logs = @()
-
-function Record-Test($name, $success, $detail) {
-    if ($success) {
-        $script:passed++
-        $script:logs += "[PASS] $name`: $detail"
-    } else {
-        $script:failed++
-        $script:logs += "[FAIL] $name`: $detail"
-    }
+$script:passed = 0; $script:failed = 0; $script:logs = @()
+function Record-Test($name, $ok, $detail) {
+    if ($ok) { $script:passed++; $script:logs += "[PASS] ${name}: $detail" }
+    else     { $script:failed++; $script:logs += "[FAIL] ${name}: $detail" }
 }
 
-# --- Test 1: Network Airgap Verification ---
+# 1. TCP to the internet must not connect
 try {
-    $client = New-Object System.Net.Sockets.TcpClient
-    $iar = $client.BeginConnect("8.8.8.8", 53, $null, $null)
-    $success = $iar.AsyncWaitHandle.WaitOne(2000, $false)
-    if ($success) {
-        $client.EndConnect($iar)
-        $client.Close()
-        Record-Test "network_airgap" $false "Connected to 8.8.8.8:53 unexpectedly!"
-    } else {
-        $client.Close()
-        Record-Test "network_airgap" $true "Network connection timed out as expected."
-    }
-} catch {
-    Record-Test "network_airgap" $true "Network unreachable as expected ($($_.Exception.Message))"
-}
+    $c = New-Object System.Net.Sockets.TcpClient
+    $iar = $c.BeginConnect("8.8.8.8", 53, $null, $null)
+    if ($iar.AsyncWaitHandle.WaitOne(3000, $false) -and $c.Connected) { Record-Test "network_tcp" $false "connected to 8.8.8.8:53" }
+    else { Record-Test "network_tcp" $true "no connection (timed out / refused)" }
+    $c.Close()
+} catch { Record-Test "network_tcp" $true "unreachable ($($_.Exception.Message))" }
 
-# --- Test 2: Host Filesystem Isolation ---
-$hostPath = "C:\Users\hp"
-if (Test-Path $hostPath) {
-    Record-Test "host_fs_isolation" $false "Host user directory $hostPath is accessible!"
-} else {
-    Record-Test "host_fs_isolation" $true "Host user directory does not exist in sandbox."
-}
-
-# --- Test 3: Read-Only Input Mapping ---
+# 2. DNS must fail
 try {
-    Set-Content -Path "C:\pai\input\test_forbidden_write.tmp" -Value "malicious write" -ErrorAction Stop
-    Record-Test "input_read_only" $false "Successfully wrote to read-only mapped input folder!"
-} catch {
-    Record-Test "input_read_only" $true "Write blocked as expected ($($_.Exception.Message))"
-}
+    $a = [System.Net.Dns]::GetHostAddresses("example.com")
+    Record-Test "network_dns" $false "resolved example.com to $($a[0])"
+} catch { Record-Test "network_dns" $true "DNS resolution failed as expected" }
 
-# --- Output Result Generation ---
-$results = @{
-    tests_passed = $passed
-    tests_failed = $failed
-    benchmark_ms = 1.0
-    stdout_tail = ($logs -join "`n")
-}
+# 3. No network adapter may be up
+try {
+    $up = @(Get-NetAdapter -ErrorAction Stop | Where-Object { $_.Status -eq "Up" })
+    Record-Test "no_adapter_up" ($up.Count -eq 0) "adapters up: $($up.Count)"
+} catch { Record-Test "no_adapter_up" $true "no adapters present ($($_.Exception.Message))" }
 
-$outDir = "C:\pai\output"
-if (-not (Test-Path $outDir)) {
-    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-}
+# 4. The host's staging directory must not be reachable by its host path
+$hostPath = "__HOST_WORK_DIR__"
+Record-Test "host_path_invisible" (-not (Test-Path -LiteralPath $hostPath)) "host path $hostPath reachable=$(Test-Path -LiteralPath $hostPath)"
 
-$results | ConvertTo-Json | Set-Content -Path "$outDir\results.json" -Encoding utf8
-Write-Output ($logs -join "`n")
+# 5. Host user profile folders other than the sandbox's own must not exist
+$others = @(Get-ChildItem C:\Users -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("Public", "Default", "Default User", "All Users", "WDAGUtilityAccount") })
+Record-Test "no_foreign_profiles" ($others.Count -eq 0) "unexpected profile folders: $($others.Name -join ',')"
+
+# 6. Input mapping must be read-only
+try {
+    Set-Content -Path "C:\pai\input\forbidden.tmp" -Value "x" -ErrorAction Stop
+    Record-Test "input_read_only" $false "write to read-only input succeeded"
+} catch { Record-Test "input_read_only" $true "write blocked" }
+
+# 7. Only expected file-system drives
+$drives = @(Get-PSDrive -PSProvider FileSystem | Select-Object -ExpandProperty Name)
+Record-Test "only_expected_drives" (($drives | Where-Object { $_ -ne "C" }).Count -eq 0) "drives: $($drives -join ',')"
+
+$results = [ordered]@{ tests_passed = $script:passed; tests_failed = $script:failed; benchmark_ms = 1.0; stdout_tail = ($script:logs -join "`n") }
+$json = $results | ConvertTo-Json -Compress
+New-Item -ItemType Directory -Path C:\pai\output -Force | Out-Null
+[System.IO.File]::WriteAllText("C:\pai\output\results.json", $json, (New-Object System.Text.UTF8Encoding($false)))  # no BOM
+Write-Output ($script:logs -join "`n")
 '''
 
+EXPECTED_MIN_TESTS = 7
 
-def run_smoke_test(work_dir: str = None) -> bool:
-    if work_dir is None:
-        work_dir = os.path.join(os.environ.get("TEMP", "C:\\temp"), "pai_sandbox_smoke")
 
-    input_dir = os.path.join(work_dir, "input")
-    output_dir = os.path.join(work_dir, "output")
-
-    # Clean staging directories
+def stage(work_dir: str):
+    input_dir, output_dir = os.path.join(work_dir, "input"), os.path.join(work_dir, "output")
     if os.path.exists(work_dir):
         shutil.rmtree(work_dir, ignore_errors=True)
-    os.makedirs(input_dir, exist_ok=True)
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(input_dir)
+    os.makedirs(output_dir)
+    with open(os.path.join(input_dir, "probe.ps1"), "w", encoding="utf-8") as f:
+        f.write(PROBE_PS1.replace("__HOST_WORK_DIR__", work_dir.replace("'", "''")))
+    spec = SandboxSpec(input_dir, output_dir,
+                       r"powershell.exe -ExecutionPolicy Bypass -NoProfile -File C:\pai\input\probe.ps1")
+    xml = make_wsb(spec)
+    wsb = os.path.join(work_dir, "pai_isolated_test.wsb")
+    with open(wsb, "w", encoding="utf-8") as f:
+        f.write(xml)
+    return wsb, output_dir, validate_wsb(xml)
 
-    # Write probe inside input directory
-    probe_path = os.path.join(input_dir, "probe.ps1")
-    with open(probe_path, "w", encoding="utf-8") as f:
-        f.write(PROBE_PS1)
 
-    # Command to run inside sandbox at logon (PowerShell bypass)
-    logon_command = r'powershell.exe -ExecutionPolicy Bypass -NoProfile -File C:\pai\input\probe.ps1'
+def evaluate(output_dir: str) -> bool:
+    res = read_sandbox_results(output_dir)
+    print(res["stdout_tail"])
+    ok = res["tests_failed"] == 0 and res["tests_passed"] >= EXPECTED_MIN_TESTS
+    print(f"\npassed={res['tests_passed']} failed={res['tests_failed']}  ->  {'GATE PASSED' if ok else 'GATE FAILED'}")
+    return ok
 
-    spec = SandboxSpec(
-        input_dir=input_dir,
-        output_dir=output_dir,
-        command=logon_command,
-        memory_mb=2048,
-        sandbox_input=r"C:\pai\input",
-        sandbox_output=r"C:\pai\output"
-    )
 
-    wsb_xml = make_wsb(spec)
-    violations = validate_wsb(wsb_xml)
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--work-dir", default=os.path.join(os.environ.get("TEMP", "/tmp"), "pai_sandbox_smoke"))
+    ap.add_argument("--launch", action="store_true", help="start Windows Sandbox with the generated config")
+    ap.add_argument("--wait", type=int, default=0, metavar="SECONDS", help="wait for results.json and evaluate it")
+    ap.add_argument("--evaluate-only", action="store_true", help="evaluate an existing output folder (after a manual run)")
+    a = ap.parse_args(argv)
 
-    print("--- [ADR-003 GATE: WINDOWS SANDBOX SMOKE TEST] ---")
-    print(f"Staging Input Directory : {input_dir}")
-    print(f"Staging Output Directory: {output_dir}")
-    print(f"Generated WSB Validation: {'PASS (0 violations)' if not violations else 'FAIL: ' + str(violations)}")
+    if a.evaluate_only:
+        return 0 if evaluate(os.path.join(a.work_dir, "output")) else 1
 
-    wsb_file = os.path.join(work_dir, "pai_isolated_test.wsb")
-    with open(wsb_file, "w", encoding="utf-8") as f:
-        f.write(wsb_xml)
-    print(f"WSB Config File Created : {wsb_file}")
-
-    # Check for WindowsSandbox.exe on the system
-    system32_sandbox = r"C:\Windows\System32\WindowsSandbox.exe"
-    sandbox_installed = os.path.exists(system32_sandbox)
-
-    print(f"Windows Sandbox Engine  : {'INSTALLED' if sandbox_installed else 'NOT INSTALLED (Optional Feature disabled)'}")
-
-    if not sandbox_installed:
-        print("\n[!] NOTICE FOR OWNER (ADR-003 GATE):")
-        print("  Windows Sandbox optional feature is not yet active.")
-        print("  If you enabled it, please restart Windows to complete the setup.")
-        return True
-
-    print("\n[OK] WSB file is ready. To run the smoke test in Windows Sandbox:")
-    print(f"  1. Double click or run: '{wsb_file}'")
-    print("  2. The sandbox will boot, run probe.ps1, verify airgap & host isolation,")
-    print(f"     and write the compliant results.json to '{output_dir}'.")
-    print("  3. Host then runs read_sandbox_results() to verify the result.\n")
-    return True
+    wsb, out, violations = stage(a.work_dir)
+    print(f".wsb validation: {'PASS' if not violations else 'FAIL ' + str(violations)}\nconfig: {wsb}")
+    if violations:
+        return 1
+    if not os.path.exists(SANDBOX_EXE):
+        print("Windows Sandbox is not installed/enabled (Windows Features -> Windows Sandbox, then restart). Gate NOT proven.")
+        return 2
+    if a.launch:
+        subprocess.Popen([SANDBOX_EXE, wsb])
+        print("Sandbox launching... (close its window when done)")
+    else:
+        print(f"Double-click {wsb}, wait for the probe to finish, then run:  python sandbox_smoke_test.py --evaluate-only")
+    if a.wait:
+        deadline = time.time() + a.wait
+        path = os.path.join(out, "results.json")
+        while time.time() < deadline and not os.path.exists(path):
+            time.sleep(2)
+        if not os.path.exists(path):
+            print("timed out waiting for results.json. Gate NOT proven.")
+            return 2
+        time.sleep(1)
+        return 0 if evaluate(out) else 1
+    print("Gate NOT proven yet: no results were evaluated.")
+    return 2
 
 
 if __name__ == "__main__":
-    success = run_smoke_test()
-    sys.exit(0 if success else 1)
+    sys.exit(main())

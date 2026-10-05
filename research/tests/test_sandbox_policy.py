@@ -77,6 +77,10 @@ class Results(unittest.TestCase):
     def test_valid(self):
         self.assertEqual(read_sandbox_results(self.dir_with({"results.json": self.GOOD}))["tests_passed"], 10)
 
+    def test_utf8_bom_from_windows_powershell_is_accepted(self):
+        d = self.dir_with({"results.json": b"\xef\xbb\xbf" + json.dumps(self.GOOD).encode()})
+        self.assertEqual(read_sandbox_results(d)["tests_passed"], 10)
+
     def test_extra_files_rejected(self):
         with self.assertRaises(ValueError):
             read_sandbox_results(self.dir_with({"results.json": self.GOOD, "payload.exe": b"MZ"}))

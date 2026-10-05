@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.1] — 2026-10-06
+- Sandbox smoke test: exit code is now truthful (0 only after a real in-sandbox pass), probe strengthened (DNS, adapters, host-path invisibility, foreign profiles, drives), results written without BOM; `read_sandbox_results` also tolerates a UTF-8 BOM (PowerShell 5.1).
+- `.gitignore` blocks `*.key` / `*.pem`; CI live-network step is non-blocking.
+
 ## [0.3.0] — 2026-10-05 — Strategic risk remediation (R1–R7)
 
 - **R1** `LocalLLMReasoner`: local open-model adapter (loopback-only, fenced context, no tools, tier token caps) — ADR-001.
