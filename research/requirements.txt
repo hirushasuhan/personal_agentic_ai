@@ -1,0 +1,10 @@
+# Personal Agentic AI - Research Prototype dependencies
+# The prototype runs on the Python standard library alone (Python 3.8+; developed on 3.14):
+#   ctypes (Win32 APIs), socket/ssl/urllib (ingestion), html.parser, tracemalloc, hashlib (updater), unittest.
+#
+# OPTIONAL
+#   psutil        - fallback telemetry/RSS source where native readers are unavailable.
+#   cryptography  - ONLY for release SIGNING (sign_release.py, run on the offline signing machine) and an
+#                   extra cross-check test. The engine's runtime verifier is stdlib-only.
+# psutil>=5.9.0
+# cryptography>=42

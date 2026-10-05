@@ -1,0 +1,39 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock
+
+# C / C++ build artifacts
+*.obj
+*.exe
+*.o
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+build/
+bin/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python / tooling
+.pytest_cache/
+.mypy_cache/
+*.log

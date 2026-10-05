@@ -1,0 +1,3993 @@
+[
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": null,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 511.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 512,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 2047.9,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 2048,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-telemetry-unavailable"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": null
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 74
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 75
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 89
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 90
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 100
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "critical-memory",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 100,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 1500,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 4
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "low-battery"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "low-battery"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 4
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": true,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [],
+   "thread_pool_limit": 8
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "HIGH",
+   "max_context_bytes": 67108864,
+   "reasons": [
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 4
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 10
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": null,
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "COMPRESSED",
+   "max_context_bytes": 2097152,
+   "reasons": [
+    "memory-pressure",
+    "low-battery",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": true,
+    "percent": 10
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure"
+   ],
+   "thread_pool_limit": 2
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": null,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 1,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 2,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ },
+ {
+  "expected": {
+   "allow_speculation": false,
+   "compute_tier": "BALANCED",
+   "max_context_bytes": 16777216,
+   "reasons": [
+    "memory-pressure",
+    "cpu-saturated"
+   ],
+   "thread_pool_limit": 1
+  },
+  "input": {
+   "avail_ram_mb": 8000,
+   "battery": {
+    "on_ac": false,
+    "percent": 50
+   },
+   "cpu_cores": 8,
+   "cpu_load_pct": 95,
+   "memory_load_pct": 80
+  }
+ }
+]
