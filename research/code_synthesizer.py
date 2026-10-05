@@ -47,15 +47,19 @@ class CodeSynthesizer:
         else:
             out.append("  (No external premises grounded; evaluating from fundamental syntax rules)")
 
+        if premises:
+            grounding_status = f"Grounded on {len(premises)} premise(s) from external context."
+        else:
+            grounding_status = "UNGROUNDED (no external premises provided; query evaluated by structural heuristics only)."
+
         out += [
             "",
             "--- Deductive Synthesis ---",
             self._formulate_deduction(query, premises),
             "",
-            "--- Invariant Verification ---",
-            "  * Factual Grounding: Grounded against live premises.",
-            "  * Memory Model: Ephemeral registers allocated during deduction; zero persistent weights.",
-            "  * Safety: No hallucination detected; deduction strictly bounded by input context.",
+            "--- Status ---",
+            f"  * Factual Grounding: {grounding_status}",
+            "  * Note: Experimental symbolic heuristic prototype (work in progress).",
         ]
         return "\n".join(out)
 
@@ -114,10 +118,7 @@ class CodeSynthesizer:
             code.strip(),
             "```",
             "",
-            "--- Synthesis Guarantees ---",
-            "1. Verified AST grammar validity.",
-            "2. Proved zero forbidden syscalls / network exfiltration hooks.",
-            "3. Memory safety invariants respected.",
+            f"--- AST Guard Verification: {guard_status} ---",
         ]
         return "\n".join(out)
 

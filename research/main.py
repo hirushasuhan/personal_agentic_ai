@@ -35,7 +35,7 @@ BANNER = """
              PERSONAL AGENTIC AI (PAI) - RESEARCH LAB v0.2
     A Stateless, Hardware-Aware, Recursive Self-Improving Intelligence
 ========================================================================
-    [Pillar 1] Stateless Pure Reasoning Engine   (Native Neuro-Symbolic)
+    [Pillar 1] Stateless Pure Reasoning Engine   (Reasoner = STUB in Phase 1; ADR-001)
     [Pillar 2] Hardware Self-Awareness Daemon
     [Pillar 3] Direct Network Ingestion Pipeline (SSRF-guarded)
 ========================================================================
@@ -146,8 +146,8 @@ def main(argv=None) -> int:
     ap.add_argument("--transport", choices=["urllib", "raw"], default="urllib", help="HTTP transport (raw = experimental)")
     ap.add_argument("--iterations", type=int, default=8, help="benchmark iterations")
     ap.add_argument("--online", action="store_true", help="benchmark against the real network")
-    ap.add_argument("--reasoner", choices=["symbolic", "template", "local"], default="symbolic",
-                    help="reasoning engine: symbolic (PAI native), template (stub), local (OpenAI-compatible server)")
+    ap.add_argument("--reasoner", choices=["template", "symbolic", "local"], default="template",
+                    help="reasoning engine: template (default honest stub; ADR-001), symbolic (experimental research prototype), local (OpenAI-compatible server)")
     args = ap.parse_args(argv)
 
     telemetry = HardwareTelemetry()
@@ -163,10 +163,10 @@ def main(argv=None) -> int:
 
         if args.model_url or args.reasoner == "local":
             reasoner = LocalLLMReasoner(args.model_url or "http://127.0.0.1:11434/v1", args.model)
-        elif args.reasoner == "template":
-            reasoner = TemplateReasoner()
-        else:
+        elif args.reasoner == "symbolic":
             reasoner = NeuroSymbolicReasoner()
+        else:
+            reasoner = TemplateReasoner()
 
         return StatelessAgentCore(telemetry=telemetry, network=net, lang=args.lang, reasoner=reasoner)
 

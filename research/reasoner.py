@@ -77,11 +77,11 @@ class NeuroSymbolicReasoner:
     A stateless Neuro-Symbolic reasoning architecture:
       - Uses DAG / AST decomposition rather than massive neural weights
       - Bounded by HardwareBudget (concurrency, search depth, RAM limit)
-      - Synthesizes verified code with Tier-1 AST Guard validation
-      - Zero parameter footprint (runs in < 10 MB RAM)
+      - Synthesizes code checked against Tier-1 AST Guard
+      - Ephemeral buffer usage in kilobytes (process RSS is standard Python runtime ~21 MB)
     """
 
-    name = "NeuroSymbolicReasoner (PAI Native - Zero Weights)"
+    name = "NeuroSymbolicReasoner (experimental research prototype v0.1)"
 
     def __init__(self):
         from symbolic_core import SymbolicCore

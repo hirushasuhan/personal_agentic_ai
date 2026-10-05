@@ -70,7 +70,7 @@ class CodeSynthesizerTests(unittest.TestCase):
         res = self.synth.synthesize(IntentKind.EXPLAIN_CONCEPT, "Explain Rust", premises, "BALANCED")
         self.assertIn("P1: Premise A: Systems language", res)
         self.assertIn("P2: Premise B: Zero cost abstractions", res)
-        self.assertIn("Invariant Verification", res)
+        self.assertIn("Factual Grounding: Grounded on 2 premise(s)", res)
 
 
 class NeuroSymbolicReasonerIntegrationTests(unittest.TestCase):
