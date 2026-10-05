@@ -84,8 +84,8 @@ def stage(work_dir: str):
     input_dir, output_dir = os.path.join(work_dir, "input"), os.path.join(work_dir, "output")
     if os.path.exists(work_dir):
         shutil.rmtree(work_dir, ignore_errors=True)
-    os.makedirs(input_dir)
-    os.makedirs(output_dir)
+    os.makedirs(input_dir, exist_ok=True)
+    os.makedirs(output_dir, exist_ok=True)
     with open(os.path.join(input_dir, "probe.ps1"), "w", encoding="utf-8") as f:
         f.write(PROBE_PS1.replace("__HOST_WORK_DIR__", work_dir.replace("'", "''")))
     spec = SandboxSpec(input_dir, output_dir,

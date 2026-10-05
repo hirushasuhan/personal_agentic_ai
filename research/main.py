@@ -28,14 +28,14 @@ from hardware_telemetry import HardwareTelemetry, format_snapshot
 from local_knowledge import CompositeKnowledge, LocalKnowledge
 from network_pipeline import NetworkPipeline
 from outbound_policy import DEFAULT_ALLOWED_DOMAINS, OutboundPolicy
-from reasoner import LocalLLMReasoner
+from reasoner import LocalLLMReasoner, NeuroSymbolicReasoner, TemplateReasoner
 
 BANNER = """
 ========================================================================
              PERSONAL AGENTIC AI (PAI) - RESEARCH LAB v0.2
     A Stateless, Hardware-Aware, Recursive Self-Improving Intelligence
 ========================================================================
-    [Pillar 1] Stateless Pure Reasoning Engine   (Reasoner = STUB in Phase 1)
+    [Pillar 1] Stateless Pure Reasoning Engine   (Native Neuro-Symbolic)
     [Pillar 2] Hardware Self-Awareness Daemon
     [Pillar 3] Direct Network Ingestion Pipeline (SSRF-guarded)
 ========================================================================
@@ -146,6 +146,8 @@ def main(argv=None) -> int:
     ap.add_argument("--transport", choices=["urllib", "raw"], default="urllib", help="HTTP transport (raw = experimental)")
     ap.add_argument("--iterations", type=int, default=8, help="benchmark iterations")
     ap.add_argument("--online", action="store_true", help="benchmark against the real network")
+    ap.add_argument("--reasoner", choices=["symbolic", "template", "local"], default="symbolic",
+                    help="reasoning engine: symbolic (PAI native), template (stub), local (OpenAI-compatible server)")
     args = ap.parse_args(argv)
 
     telemetry = HardwareTelemetry()
@@ -158,7 +160,14 @@ def main(argv=None) -> int:
             net = NetworkPipeline(transport=args.transport, policy=policy)
             if args.knowledge_dir:
                 net = CompositeKnowledge([LocalKnowledge(args.knowledge_dir), net])
-        reasoner = LocalLLMReasoner(args.model_url, args.model) if args.model_url else None
+
+        if args.model_url or args.reasoner == "local":
+            reasoner = LocalLLMReasoner(args.model_url or "http://127.0.0.1:11434/v1", args.model)
+        elif args.reasoner == "template":
+            reasoner = TemplateReasoner()
+        else:
+            reasoner = NeuroSymbolicReasoner()
+
         return StatelessAgentCore(telemetry=telemetry, network=net, lang=args.lang, reasoner=reasoner)
 
     if args.telemetry:
