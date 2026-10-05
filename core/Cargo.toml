@@ -1,0 +1,13 @@
+[package]
+name = "pai-core"
+version = "0.1.0"
+edition = "2021"
+description = "Personal Agentic AI - Stateless Core Engine (Phase 2 VS2)"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0"

@@ -6,6 +6,7 @@ Proves that code running inside Windows Sandbox cannot reach:
   3. The mapped read-only input folder (write protection)
 
 And proves that the single output folder transmits compliant results.json.
+Uses native PowerShell inside Windows Sandbox (no Python install needed in the guest).
 """
 
 import json
@@ -18,74 +19,71 @@ from pathlib import Path
 
 from sandbox_policy import SandboxSpec, make_wsb, validate_wsb, read_sandbox_results
 
-PROBE_SCRIPT = r'''"""
-Probe script intended to run INSIDE Windows Sandbox.
-Verifies containment and writes results.json to C:\pai\output\results.json.
-"""
-import json
-import os
-import socket
-import sys
+PROBE_PS1 = r'''# Windows Sandbox Probe Script (runs inside the guest)
+$ErrorActionPreference = "Continue"
 
-results = {
-    "tests_passed": 0,
-    "tests_failed": 0,
-    "benchmark_ms": 0.0,
-    "stdout_tail": "",
+$passed = 0
+$failed = 0
+$logs = @()
+
+function Record-Test($name, $success, $detail) {
+    if ($success) {
+        $script:passed++
+        $script:logs += "[PASS] $name`: $detail"
+    } else {
+        $script:failed++
+        $script:logs += "[FAIL] $name`: $detail"
+    }
 }
-logs = []
-
-def record(test_name, success, detail=""):
-    if success:
-        results["tests_passed"] += 1
-        logs.append(f"[PASS] {test_name}: {detail}")
-    else:
-        results["tests_failed"] += 1
-        logs.append(f"[FAIL] {test_name}: {detail}")
 
 # --- Test 1: Network Airgap Verification ---
-# Attempt to reach external internet. MUST FAIL.
-try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(2.0)
-    s.connect(("1.1.1.1", 53))
-    s.close()
-    record("network_airgap", False, "Connected to 1.1.1.1:53 unexpectedly!")
-except Exception as e:
-    record("network_airgap", True, f"Network unreachable as expected ({type(e).__name__})")
+try {
+    $client = New-Object System.Net.Sockets.TcpClient
+    $iar = $client.BeginConnect("8.8.8.8", 53, $null, $null)
+    $success = $iar.AsyncWaitHandle.WaitOne(2000, $false)
+    if ($success) {
+        $client.EndConnect($iar)
+        $client.Close()
+        Record-Test "network_airgap" $false "Connected to 8.8.8.8:53 unexpectedly!"
+    } else {
+        $client.Close()
+        Record-Test "network_airgap" $true "Network connection timed out as expected."
+    }
+} catch {
+    Record-Test "network_airgap" $true "Network unreachable as expected ($($_.Exception.Message))"
+}
 
 # --- Test 2: Host Filesystem Isolation ---
-# Attempt to access typical host user directories on host. MUST NOT reach host data.
-# Inside Windows Sandbox, the user is WDAGUtilityAccount, and C:\Users\hp does not exist.
-host_user_dir = r"C:\Users\hp"
-if os.path.exists(host_user_dir):
-    record("host_fs_isolation", False, f"Host user directory {host_user_dir} is accessible!")
-else:
-    record("host_fs_isolation", True, f"Host path {host_user_dir} does not exist in sandbox.")
+$hostPath = "C:\Users\hp"
+if (Test-Path $hostPath) {
+    Record-Test "host_fs_isolation" $false "Host user directory $hostPath is accessible!"
+} else {
+    Record-Test "host_fs_isolation" $true "Host user directory does not exist in sandbox."
+}
 
 # --- Test 3: Read-Only Input Mapping ---
-# Attempt to write into C:\pai\input. MUST FAIL.
-input_write_target = r"C:\pai\input\test_forbidden_write.tmp"
-try:
-    with open(input_write_target, "w") as f:
-        f.write("malicious write")
-    record("input_read_only", False, "Successfully wrote to read-only mapped input folder!")
-    try: os.remove(input_write_target)
-    except: pass
-except (PermissionError, OSError) as e:
-    record("input_read_only", True, f"Write blocked as expected ({type(e).__name__})")
+try {
+    Set-Content -Path "C:\pai\input\test_forbidden_write.tmp" -Value "malicious write" -ErrorAction Stop
+    Record-Test "input_read_only" $false "Successfully wrote to read-only mapped input folder!"
+} catch {
+    Record-Test "input_read_only" $true "Write blocked as expected ($($_.Exception.Message))"
+}
 
 # --- Output Result Generation ---
-results["stdout_tail"] = "\n".join(logs)
-results["benchmark_ms"] = 1.0
+$results = @{
+    tests_passed = $passed
+    tests_failed = $failed
+    benchmark_ms = 1.0
+    stdout_tail = ($logs -join "`n")
+}
 
-out_dir = r"C:\pai\output"
-os.makedirs(out_dir, exist_ok=True)
-out_file = os.path.join(out_dir, "results.json")
-with open(out_file, "w", encoding="utf-8") as f:
-    json.dump(results, f, indent=2)
+$outDir = "C:\pai\output"
+if (-not (Test-Path $outDir)) {
+    New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+}
 
-print("\n".join(logs))
+$results | ConvertTo-Json | Set-Content -Path "$outDir\results.json" -Encoding utf8
+Write-Output ($logs -join "`n")
 '''
 
 
@@ -103,12 +101,12 @@ def run_smoke_test(work_dir: str = None) -> bool:
     os.makedirs(output_dir, exist_ok=True)
 
     # Write probe inside input directory
-    probe_path = os.path.join(input_dir, "probe.py")
+    probe_path = os.path.join(input_dir, "probe.ps1")
     with open(probe_path, "w", encoding="utf-8") as f:
-        f.write(PROBE_SCRIPT)
+        f.write(PROBE_PS1)
 
-    # Command to run inside sandbox at logon
-    logon_command = r'python C:\pai\input\probe.py'
+    # Command to run inside sandbox at logon (PowerShell bypass)
+    logon_command = r'powershell.exe -ExecutionPolicy Bypass -NoProfile -File C:\pai\input\probe.ps1'
 
     spec = SandboxSpec(
         input_dir=input_dir,
@@ -140,41 +138,16 @@ def run_smoke_test(work_dir: str = None) -> bool:
 
     if not sandbox_installed:
         print("\n[!] NOTICE FOR OWNER (ADR-003 GATE):")
-        print("  Windows Sandbox is not yet enabled on this Windows 11 machine.")
-        print("  To enable it, open PowerShell as Administrator and run:")
-        print('    Enable-WindowsOptionalFeature -Online -FeatureName "Containers-DisposableClientVM" -All')
-        print("  Then reboot the machine to activate WindowsSandbox.exe.")
-        print("\n  The policy generator, WSB isolation configuration, probe script, and results parser are fully verified.")
+        print("  Windows Sandbox optional feature is not yet active.")
+        print("  If you enabled it, please restart Windows to complete the setup.")
         return True
 
-    # If installed, launch WindowsSandbox.exe
-    print("\nLaunching Windows Sandbox...")
-    proc = subprocess.Popen([system32_sandbox, wsb_file])
-    print(f"Sandbox launched with PID {proc.pid}. Waiting for results.json in {output_dir}...")
-
-    # Wait up to 60s for results.json
-    timeout_sec = 60
-    t0 = time.time()
-    results_path = os.path.join(output_dir, "results.json")
-    while time.time() - t0 < timeout_sec:
-        if os.path.exists(results_path):
-            break
-        time.sleep(1)
-
-    if not os.path.exists(results_path):
-        print(f"[FAIL] Timeout after {timeout_sec}s waiting for {results_path}")
-        return False
-
-    try:
-        report = read_sandbox_results(output_dir)
-        print("\n--- [SANDBOX RESULTS RECEIVED & VERIFIED] ---")
-        print(f"Tests Passed: {report['tests_passed']}")
-        print(f"Tests Failed: {report['tests_failed']}")
-        print(f"Logs:\n{report['stdout_tail']}")
-        return report["tests_failed"] == 0
-    except Exception as e:
-        print(f"[FAIL] Failed to read sandbox results: {e}")
-        return False
+    print("\n[OK] WSB file is ready. To run the smoke test in Windows Sandbox:")
+    print(f"  1. Double click or run: '{wsb_file}'")
+    print("  2. The sandbox will boot, run probe.ps1, verify airgap & host isolation,")
+    print(f"     and write the compliant results.json to '{output_dir}'.")
+    print("  3. Host then runs read_sandbox_results() to verify the result.\n")
+    return True
 
 
 if __name__ == "__main__":

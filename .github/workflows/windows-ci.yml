@@ -1,0 +1,46 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: research
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          pip install cryptography
+
+      - name: Run Test Suite (140+ unit tests)
+        working-directory: research
+        run: |
+          python -m unittest discover -s tests -v
+
+      - name: Verify Telemetry
+        working-directory: research
+        run: |
+          python main.py --telemetry
+
+      - name: Verify Stateless Purge Benchmark
+        working-directory: research
+        run: |
+          python main.py --benchmark --iterations 8
+
+      - name: Verify Ingestion & Raw Transport
+        working-directory: research
+        run: |
+          python main.py --ask "Summarize" --topic "Rust (programming language)" --transport raw
