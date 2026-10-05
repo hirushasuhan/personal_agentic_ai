@@ -91,9 +91,28 @@ class NeuroSymbolicReasoner:
 
     def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
         intent = self.core.classify_intent(query)
-        premises = self.core.deduce_premises(context)
-        _graph = self.core.build_execution_graph(query, context, budget)
-        return self.synthesizer.synthesize(intent, query, premises, budget.compute_tier)
+        graph = self.core.build_execution_graph(query, context, budget, synthesizer=self.synthesizer)
+        try:
+            ctx, trace = graph.execute(budget)
+            if "step_5_grounding_audit" in ctx:
+                synth_out = ctx.get("step_4_synthesis", "")
+                grounding_rep = ctx.get("step_5_grounding_audit")
+                trace_summary = (
+                    f"\n\n--- Execution Trace (Audit Invariant I5) ---\n"
+                    f"  * Nodes Executed: {', '.join(trace.executed_nodes)} ({trace.node_count} steps)\n"
+                    f"  * Compute Tier: {trace.budget_tier} (Total time: {trace.total_time_ms:.2f} ms)\n"
+                    f"  * Grounding Audit: {grounding_rep.status}"
+                )
+                return synth_out + trace_summary
+            elif "step_4_synthesis" in ctx:
+                return ctx["step_4_synthesis"]
+            elif "step_3_synthesis" in ctx:
+                return ctx["step_3_synthesis"]
+            else:
+                premises = self.core.deduce_premises(context)
+                return self.synthesizer.synthesize(intent, query, premises, budget.compute_tier)
+        finally:
+            graph.purge_registers()
 
 
 # ---------------------------------------------------------------------------------------------

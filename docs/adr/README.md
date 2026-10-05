@@ -10,5 +10,6 @@ Each ADR answers one risk raised in `../PROJECT_REVIEW.md`. **Status "Accepted (
 | [004](ADR-004-language-scope.md) | R6 scope | Rust owns networking/engine; C++ limited to hardware; golden conformance vectors | Accepted (default) |
 | [005](ADR-005-release-trust.md) | R4 Constitution "ROM" | Externally signed releases + separate updater owning the Constitution hash | Accepted, prototyped |
 | [006](ADR-006-capabilities-and-taint.md) | R7 prompt injection | Deny-by-default capability broker with taint tracking | Accepted, prototyped |
+| [007](ADR-007-symbolic-reasoner.md) | R1 custom reasoning engine | Formal Evidence Atom DAG with dialectic conflict resolution and strict grounding | Accepted (Option B) |
 
 R3 (absolute-security claims) is handled by a policy and a test rather than an ADR: see `../THREAT_MODEL.md` §5 and `research/tests/test_claims.py`.

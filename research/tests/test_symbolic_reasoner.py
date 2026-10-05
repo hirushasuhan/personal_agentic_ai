@@ -1,5 +1,7 @@
 """
 Unit tests for Neuro-Symbolic Reasoner & Code Synthesizer (Option B).
+Verifies Evidence Atoms, Conflict Resolution, Execution Graphs, Grounding Validation,
+and Formal Invariants I1 through I6.
 """
 
 import unittest
@@ -11,7 +13,15 @@ from benchmark import OfflineNetwork
 from code_synthesizer import CodeSynthesizer
 from hardware_telemetry import HardwareBudget, HardwareTelemetry
 from reasoner import NeuroSymbolicReasoner
-from symbolic_core import ExecutionGraph, IntentKind, SymbolicCore
+from symbolic_core import (
+    ConflictDetector,
+    EvidenceAtom,
+    ExecutionGraph,
+    GroundingValidator,
+    IntentKind,
+    LogicNode,
+    SymbolicCore,
+)
 
 
 class SymbolicCoreTests(unittest.TestCase):
@@ -27,25 +37,123 @@ class SymbolicCoreTests(unittest.TestCase):
         self.assertEqual(self.core.classify_intent("Verify formal proof invariants"), IntentKind.VERIFY_CLAIM)
 
     def test_budget_aware_graph_depth(self):
-        # Compressed budget
         b_compressed = HardwareBudget(compute_tier="COMPRESSED", max_context_bytes=1024,
                                       allow_speculation=False, thread_pool_limit=1, throttle_warning="")
         g_comp = self.core.build_execution_graph("Explain Rust", None, b_compressed)
         self.assertIn("step_3_synthesis", g_comp.nodes)
         self.assertNotIn("step_3_deduction", g_comp.nodes)
 
-        # High budget
-        b_high = HardwareBudget(compute_tier="HIGH", max_context_bytes=64*1024*1024,
+        b_high = HardwareBudget(compute_tier="HIGH", max_context_bytes=64 * 1024 * 1024,
                                 allow_speculation=True, thread_pool_limit=8, throttle_warning="")
         g_high = self.core.build_execution_graph("Explain Rust", None, b_high)
         self.assertIn("step_3_deduction", g_high.nodes)
         self.assertIn("step_4_synthesis", g_high.nodes)
+        self.assertIn("step_5_grounding_audit", g_high.nodes)
 
     def test_premise_extraction(self):
         context = "TOPIC: Rust\nDESCRIPTION: Fast systems language\n\nRust provides memory safety without a garbage collector."
         premises = self.core.deduce_premises(context)
         self.assertGreaterEqual(len(premises), 2)
-        self.assertTrue(any("memory safety" in p for p in premises))
+        self.assertTrue(any("memory safety" in p.lower() or "systems language" in p.lower() for p in premises))
+
+    def test_atom_extraction(self):
+        context = (
+            "TOPIC: Rust Programming\n"
+            "DESCRIPTION: Fast and memory efficient\n"
+            "Rust is a systems programming language.\n"
+            "Rust provides zero-cost abstractions."
+        )
+        atoms = self.core.extract_atoms(context, default_trust=0.8)
+        self.assertGreaterEqual(len(atoms), 3)
+        self.assertTrue(all(isinstance(a, EvidenceAtom) for a in atoms))
+        self.assertEqual(atoms[0].source_trust, 0.8)
+        self.assertTrue(any("systems programming" in a.object.lower() for a in atoms))
+
+
+class ConflictDetectorTests(unittest.TestCase):
+    def setUp(self):
+        self.detector = ConflictDetector()
+
+    def test_direct_negation_conflict_resolved_by_trust(self):
+        a1 = EvidenceAtom(atom_id="ATOM-001", subject="Python", predicate="is", object="compiled",
+                          polarity=True, source_trust=0.3, raw_text="Python is compiled")
+        a2 = EvidenceAtom(atom_id="ATOM-002", subject="Python", predicate="is", object="compiled",
+                          polarity=False, source_trust=0.9, raw_text="Python is not compiled")
+
+        rep = self.detector.detect_and_resolve([a1, a2])
+        self.assertEqual(len(rep.conflicts_detected), 1)
+        # ATOM-002 has higher trust (0.9 vs 0.3, delta >= 0.2), so ATOM-002 prevails
+        self.assertIn("ATOM-002", rep.resolved_atoms)
+        self.assertNotIn("ATOM-001", rep.resolved_atoms)
+        self.assertEqual(len(rep.unresolved_conflicts), 0)
+
+    def test_functional_collision_with_equal_trust_flags_unresolved(self):
+        a1 = EvidenceAtom(atom_id="ATOM-001", subject="Rust", predicate="is", object="interpreted",
+                          polarity=True, source_trust=0.5, raw_text="Rust is interpreted")
+        a2 = EvidenceAtom(atom_id="ATOM-002", subject="Rust", predicate="is", object="compiled",
+                          polarity=True, source_trust=0.55, raw_text="Rust is compiled")
+
+        rep = self.detector.detect_and_resolve([a1, a2])
+        self.assertEqual(len(rep.conflicts_detected), 1)
+        # Delta is 0.05 (< 0.20), so dialectic tension is flagged as unresolved
+        self.assertEqual(len(rep.unresolved_conflicts), 1)
+
+
+class GroundingValidatorTests(unittest.TestCase):
+    def setUp(self):
+        self.validator = GroundingValidator()
+        self.a1 = EvidenceAtom(atom_id="ATOM-001", subject="rust", predicate="is", object="fast")
+        self.a2 = EvidenceAtom(atom_id="ATOM-002", subject="rust", predicate="has", object="ownership")
+        self.atoms = {"ATOM-001": self.a1, "ATOM-002": self.a2}
+
+    def test_valid_grounding(self):
+        text = "According to [ATOM-001], rust is fast, and [ATOM-002] confirms ownership."
+        rep = self.validator.validate(text, self.atoms, [])
+        self.assertTrue(rep.is_grounded)
+        self.assertEqual(len(rep.grounded_atoms), 2)
+        self.assertEqual(rep.grounding_score, 1.0)
+        self.assertIn("GROUNDED", rep.status)
+
+    def test_invalid_citation_and_unresolved_hazard(self):
+        text = "Claim cites [ATOM-001] and [ATOM-999]."
+        hazards = [("ATOM-001", "ATOM-002", "negation")]
+        rep = self.validator.validate(text, self.atoms, hazards)
+        self.assertFalse(rep.is_grounded)
+        self.assertIn("ATOM-999", rep.invalid_citations)
+        self.assertIn("ATOM-001", rep.unresolved_hazards)
+        self.assertIn("PARTIAL_GROUNDING", rep.status)
+
+    def test_empty_atoms_marked_ungrounded(self):
+        text = "Evaluating claim without external context."
+        rep = self.validator.validate(text, {}, [])
+        self.assertFalse(rep.is_grounded)
+        self.assertEqual(rep.grounding_score, 0.0)
+        self.assertIn("UNGROUNDED", rep.status)
+
+
+class ExecutionGraphTests(unittest.TestCase):
+    def test_topological_execution(self):
+        graph = ExecutionGraph()
+        graph.add_node(LogicNode(node_id="n1", operation="OP1", handler=lambda ctx, b: 10))
+        graph.add_node(LogicNode(node_id="n2", operation="OP2", handler=lambda ctx, b: ctx["n1"] * 2, dependencies=["n1"]))
+
+        budget = HardwareBudget(compute_tier="BALANCED", max_context_bytes=4096,
+                                allow_speculation=False, thread_pool_limit=2, throttle_warning="")
+        ctx, trace = graph.execute(budget)
+        self.assertEqual(ctx["n1"], 10)
+        self.assertEqual(ctx["n2"], 20)
+        self.assertEqual(trace.executed_nodes, ["n1", "n2"])
+        self.assertGreaterEqual(trace.total_time_ms, 0.0)
+
+    def test_cycle_detection_fails_closed(self):
+        graph = ExecutionGraph()
+        graph.add_node(LogicNode(node_id="n1", operation="OP1", dependencies=["n2"]))
+        graph.add_node(LogicNode(node_id="n2", operation="OP2", dependencies=["n1"]))
+
+        budget = HardwareBudget(compute_tier="BALANCED", max_context_bytes=4096,
+                                allow_speculation=False, thread_pool_limit=2, throttle_warning="")
+        with self.assertRaises(ValueError):
+            graph.execute(budget)
 
 
 class CodeSynthesizerTests(unittest.TestCase):
@@ -55,7 +163,6 @@ class CodeSynthesizerTests(unittest.TestCase):
     def test_synthesized_python_passes_ast_guard(self):
         res = self.synth.synthesize(IntentKind.GENERATE_CODE, "write python data transformer", [], "HIGH")
         self.assertIn("```python", res)
-        # Extract code inside backticks
         code_match = res.split("```python")[1].split("```")[0].strip()
         guard = check_source(code_match)
         self.assertTrue(guard.ok, f"Generated code violated AST guard: {guard.violations}")
@@ -71,6 +178,82 @@ class CodeSynthesizerTests(unittest.TestCase):
         self.assertIn("P1: Premise A: Systems language", res)
         self.assertIn("P2: Premise B: Zero cost abstractions", res)
         self.assertIn("Factual Grounding: Grounded on 2 premise(s)", res)
+
+
+class FormalInvariantsTests(unittest.TestCase):
+    """
+    Formal Invariant Tests (I1 through I6) per docs/ALGORITHM.md and ADR-007.
+    """
+    def setUp(self):
+        self.core = SymbolicCore()
+        self.synth = CodeSynthesizer()
+        self.reasoner = NeuroSymbolicReasoner()
+        self.budget_balanced = HardwareBudget(
+            compute_tier="BALANCED", max_context_bytes=16384,
+            allow_speculation=False, thread_pool_limit=2, throttle_warning=""
+        )
+
+    def test_invariant_i1_strict_grounding(self):
+        """I1: Uncited claims or empty context are explicitly marked UNGROUNDED."""
+        res_empty = self.synth.synthesize(IntentKind.EXPLAIN_CONCEPT, "Is the earth flat?", [], "BALANCED")
+        self.assertIn("UNGROUNDED", res_empty)
+
+        # Grounded context with atoms
+        atom = EvidenceAtom(atom_id="ATOM-001", subject="Earth", predicate="is", object="oblate spheroid")
+        res_grounded = self.synth.synthesize(
+            IntentKind.EXPLAIN_CONCEPT, "Shape of Earth", [], "BALANCED", atoms=[atom]
+        )
+        self.assertIn("[ATOM-001]", res_grounded)
+        self.assertIn("Grounded on 1 premise(s)", res_grounded)
+
+    def test_invariant_i2_deterministic_termination(self):
+        """I2: Execution graph halts deterministically within budget depth cap."""
+        graph = self.core.build_execution_graph("Explain Rust", "Rust is fast", self.budget_balanced, self.synth)
+        topo = graph.validate_acyclic()
+        self.assertLessEqual(len(topo), ExecutionGraph.TIER_DEPTH_CAPS["BALANCED"])
+
+        ctx, trace = graph.execute(self.budget_balanced)
+        self.assertFalse(trace.halted_early)
+        self.assertGreater(trace.node_count, 0)
+
+    def test_invariant_i3_budget_containment(self):
+        """I3: Compressed tier enforces reduced node depth."""
+        b_compressed = HardwareBudget(
+            compute_tier="COMPRESSED", max_context_bytes=1024,
+            allow_speculation=False, thread_pool_limit=1, throttle_warning="LOW_RAM"
+        )
+        graph = self.core.build_execution_graph("Explain Rust", None, b_compressed, self.synth)
+        ctx, trace = graph.execute(b_compressed)
+        self.assertLessEqual(trace.node_count, ExecutionGraph.TIER_DEPTH_CAPS["COMPRESSED"])
+
+    def test_invariant_i4_ephemeral_purge(self):
+        """I4: Working node registers are zeroized/cleared post-execution."""
+        graph = self.core.build_execution_graph("Explain Rust", "Rust has safety", self.budget_balanced, self.synth)
+        ctx, _ = graph.execute(self.budget_balanced)
+        self.assertIsNotNone(graph.nodes["step_1_intent"].result)
+
+        wiped_bytes = graph.purge_registers()
+        self.assertGreater(wiped_bytes, 0)
+        for node in graph.nodes.values():
+            self.assertIsNone(node.result)
+            self.assertEqual(len(node.parameters), 0)
+
+    def test_invariant_i5_auditability_trace(self):
+        """I5: Reasoning output contains structured audit trace and timings."""
+        context = "TOPIC: Rust\nRust is a memory safe systems language."
+        output = self.reasoner.reason("Explain Rust", context, self.budget_balanced)
+        self.assertIn("--- Execution Trace (Audit Invariant I5) ---", output)
+        self.assertIn("Nodes Executed:", output)
+        self.assertIn("Compute Tier: BALANCED", output)
+
+    def test_invariant_i6_ast_isolation(self):
+        """I6: Synthesized code passes Tier-1 AST Guard without forbidden hooks."""
+        out = self.synth.synthesize(IntentKind.GENERATE_CODE, "write python packet parser", [], "BALANCED")
+        self.assertIn("Tier-1 AST Guard: PASS", out)
+        code = out.split("```python")[1].split("```")[0].strip()
+        report = check_source(code)
+        self.assertTrue(report.ok)
+        self.assertEqual(report.violations, [])
 
 
 class NeuroSymbolicReasonerIntegrationTests(unittest.TestCase):

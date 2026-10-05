@@ -3,16 +3,16 @@ Program & Code Synthesizer (Neuro-Symbolic Reasoning Pillar)
 Part of Personal Agentic AI (PAI) - Custom Architecture from Scratch.
 
 Synthesizes idiomatic, safe, and verifiable code or structured logical solutions
-from intent specifications and premises, verified against the Tier-1 AST Guard.
+from intent specifications and evidence atoms, verified against the Tier-1 AST Guard.
 """
 
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ast_guard import check_source
-from symbolic_core import IntentKind, LogicNode
+from symbolic_core import EvidenceAtom, GroundingValidator, IntentKind
 
 
 class CodeSynthesizer:
@@ -21,41 +21,73 @@ class CodeSynthesizer:
     All synthesized Python code is validated against the Tier-1 AST Guard.
     """
 
-    def synthesize(self, intent: IntentKind, query: str, premises: List[str], tier: str) -> str:
+    def __init__(self):
+        self.grounding_validator = GroundingValidator()
+
+    def synthesize(
+        self,
+        intent: IntentKind,
+        query: str,
+        premises: List[str],
+        tier: str,
+        atoms: Optional[List[EvidenceAtom]] = None,
+        unresolved_conflicts: Optional[List[Tuple[str, str, str]]] = None
+    ) -> str:
         """Main dispatch to synthesize results according to intent."""
         if intent == IntentKind.GENERATE_CODE:
-            return self._synthesize_code(query, premises, tier)
+            return self._synthesize_code(query, premises, tier, atoms)
         elif intent == IntentKind.OPTIMIZE_ALGORITHM:
-            return self._synthesize_optimization(query, premises, tier)
+            return self._synthesize_optimization(query, premises, tier, atoms)
         elif intent == IntentKind.EXPLAIN_CONCEPT:
-            return self._synthesize_explanation(query, premises, tier)
+            return self._synthesize_explanation(query, premises, tier, atoms, unresolved_conflicts)
         elif intent == IntentKind.VERIFY_CLAIM:
-            return self._synthesize_verification(query, premises, tier)
+            return self._synthesize_verification(query, premises, tier, atoms, unresolved_conflicts)
         else:
-            return self._synthesize_general(query, premises, tier)
+            return self._synthesize_general(query, premises, tier, atoms, unresolved_conflicts)
 
-    def _synthesize_explanation(self, query: str, premises: List[str], tier: str) -> str:
+    def _synthesize_explanation(
+        self,
+        query: str,
+        premises: List[str],
+        tier: str,
+        atoms: Optional[List[EvidenceAtom]] = None,
+        unresolved_conflicts: Optional[List[Tuple[str, str, str]]] = None
+    ) -> str:
         out = [
             f"=== Neuro-Symbolic Logic Deduction [{tier} TIER] ===",
             f"Query: {query}",
             "",
             "--- Core Logical Premises (Extracted & Grounded) ---",
         ]
-        if premises:
+
+        if atoms:
+            for a in atoms:
+                out.append(f"  [{a.atom_id}] (trust={a.source_trust:.2f}): {a.subject} {a.predicate} {a.object}")
+        elif premises:
             for i, p in enumerate(premises, 1):
                 out.append(f"  P{i}: {p}")
         else:
             out.append("  (No external premises grounded; evaluating from fundamental syntax rules)")
 
-        if premises:
-            grounding_status = f"Grounded on {len(premises)} premise(s) from external context."
+        if unresolved_conflicts:
+            out.append("")
+            out.append("--- Dialectic Conflict Hazards Detected ---")
+            for a1, a2, reason in unresolved_conflicts:
+                out.append(f"  * Hazard: {a1} vs {a2} ({reason})")
+
+        deduction = self._formulate_deduction(query, premises, atoms)
+
+        # Grounding status determination
+        num_premises = len(atoms) if atoms is not None else len(premises)
+        if num_premises > 0:
+            grounding_status = f"Grounded on {num_premises} premise(s) from external context."
         else:
             grounding_status = "UNGROUNDED (no external premises provided; query evaluated by structural heuristics only)."
 
         out += [
             "",
             "--- Deductive Synthesis ---",
-            self._formulate_deduction(query, premises),
+            deduction,
             "",
             "--- Status ---",
             f"  * Factual Grounding: {grounding_status}",
@@ -63,7 +95,13 @@ class CodeSynthesizer:
         ]
         return "\n".join(out)
 
-    def _synthesize_code(self, query: str, premises: List[str], tier: str) -> str:
+    def _synthesize_code(
+        self,
+        query: str,
+        premises: List[str],
+        tier: str,
+        atoms: Optional[List[EvidenceAtom]] = None
+    ) -> str:
         lang = "rust" if "rust" in query.lower() else "python"
         target_name = self._extract_subject(query) or "solution"
         safe_name = re.sub(r"[^\w]", "_", target_name.lower()).strip("_") or "process_task"
@@ -122,7 +160,13 @@ class CodeSynthesizer:
         ]
         return "\n".join(out)
 
-    def _synthesize_optimization(self, query: str, premises: List[str], tier: str) -> str:
+    def _synthesize_optimization(
+        self,
+        query: str,
+        premises: List[str],
+        tier: str,
+        atoms: Optional[List[EvidenceAtom]] = None
+    ) -> str:
         out = [
             f"=== Neuro-Symbolic Algorithm Optimization [{tier} TIER] ===",
             f"Objective: {query}",
@@ -153,13 +197,44 @@ class CodeSynthesizer:
         ]
         return "\n".join(out)
 
-    def _synthesize_verification(self, query: str, premises: List[str], tier: str) -> str:
-        return self._synthesize_explanation(query, premises, tier)
+    def _synthesize_verification(
+        self,
+        query: str,
+        premises: List[str],
+        tier: str,
+        atoms: Optional[List[EvidenceAtom]] = None,
+        unresolved_conflicts: Optional[List[Tuple[str, str, str]]] = None
+    ) -> str:
+        return self._synthesize_explanation(query, premises, tier, atoms, unresolved_conflicts)
 
-    def _synthesize_general(self, query: str, premises: List[str], tier: str) -> str:
-        return self._synthesize_explanation(query, premises, tier)
+    def _synthesize_general(
+        self,
+        query: str,
+        premises: List[str],
+        tier: str,
+        atoms: Optional[List[EvidenceAtom]] = None,
+        unresolved_conflicts: Optional[List[Tuple[str, str, str]]] = None
+    ) -> str:
+        return self._synthesize_explanation(query, premises, tier, atoms, unresolved_conflicts)
 
-    def _formulate_deduction(self, query: str, premises: List[str]) -> str:
+    def _formulate_deduction(
+        self,
+        query: str,
+        premises: List[str],
+        atoms: Optional[List[EvidenceAtom]] = None
+    ) -> str:
+        if atoms:
+            a1 = atoms[0]
+            claim1 = f"[{a1.atom_id}] establishes that {a1.subject} {a1.predicate} {a1.object}"
+            claim2 = ""
+            if len(atoms) > 1:
+                a2 = atoms[1]
+                claim2 = f" Furthermore, [{a2.atom_id}] shows {a2.subject} {a2.predicate} {a2.object}."
+            return (
+                f"Based on established premises, {claim1}.{claim2} "
+                f"Therefore, the logical decomposition of '{query}' confirms these invariant properties."
+            )
+
         if not premises:
             return f"Analyzing query '{query}' through symbolic logic rules. Premise set empty; concluding with formal baseline definition."
 
