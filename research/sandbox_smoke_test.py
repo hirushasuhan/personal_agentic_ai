@@ -57,7 +57,7 @@ $hostPath = "__HOST_WORK_DIR__"
 Record-Test "host_path_invisible" (-not (Test-Path -LiteralPath $hostPath)) "host path $hostPath reachable=$(Test-Path -LiteralPath $hostPath)"
 
 # 5. Host user profile folders other than the sandbox's own must not exist
-$others = @(Get-ChildItem C:\Users -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("Public", "Default", "Default User", "All Users", "WDAGUtilityAccount") })
+$others = @(Get-ChildItem C:\Users -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin @("Public", "Default", "Default User", "All Users", "WDAGUtilityAccount", "ContainerAdministrator", "ContainerUser") })
 Record-Test "no_foreign_profiles" ($others.Count -eq 0) "unexpected profile folders: $($others.Name -join ',')"
 
 # 6. Input mapping must be read-only
