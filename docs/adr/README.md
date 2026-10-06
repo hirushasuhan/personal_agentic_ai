@@ -12,6 +12,6 @@ Each ADR answers one risk raised in `../PROJECT_REVIEW.md` (ADR-008/009 answer r
 | [006](ADR-006-capabilities-and-taint.md) | R7 prompt injection | Deny-by-default capability broker with taint tracking | Accepted, prototyped |
 | [007](ADR-007-symbolic-reasoner.md) | R1 custom reasoning engine | Formal Evidence Atom DAG with dialectic conflict resolution and strict grounding | Accepted (experimental track) |
 | [008](ADR-008-local-assistant-and-model-strategy.md) | R8–R12 local assistant, models, self-training | Own system (L1) + pluggable open-weights code brain (L2) + gated own-model fine-tuning (L3); promotion gate | Accepted (owner direction D6) |
-| [009](ADR-009-rust-toolchain-and-unsafe-boundary.md) | VS3 native telemetry | `unsafe` only in `win32.rs`; telemetry parity check; MSVC CI is the reference toolchain | Proposed |
+| [009](ADR-009-rust-toolchain-and-unsafe-boundary.md) | VS3 native telemetry | `unsafe` only in `win32.rs`; telemetry parity check; MSVC CI is the reference toolchain | Accepted (confirmed by owner) |
 
 R3 (absolute-security claims) is handled by a policy and a test rather than an ADR: see `../THREAT_MODEL.md` §5 and `research/tests/test_claims.py`.

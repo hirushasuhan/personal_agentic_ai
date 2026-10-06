@@ -1,6 +1,6 @@
 # ADR-009 — Rust toolchain targets and the `unsafe` boundary (slice VS3)
 
-**Status:** Proposed (needs owner confirmation) · **Date:** 2026-10-07
+**Status:** Accepted (confirmed by owner, 2026-10-07) · **Date:** 2026-10-07
 **Relates to:** ADR-004 (language scope and vertical slices)
 
 ## Context
@@ -8,7 +8,7 @@
 * VS3 replaces the Python telemetry readers with native Win32 calls (`GlobalMemoryStatusEx`, `GetSystemTimes`, `GetSystemPowerStatus`). FFI requires `unsafe`.
 * The owner's development machine uses `stable-x86_64-pc-windows-gnu` (WinLibs GCC linker); CI (`windows-latest`) uses `x86_64-pc-windows-msvc`.
 
-## Decision (proposed)
+## Decision
 1. **`unsafe` boundary:** `unsafe` is allowed only in `core/src/win32.rs` (and later one dedicated memory-protection module for `VirtualLock`/`zeroize`). Every `unsafe` block carries a `// SAFETY:` comment stating the invariant it relies on. All other modules keep `#![forbid(unsafe_code)]`-style enforcement (`#![deny(unsafe_code)]` at crate level with a single scoped `#[allow]` in `win32.rs`), and CI greps that no other file contains `unsafe`.
 2. **Win32 bindings:** use the `windows-sys` crate (no runtime, thin bindings), version pinned through `Cargo.lock`. Add `cargo audit` (or `cargo deny`) to CI before release builds.
 3. **Parity, not just policy:** the 200 tier vectors already prove the *policy*. A separate **telemetry parity check** compares the Rust readers with the Python readers on the same machine: available RAM within ±5 %, memory-load percentage within ±3 points, identical tier when both are given the same input numbers.

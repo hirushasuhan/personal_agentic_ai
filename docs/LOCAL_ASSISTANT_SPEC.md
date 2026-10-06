@@ -22,19 +22,63 @@ Out of scope for this spec: voice, desktop control (Phase 5), automatic weight u
 * Output is written only where the user says (`--out`); existing files are never overwritten (new names, diff shown).
 * Model server: requests set `keep_alive: 0` for sensitive runs so the prompt is not left resident in the model process (threat T13). To be verified in M1 by observing `ollama ps`; residual risk stays documented until in-process inference exists.
 
-## 3. Models (L2 "code brain")
-* Served by Ollama (or another OpenAI-compatible local server) on loopback; reached through `LocalLLMReasoner`.
-* Candidates: a small open-weights coder model plus the general model already measured (`llama3.2:3b`). **Check each model's licence before use.**
-* Each model has a model card in `research/model_profiles.json`: name, source, licence, SHA-256 of the blob, `host_delta_mb` (max of ≥ 5 cold runs), measured date and machine.
-* Fit rule (already implemented for the current models): `available_ram_mb >= host_delta_mb + 512`, evaluated **before** loading only (hysteresis).
+## 3. Models and the adaptive router (L2)
+
+### 3.1 Candidates (none adopted yet — every row needs measurement on the owner's laptop)
+| Model (Ollama tag) | Download | Context | Licence as reported by secondary sources | Notes / risks |
+|--------------------|----------|---------|------------------------------------------|----------------|
+| `llama3.2:1b`, `llama3.2:3b` | 1.5 / 2.6 GB | 128K | Llama community licence (custom) | **Measured** (RAM Δ ≈ 705 / 761 MB, ~3 s). Wrong facts and code observed. Check the licence before training on its outputs |
+| `qwen2.5-coder:1.5b` | ≈ 1 GB | 32K | Apache 2.0 | Cheap low-RAM fallback; code-specific |
+| `qwen2.5-coder:7b` | 4.7 GB | 32K | Apache 2.0 | Best coding candidate; may not fit the iGPU entirely (CPU spill). The 3B size has conflicting licence reports — avoid or confirm |
+| `qwen3.5:4b` (`2b` later; `9b` too heavy) | 3.3–4.0 GB | 256K | Apache 2.0 | General/analysis/agent-style; thinking mode; multimodal weights add size |
+| `gemma4:e2b` (`e4b` only if e2b fits) | 4.3–4.6 GB+ | 128K | Apache 2.0 (Google blog) | Multimodal, thinking mode; reported sizes vary by variant |
+
+Excluded for this hardware or licence reasons: `gpt-oss:20b` (≈ 14 GB), Devstral 24B, `qwen3-coder` 30B, `gemma4` 26B/31B; Llama-family, DeepSeek-Coder-V2, CodeGemma and Codestral for custom/restrictive licences (re-check if needed); DeepSeek-R1 distills (long reasoning output is slow here; the Llama-based 8B inherits the Llama licence).
+
+Licence statements above come from secondary articles. **Before a model is added, its official model card is read, the licence id and date recorded, and the weights' SHA-256 stored (T20).** Vendor benchmark numbers are not used for decisions; the frozen local evaluation is.
+
+Known gotchas to test explicitly: (1) *thinking* tokens can exhaust the tier token cap and produce a truncated, answer-less response — evaluate with thinking off and on; (2) multimodal weights increase size and RAM without benefit; (3) a model that spills from the iGPU to the CPU changes latency and RAM drastically — read `ollama ps`; (4) Sinhala/Singlish quality is unknown for every candidate.
+
+### 3.2 Model card (in `research/model_profiles.json`)
+`name`, `source_url`, `licence_id`, `licence_checked_on`, `sha256`, `download_gb`, `context_limit`, `offload` (`gpu` | `mixed` | `cpu`), `host_delta_mb` (max of ≥ 5 cold runs), `latency_cold_s`, `latency_warm_s`, `thinking` (`n/a` | `off_capable` | `always`), `compressed_ok` (safe in the COMPRESSED tier), `evals` (per task class: `code_pass1`, `docs_rubric`, `singlish_score`, `forecast_narration`; absent = unmeasured), `measured_on` (machine, date).
+
+### 3.3 Adaptive model router (design)
+Purpose: pick, **per task**, the model that fits the machine's current condition and is best for the task class, and explain why.
+
+**Inputs:** task class (set by the command, not guessed by a model: `code_generate`, `code_repair`, `analyze_code`, `docs_qa`, `forecast_narrate`, `general`), hardware budget (tier, `avail_ram_mb`, AC/battery, CPU load), model cards, user overrides (`--model`, `--offline`, `--prefer-fast`).
+
+**Algorithm (pure, deterministic function):**
+1. *Eligibility:* model is on the owner's allow-list, card is complete (licence checked, hash verified), endpoint reachable.
+2. *Fit:* already-loaded models pass (hysteresis); otherwise `avail_ram_mb >= host_delta_mb + 512`. In the COMPRESSED tier only `compressed_ok` models are eligible. On battery below the low-battery threshold, or with the CPU saturated, models with `offload != gpu` are excluded.
+3. *Score by task class:* rank eligible models by their measured `evals[task_class]`. A model with no measurement for the class is eligible only as a last resort and is labelled "unmeasured". No guessing from model size or reputation.
+4. *Tie-breaks:* lower `latency_warm_s`, then lower `host_delta_mb`.
+5. *Hysteresis:* keep the currently loaded model unless the best candidate beats it by a configured margin; a swap costs a cold load and RAM churn. One model resident at a time; unload the old one before loading the next.
+6. *Thinking policy:* off by default; on only for tasks marked hard, in the HIGH tier, for models that support it, with the token cap raised accordingly.
+7. *Fallback chain:* on error, timeout or `finish_reason == "length"` without an answer, try the next eligible model (at most 2 switches); if none remain, return the stub answer labelled as having no model. Never silently use a different model: the output states the model used and the reason codes.
+8. *Re-evaluation:* between tasks only, never in the middle of a generation.
+
+**Output:** `RouteDecision { model, thinking, reason_codes[], rejected[(model, reason)], budget_snapshot }`, printable with `--explain-route`, kept only in memory (stateless).
+
+**Security rules:** model names come only from the owner's allow-list; text from files, web pages or the model itself can never name or select a model (T21); the task class is derived from the command, not from the content.
+
+**Required tests / properties:** never selects a model that fails the fit rule or lacks a verified card; lowering available RAM never selects a model with a larger `host_delta_mb`; small RAM fluctuations do not cause swaps (hysteresis); identical inputs give identical decisions; golden decision vectors (so a Rust port can match); hostile content naming a model does not change the choice.
+
+**Adoption test:** the router is kept only if, on the frozen evaluation sets under several simulated RAM budgets, it succeeds on more tasks than the best single model within the same budget. Otherwise the best single model is used and the router is shelved.
+
+### 3.4 Fit rule (implemented for the measured models)
+`available_ram_mb >= host_delta_mb + 512`, evaluated before loading only.
 
 ## 4. Milestones and acceptance criteria
 
-### M1 — `pai code` (generate only)
-* Task → code via the coder model, nothing executed.
-* **Baseline:** the owner writes 20 small tasks with hidden unit tests; record pass@1 for each model and for the stub. This frozen set is the yardstick for all later claims.
-* Model card + `host_delta_mb` for the new model.
-* Tests: prompt fencing, token caps, RAM-fit refusal, malformed model output.
+### M1 — Model bake-off and `pai code` (generate only)
+* Pull and test, in this order: `qwen2.5-coder:7b`, `qwen3.5:4b`, then `gemma4:e2b`, with `qwen2.5-coder:1.5b` as the fallback and `llama3.2:3b` as the reference. Check free disk first (≈ 14 GB for all) and remove losers with `ollama rm`.
+* For each model record: licence check (official card) and SHA-256; `ollama ps` processor split; `host_delta_mb` (max of ≥ 5 cold runs); cold and warm latency; tokens per second; whether thinking can be switched off; whether output gets truncated at the tier token caps.
+* **Frozen evaluation sets (owner-written, versioned):** 20 small coding tasks with hidden unit tests (pass@1); 10 Singlish/Sinhala prompts scored 0–2 by hand; 10 document/analysis questions scored with a short rubric. Model outputs never edit these sets.
+* `pai code` generates code with the chosen model; nothing is executed yet.
+* Tests: prompt fencing, token caps, RAM-fit refusal, malformed model output, truncation labelling.
+
+### M1b — Adaptive router
+Implements §3.3 with its properties and golden decision vectors. Acceptance: the adoption test above; `--explain-route` output; hostile-content test passes.
 
 ### M2 — Verify loop
 Flow: plan → generate → Tier-1 AST guard → run tests in a restricted runner → on failure feed the error back (max 3 repairs) → write result.
@@ -68,7 +112,7 @@ Tests: request with a foreign `Origin` rejected; request without token rejected;
 Normalizer plus a small intent/tool-call router for Singlish commands. Data: text the owner explicitly provides (consent required); evaluation set frozen separately. Starts rule-based; a small trained classifier only if it beats the rules on the frozen set.
 
 ## 5. Evaluation discipline
-* Frozen, versioned evaluation sets (coding tasks, safety/injection cases, Singlish intents, forecast series). Training and tuning data never overlap them.
+* Frozen, versioned evaluation sets (coding tasks, document questions, safety/injection cases, Singlish prompts and intents, forecast series). Training and tuning data never overlap them.
 * Every claim in docs or UI about quality cites a measured number from these sets (claims policy, THREAT_MODEL §5).
 * Record machine, model, quantization and date with each result.
 

@@ -20,6 +20,7 @@
 
 ### Documentation and planning
 - New: ADR-008 (local assistant and model strategy, owner decision D6), ADR-009 (Rust toolchain and `unsafe` boundary, proposed), `docs/LOCAL_ASSISTANT_SPEC.md`.
+- Candidate models for the first bake-off and an adaptive, explainable model router specified (`LOCAL_ASSISTANT_SPEC.md` §3, ADR-008 amendment, T21); milestones M1/M1b added.
 - ROADMAP rewritten for the current state (Phase 1 complete, VS2 done, VS3 next, Track L local assistant, Track M gated own model, risks R8–R12).
 - THREAT_MODEL v0.2 (T15–T20); RSI spec gains a model/adapter promotion section; PROJECT_REVIEW gains a status and verification log.
 

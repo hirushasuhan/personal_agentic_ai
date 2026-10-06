@@ -21,11 +21,12 @@ gantt
     VS3 Rust Win32 telemetry + parity (ADR-009)       :active, 2026-10-08, 2026-11-05
     C++ GPU/NPU probe (VS4, reduced charter)          :2026-11-05, 2026-11-30
     section Track L: Local assistant (ADR-008)
-    M1 pai code (generate) + baseline                 :2026-10-08, 2026-10-22
-    M2 verify loop (restricted runner)                :2026-10-22, 2026-11-12
-    M3 pai analyze (folders)                          :2026-11-12, 2026-11-26
-    M4 docs, M5 forecast                              :2026-11-26, 2026-12-31
-    M6 local web interface, M7 Singlish front-end     :2027-01-05, 2027-02-15
+    M1 model bake-off + pai code (generate)           :2026-10-08, 2026-10-29
+    M1b adaptive model router                         :2026-10-29, 2026-11-12
+    M2 verify loop (restricted runner)                :2026-11-12, 2026-12-03
+    M3 pai analyze (folders)                          :2026-12-03, 2026-12-17
+    M4 docs, M5 forecast                              :2026-12-17, 2027-01-21
+    M6 local web interface, M7 Singlish front-end     :2027-01-21, 2027-03-04
     section Track M: Own model (gated research)
     Stage 0 tokenizer + tiny model (laptop)           :2026-11-15, 2027-01-15
     Self-play data engine + LoRA experiments          :2027-01-15, 2027-03-15
@@ -159,7 +160,8 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 
 | Milestone | Deliverable | Acceptance (summary) |
 |-----------|-------------|----------------------|
-| M1 | `pai code` generate-only with an open coder model; model card + `host_delta_mb` | pass@1 baseline on 20 owner-written tasks recorded; RAM-fit refusal tested |
+| M1 | Model bake-off (`qwen2.5-coder:7b`/`1.5b`, `qwen3.5:4b`, `gemma4:e2b` vs `llama3.2:3b`) + `pai code` generate-only | Model cards (licence checked, hash, `host_delta_mb`, latency); frozen sets: 20 coding tasks (pass@1), 10 Singlish prompts, 10 document questions; thinking/truncation behaviour recorded |
+| M1b | Adaptive model router (task class + machine condition → model, explained) | Properties and golden decision vectors pass; router beats the best single model under equal RAM budgets, otherwise shelved |
 | M2 | Verify loop with restricted runner | infinite loop, file-delete, network and fork-bomb tests all contained |
 | M3 | `pai analyze <folder>` | path-escape, injection-in-file, secret-file and size-cap tests pass |
 | M4 | `pai docs` (txt/md/csv; PDF after an ADR) | injection and oversize tests pass |

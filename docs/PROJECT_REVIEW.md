@@ -117,4 +117,4 @@ D6 (ADR-008): open-weights models allowed as the replaceable "code brain"; own m
 Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.97 on Linux); 25 hostile URL cases on both implementations behave as specified (NAT64, 6to4, Teredo, IPv4-compatible, SIIT, site-local, `192.88.99.0/24`, leading-zero ports rejected; real public addresses accepted).
 
 ### Not verified
-CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
+Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
