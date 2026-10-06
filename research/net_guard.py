@@ -6,10 +6,11 @@ Rules enforced before ANY connection:
   * ASCII only, no whitespace, control characters, or backslashes
   * scheme must be http or https (case-insensitive)
   * no credentials or '@' in authority
-  * port must be 80 or 443 (unless allow_private=True, used by tests)
+  * port must be canonical without leading zeros, allowed: 80 or 443 (unless allow_private=True, used by tests)
   * IP literal must be canonical (no octal, hex, dword, or partial dotted IPv4)
   * every IP must not match the Canonical Blocked CIDR table (RFC 1918, RFC 3927,
-    loopback, multicast, carrier-grade NAT, reserved, broadcast, ULA, link-local)
+    loopback, multicast, carrier-grade NAT, reserved, broadcast, ULA, link-local,
+    NAT64, 6to4, Teredo, SIIT, IPv4-compatible, site-local, 6to4 relay anycast)
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ BLOCKED_IPV4_NETWORKS = [
     ipaddress.ip_network("172.16.0.0/12"),      # RFC 1918 Private
     ipaddress.ip_network("192.0.0.0/24"),       # RFC 6890 IETF Protocol Assignments
     ipaddress.ip_network("192.0.2.0/24"),       # RFC 5737 TEST-NET-1
+    ipaddress.ip_network("192.88.99.0/24"),     # RFC 3068 / RFC 7526 6to4 Relay Anycast
     ipaddress.ip_network("192.168.0.0/16"),     # RFC 1918 Private
     ipaddress.ip_network("198.18.0.0/15"),      # RFC 2544 Benchmarking
     ipaddress.ip_network("198.51.100.0/24"),    # RFC 5737 TEST-NET-2
@@ -44,10 +46,17 @@ BLOCKED_IPV4_NETWORKS = [
 BLOCKED_IPV6_NETWORKS = [
     ipaddress.ip_network("::/128"),             # RFC 4291 Unspecified
     ipaddress.ip_network("::1/128"),            # RFC 4291 Loopback
+    ipaddress.ip_network("::/96"),              # RFC 4291 IPv4-compatible (deprecated)
+    ipaddress.ip_network("::ffff:0:0:0/96"),    # RFC 7915 SIIT IPv4-translated
+    ipaddress.ip_network("64:ff9b::/96"),       # RFC 6052 NAT64 Well-Known Prefix
+    ipaddress.ip_network("64:ff9b:1::/48"),     # RFC 8215 Local-Use IPv4/IPv6 Translation
     ipaddress.ip_network("100::/64"),           # RFC 6666 Discard-Only
+    ipaddress.ip_network("2001::/23"),          # RFC 7450 / RFC 4380 Teredo & Special
     ipaddress.ip_network("2001:db8::/32"),      # RFC 3849 Documentation
+    ipaddress.ip_network("2002::/16"),          # RFC 3056 6to4 Transition
     ipaddress.ip_network("fc00::/7"),           # RFC 4193 ULA / Private
     ipaddress.ip_network("fe80::/10"),          # RFC 4291 Link-Local
+    ipaddress.ip_network("fec0::/10"),          # RFC 3879 Deprecated Site-Local
     ipaddress.ip_network("ff00::/8"),           # RFC 4291 Multicast
 ]
 
@@ -59,9 +68,13 @@ class UrlRejected(ValueError):
 def is_ip_blocked(ip: Union[ipaddress.IPv4Address, ipaddress.IPv6Address]) -> bool:
     """Checks whether an IP address belongs to any blocked CIDR range."""
     if ip.version == 6:
+        # Check direct IPv6 blocked networks first (including transition/embedded prefixes)
+        if any(ip in net for net in BLOCKED_IPV6_NETWORKS):
+            return True
+        # If IPv4-mapped, also check against IPv4 blocked networks
         if ip.ipv4_mapped is not None:
             return is_ip_blocked(ip.ipv4_mapped)
-        return any(ip in net for net in BLOCKED_IPV6_NETWORKS)
+        return False
     return any(ip in net for net in BLOCKED_IPV4_NETWORKS)
 
 
@@ -133,10 +146,12 @@ def validate_url(url: str, allow_private: bool = False) -> Tuple[urllib.parse.Sp
     if not host_str:
         raise UrlRejected("URL has no host")
 
-    # Port validation
+    # Port validation: strictly canonical decimal digits in 1..=65535 without leading zeros
     if port_str is not None:
         if not port_str or not port_str.isdigit():
             raise UrlRejected("invalid port")
+        if len(port_str) > 1 and port_str.startswith("0"):
+            raise UrlRejected("non-canonical port: leading zeros not permitted")
         port = int(port_str)
         if port < 1 or port > 65535:
             raise UrlRejected(f"port {port} out of range")

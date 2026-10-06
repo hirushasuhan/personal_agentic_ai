@@ -85,6 +85,7 @@ pub static BLOCKED_IPV4_CIDRS: &[Ipv4Cidr] = &[
     Ipv4Cidr::new(172, 16, 0, 0, 12),      // 172.16.0.0/12 (RFC 1918 Private)
     Ipv4Cidr::new(192, 0, 0, 0, 24),       // 192.0.0.0/24 (RFC 6890 IETF Protocol Assignments)
     Ipv4Cidr::new(192, 0, 2, 0, 24),       // 192.0.2.0/24 (RFC 5737 TEST-NET-1)
+    Ipv4Cidr::new(192, 88, 99, 0, 24),     // 192.88.99.0/24 (RFC 3068 / RFC 7526 6to4 Anycast)
     Ipv4Cidr::new(192, 168, 0, 0, 16),     // 192.168.0.0/16 (RFC 1918 Private)
     Ipv4Cidr::new(198, 18, 0, 0, 15),      // 198.18.0.0/15 (RFC 2544 Benchmarking)
     Ipv4Cidr::new(198, 51, 100, 0, 24),    // 198.51.100.0/24 (RFC 5737 TEST-NET-2)
@@ -97,14 +98,29 @@ pub static BLOCKED_IPV4_CIDRS: &[Ipv4Cidr] = &[
 pub static BLOCKED_IPV6_CIDRS: &[Ipv6Cidr] = &[
     Ipv6Cidr::new([0; 16], 128), // ::/128 (Unspecified)
     Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 128), // ::1/128 (Loopback)
-    Ipv6Cidr::new([0x01, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 64), // 100::/64 (Discard-Only)
+    Ipv6Cidr::new([0; 16], 96),  // ::/96 (RFC 4291 IPv4-compatible)
+    Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0, 0, 0, 0, 0, 0], 96), // ::ffff:0:0:0/96 (RFC 7915 SIIT IPv4-translated)
+    Ipv6Cidr::new(
+        [0x00, 0x64, 0xff, 0x9b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        96,
+    ), // 64:ff9b::/96 (RFC 6052 NAT64 WKP)
+    Ipv6Cidr::new(
+        [
+            0x00, 0x64, 0xff, 0x9b, 0x00, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ],
+        48,
+    ), // 64:ff9b:1::/48 (RFC 8215 Local-Use IPv4/IPv6 Translation)
+    Ipv6Cidr::new([0x01, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 64), // 100::/64 (RFC 6666 Discard-Only)
+    Ipv6Cidr::new([0x20, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 23), // 2001::/23 (RFC 7450 / RFC 4380 Teredo & special)
     Ipv6Cidr::new(
         [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         32,
-    ), // 2001:db8::/32 (Documentation)
-    Ipv6Cidr::new([0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 7), // fc00::/7 (ULA / Private)
-    Ipv6Cidr::new([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 10), // fe80::/10 (Link-Local)
-    Ipv6Cidr::new([0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 8), // ff00::/8 (Multicast)
+    ), // 2001:db8::/32 (RFC 3849 Documentation)
+    Ipv6Cidr::new([0x20, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 16), // 2002::/16 (RFC 3056 6to4)
+    Ipv6Cidr::new([0xfc, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 7), // fc00::/7 (RFC 4193 ULA / Private)
+    Ipv6Cidr::new([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 10), // fe80::/10 (RFC 4291 Link-Local)
+    Ipv6Cidr::new([0xfe, 0xc0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 10), // fec0::/10 (RFC 3879 Deprecated Site-Local)
+    Ipv6Cidr::new([0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 8), // ff00::/8 (RFC 4291 Multicast)
 ];
 
 /// Checks whether an IP address belongs to any blocked CIDR range.
@@ -113,12 +129,16 @@ pub fn is_ip_blocked(ip: &IpAddr) -> bool {
         IpAddr::V4(v4) => BLOCKED_IPV4_CIDRS.iter().any(|cidr| cidr.contains(*v4)),
         IpAddr::V6(v6) => {
             let octets = v6.octets();
+            // Check direct IPv6 blocked CIDRs (including transition/embedded prefixes)
+            if BLOCKED_IPV6_CIDRS.iter().any(|cidr| cidr.contains(*v6)) {
+                return true;
+            }
             // IPv4-mapped IPv6 (::ffff:0:0/96) must be unwrapped and checked against IPv4 CIDRs
             if octets[0..10] == [0; 10] && octets[10] == 0xff && octets[11] == 0xff {
                 let v4 = Ipv4Addr::new(octets[12], octets[13], octets[14], octets[15]);
                 return is_ip_blocked(&IpAddr::V4(v4));
             }
-            BLOCKED_IPV6_CIDRS.iter().any(|cidr| cidr.contains(*v6))
+            false
         }
     }
 }
@@ -220,7 +240,7 @@ pub fn validate_url(url: &str) -> Result<ValidatedUrl, UrlRejection> {
         return Err(UrlRejection::new("empty host"));
     }
 
-    // Port validation
+    // Port validation: strictly canonical decimal digits in 1..=65535 without leading zeros
     let port: u16 = match port_opt {
         Some(p_str) => {
             if p_str.is_empty() {
@@ -228,6 +248,11 @@ pub fn validate_url(url: &str) -> Result<ValidatedUrl, UrlRejection> {
             }
             if !p_str.chars().all(|c| c.is_ascii_digit()) {
                 return Err(UrlRejection::new("invalid non-digit port"));
+            }
+            if p_str.len() > 1 && p_str.starts_with('0') {
+                return Err(UrlRejection::new(
+                    "non-canonical port: leading zeros not permitted",
+                ));
             }
             let p_val: u64 = match p_str.parse() {
                 Ok(v) => v,
@@ -352,6 +377,30 @@ mod tests {
         assert_eq!(evaluate_url("http://[::ffff:127.0.0.1]/"), "reject");
         assert_eq!(evaluate_url("http://[::ffff:10.0.0.1]/"), "reject");
         assert_eq!(evaluate_url("http://[::ffff:7f00:1]/"), "reject");
+    }
+
+    #[test]
+    fn test_transition_and_embedded_ipv6_blocked() {
+        // NAT64, 6to4, IPv4-compatible, SIIT, Teredo, deprecated site-local, 6to4 anycast
+        assert_eq!(evaluate_url("http://[64:ff9b::a00:1]/"), "reject");
+        assert_eq!(evaluate_url("http://[64:ff9b::7f00:1]/"), "reject");
+        assert_eq!(evaluate_url("http://[2002:7f00:1::]/"), "reject");
+        assert_eq!(evaluate_url("http://[2002:a00:1::]/"), "reject");
+        assert_eq!(evaluate_url("http://[::127.0.0.1]/"), "reject");
+        assert_eq!(evaluate_url("http://[::a00:1]/"), "reject");
+        assert_eq!(evaluate_url("http://[::ffff:0:7f00:1]/"), "reject");
+        assert_eq!(evaluate_url("http://[fec0::1]/"), "reject");
+        assert_eq!(evaluate_url("http://[2001::1]/"), "reject");
+        assert_eq!(evaluate_url("http://192.88.99.1/"), "reject");
+    }
+
+    #[test]
+    fn test_non_canonical_port_leading_zeros_rejected() {
+        assert_eq!(evaluate_url("http://8.8.8.8:080/"), "reject");
+        assert_eq!(evaluate_url("http://8.8.8.8:00080/"), "reject");
+        assert_eq!(evaluate_url("http://8.8.8.8:0443/"), "reject");
+        assert_eq!(evaluate_url("http://8.8.8.8:80/"), "accept");
+        assert_eq!(evaluate_url("https://8.8.8.8:443/"), "accept");
     }
 
     #[test]

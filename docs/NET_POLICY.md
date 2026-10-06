@@ -14,17 +14,17 @@ The URL parser enforces a strict subset of URIs:
    - Any other scheme (`file`, `ftp`, `gopher`, `javascript`, etc.) is rejected.
 3. **Authority**:
    - No credentials: the authority component must NOT contain `@` (blocks `user:pass@host` and confusion vectors like `host@internal`).
+   - Host syntax:
+     - **VS2 Rust Core (`pai-core`)**: Host literals only (IPv6 in brackets or canonical dotted-decimal IPv4). Post-resolution DNS validation is integrated in subsequent slices.
+     - **Python Research Prototype (`net_guard.py`)**: Supports both IP literals and domain names (resolving via DNS and enforcing post-resolution IP filtering for live Wikipedia ingestion).
    - Host must be non-empty.
-   - Host must be either:
-     - An IPv6 address enclosed in square brackets `[...]`.
-     - A canonical dotted-decimal IPv4 address (`d.d.d.d`).
    - Non-canonical IPv4 formats are strictly **rejected**:
      - Octal octets (e.g., `0177.0.0.1`, leading zeros in any octet).
      - Hexadecimal numbers (e.g., `0x7f.0.0.1`, `0x7f000001`).
      - Dword / 32-bit integer literals (e.g., `2130706433`).
      - Shortened dotted addresses (e.g., `127.1`).
    - Port:
-     - If explicit port is specified, it must be decimal digits in `1..=65535`.
+     - If explicit port is specified, it must be strictly **canonical decimal digits** in `1..=65535` without leading zeros (e.g. `80` and `443` are allowed; `080`, `00080`, `0443` are rejected).
      - Port 0 and ports > 65535 are rejected.
      - Default port is 80 (`http`) or 443 (`https`).
      - Allowed outbound ports are strictly `{80, 443}`. Any other port is rejected.
@@ -43,6 +43,7 @@ All IP addresses (whether literal in URL or resolved via DNS) are matched agains
 | `172.16.0.0/12` | RFC 1918 | Private-use network |
 | `192.0.0.0/24` | RFC 6890 | IETF Protocol Assignments |
 | `192.0.2.0/24` | RFC 5737 | Documentation (TEST-NET-1) |
+| `192.88.99.0/24` | RFC 3068 / RFC 7526 | 6to4 Relay Anycast (prohibited / deprecated) |
 | `192.168.0.0/16` | RFC 1918 | Private-use network |
 | `198.18.0.0/15` | RFC 2544 | Benchmark tests |
 | `198.51.100.0/24` | RFC 5737 | Documentation (TEST-NET-2) |
@@ -56,13 +57,20 @@ All IP addresses (whether literal in URL or resolved via DNS) are matched agains
 | :--- | :--- | :--- |
 | `::/128` | RFC 4291 | Unspecified address |
 | `::1/128` | RFC 4291 | Loopback address |
-| `::ffff:0:0/96` | RFC 4291 | IPv4-mapped IPv6 (*must unwrap to IPv4 and apply IPv4 blocked CIDRs*) |
+| `::/96` | RFC 4291 | IPv4-compatible IPv6 (deprecated) |
+| `::ffff:0:0:0/96` | RFC 7915 | SIIT IPv4-translated |
+| `::ffff:0:0/96` | RFC 4291 | IPv4-mapped IPv6 (*unwrapped to IPv4 and tested against IPv4 rules*) |
+| `64:ff9b::/96` | RFC 6052 | Well-Known Prefix for NAT64 (embeds IPv4) |
+| `64:ff9b:1::/48` | RFC 8215 | Local-Use IPv4/IPv6 Translation |
 | `100::/64` | RFC 6666 | Discard-Only Address Block |
+| `2001::/23` | RFC 7450 / RFC 4380 | IANA Special-Purpose (includes Teredo `2001::/32`) |
 | `2001:db8::/32` | RFC 3849 | Documentation |
+| `2002::/16` | RFC 3056 | 6to4 Transition (embeds IPv4) |
 | `fc00::/7` | RFC 4193 | Unique Local Address (ULA) |
 | `fe80::/10` | RFC 4291 | Link-Local Unicast |
+| `fec0::/10` | RFC 3879 | Deprecated Site-Local Unicast |
 | `ff00::/8` | RFC 4291 | Multicast |
 
 ## 4. Pre-Resolution vs Post-Resolution
-- **Pre-Resolution**: The URL parser inspects the authority and, if an IP literal is present, verifies that it is valid canonical notation and not in the blocked CIDR table.
+- **Pre-Resolution**: The URL parser inspects the authority and verifies canonical notation, absence of credentials, canonical port number in `{80, 443}`, and verifies any IP literal against the Blocked CIDR Table.
 - **Post-Resolution**: In subsequent phases, DNS queries resolve domain names to a list of `IpAddr`. The pure function `validate_resolved_ips(&[IpAddr])` verifies every returned IP against the Blocked CIDR Table. The connection must pin directly to the validated IP to prevent TOCTOU DNS rebinding.

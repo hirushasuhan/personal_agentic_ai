@@ -216,9 +216,17 @@ class LocalLLMReasoner:
             req = urllib.request.Request(ps_url)
             with self._opener.open(req, timeout=1.0) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
+                target = self.model.strip().lower()
+                if not target:
+                    return False
                 for m in data.get("models", []):
-                    name = m.get("name", "").lower()
-                    if self.model.lower() in name or name in self.model.lower():
+                    name = m.get("name")
+                    if not name or not isinstance(name, str):
+                        continue
+                    name = name.strip().lower()
+                    if not name:
+                        continue
+                    if target in name or name in target:
                         return True
         except Exception:
             pass

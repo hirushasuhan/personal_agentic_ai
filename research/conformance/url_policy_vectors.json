@@ -290,5 +290,61 @@
  {
   "expected": "reject",
   "url": "http://8.8.8.8/caf\u00e9"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[64:ff9b::a00:1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[64:ff9b::7f00:1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[64:ff9b:1::a00:1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[2002:7f00:1::]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[2002:a00:1::]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[::127.0.0.1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[::a00:1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[::ffff:0:7f00:1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[fec0::1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[2001::1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://192.88.99.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:080/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:00080/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:0443/"
  }
 ]

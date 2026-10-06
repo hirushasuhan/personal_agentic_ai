@@ -59,33 +59,27 @@ URL_CASES: List[Tuple[str, str]] = [
     ("http://8.8.8.8:22/", "reject"),
     ("http://8.8.8.8:99999/", "reject"),
 
-    # --- Phase 2 VS2 additions (>= 30 new edge case vectors) ---
-    # Non-canonical IPv4 formats (dword, hex, octal, partial dotted)
+    # --- Phase 2 VS2 additions (edge cases, non-canonical, and special CIDRs) ---
     ("http://2130706433/", "reject"),
     ("http://0x7f.1/", "reject"),
     ("http://127.1/", "reject"),
     ("http://0177.0.0.1/", "reject"),
     ("http://0x7f.0.0.1/", "reject"),
     ("http://1.2.3.04/", "reject"),
-    # IPv4-mapped IPv6 edge cases
     ("http://[::ffff:7f00:1]/", "reject"),
     ("http://[::ffff:8.8.8.8]/", "accept"),
-    # Authority confusion & credentials
     ("http://8.8.8.8@127.0.0.1/", "reject"),
     ("http://127.0.0.1#@8.8.8.8/", "reject"),
     ("http://8.8.8.8\\@127.0.0.1/", "reject"),
     ("http://8.8.8.8\\test", "reject"),
-    # Scheme casing
     ("HTTP://8.8.8.8/", "accept"),
     ("HTTPS://8.8.8.8/", "accept"),
     ("Http://1.1.1.1/", "accept"),
-    # Whitespace and control characters
     ("http://8.8.8.8\t/", "reject"),
     ("http://8.8.8.8\n/", "reject"),
     ("http://8.8.8.8\r/", "reject"),
     ("http:// 8.8.8.8/", "reject"),
     ("http://8.8.8.8 /", "reject"),
-    # Port variants
     ("http://8.8.8.8:0/", "reject"),
     ("http://8.8.8.8:65536/", "reject"),
     ("http://8.8.8.8:65535/", "reject"),
@@ -95,7 +89,6 @@ URL_CASES: List[Tuple[str, str]] = [
     ("https://8.8.8.8:443/", "accept"),
     ("http://8.8.8.8:443/", "accept"),
     ("https://8.8.8.8:80/", "accept"),
-    # Reserved & Special IPv4/IPv6 CIDRs
     ("http://255.255.255.255/", "reject"),
     ("http://192.0.2.1/", "reject"),
     ("http://198.51.100.1/", "reject"),
@@ -108,12 +101,26 @@ URL_CASES: List[Tuple[str, str]] = [
     ("http://[2001:db8::1]/", "reject"),
     ("http://[100::1]/", "reject"),
     ("http://[::]/", "reject"),
-    # Public IPs
     ("http://9.9.9.9/", "accept"),
     ("https://1.0.0.1/", "accept"),
     ("http://[2606:4700:4700::1001]/", "accept"),
-    # Non-ASCII rejection
     ("http://8.8.8.8/café", "reject"),
+
+    # --- Phase 2 Security Hardening: Transition & Embedded IPv6 Formats, 6to4 Anycast, Port Canonicalization ---
+    ("http://[64:ff9b::a00:1]/", "reject"),      # NAT64 embedding 10.0.0.1
+    ("http://[64:ff9b::7f00:1]/", "reject"),     # NAT64 embedding 127.0.0.1
+    ("http://[64:ff9b:1::a00:1]/", "reject"),   # Local NAT64
+    ("http://[2002:7f00:1::]/", "reject"),       # 6to4 embedding 127.0.0.1
+    ("http://[2002:a00:1::]/", "reject"),        # 6to4 embedding 10.0.0.1
+    ("http://[::127.0.0.1]/", "reject"),         # IPv4-compatible IPv6 (dotted)
+    ("http://[::a00:1]/", "reject"),             # IPv4-compatible IPv6 (hex)
+    ("http://[::ffff:0:7f00:1]/", "reject"),     # SIIT IPv4-translated
+    ("http://[fec0::1]/", "reject"),             # Deprecated site-local
+    ("http://[2001::1]/", "reject"),             # Teredo
+    ("http://192.88.99.1/", "reject"),           # 6to4 relay anycast (RFC 3068/7526)
+    ("http://8.8.8.8:080/", "reject"),           # Port leading zero
+    ("http://8.8.8.8:00080/", "reject"),         # Port leading zeros
+    ("http://8.8.8.8:0443/", "reject"),          # Port leading zero
 ]
 
 
@@ -206,34 +213,87 @@ def generate_fuzz_dataset(num_cases: int, seed: int) -> Dict[str, Any]:
             },
         })
 
-    # Fuzz URL cases
+    # Fuzz URL cases - specifically target embedded IPv4 in IPv6, transition mechanisms, port leading zeros
     url_cases = []
     sample_schemes = ["http", "https", "HTTP", "HTTPS", "ftp", "gopher", "file", "ws", ""]
-    sample_ips = [
+    
+    # Pool of IPv4 targets (blocked and public)
+    target_v4s = [
+        ("127.0.0.1", "7f00:1"),
+        ("10.0.0.1", "a00:1"),
+        ("172.16.0.1", "ac10:1"),
+        ("192.168.1.1", "c0a8:101"),
+        ("169.254.169.254", "a9fe:a9fe"),
+        ("100.64.0.1", "6440:1"),
+        ("192.0.2.1", "c000:201"),
+        ("198.51.100.1", "c633:6401"),
+        ("203.0.113.1", "cb00:7101"),
+        ("224.0.0.1", "e000:1"),
+        ("240.0.0.1", "f000:1"),
+        ("255.255.255.255", "ffff:ffff"),
+        ("8.8.8.8", "808:808"),
+        ("1.1.1.1", "101:101"),
+        ("9.9.9.9", "909:909"),
+    ]
+
+    base_ips = [
         "8.8.8.8", "1.1.1.1", "127.0.0.1", "10.0.0.1", "192.168.1.1", "169.254.169.254",
         "0.0.0.0", "224.0.0.1", "240.0.0.1", "255.255.255.255", "100.64.0.1",
-        "192.0.2.1", "198.51.100.1", "203.0.113.1",
-        "[::1]", "[::]", "[fe80::1]", "[fc00::1]", "[2606:4700:4700::1111]",
-        "[::ffff:127.0.0.1]", "[::ffff:8.8.8.8]", "[::ffff:7f00:1]",
+        "192.0.2.1", "198.51.100.1", "203.0.113.1", "192.88.99.1",
+        "[::1]", "[::]", "[fe80::1]", "[fc00::1]", "[fec0::1]", "[2001::1]",
+        "[2606:4700:4700::1111]", "[2001:db8::1]", "[100::1]",
         "2130706433", "0x7f.1", "127.1", "0177.0.0.1", "8.8.8.8:80",
     ]
-    sample_ports = ["", ":80", ":443", ":8080", ":0", ":65535", ":65536", ":invalid"]
+
+    sample_ports = ["", ":80", ":443", ":080", ":00080", ":0443", ":00443", ":8080", ":0", ":65535", ":65536", ":invalid"]
 
     for _ in range(num_cases - half):
         scheme = rng.choice(sample_schemes)
-        ip = rng.choice(sample_ips)
         port = rng.choice(sample_ports)
         path = rng.choice(["/", "/path", "/query?x=1", "/#frag", ""])
 
+        gen_kind = rng.random()
+        if gen_kind < 0.20:
+            # Targeted transition: NAT64 (WKP or local)
+            v4_dot, v4_hex = rng.choice(target_v4s)
+            prefix = "64:ff9b::" if rng.random() < 0.7 else "64:ff9b:1::"
+            hex_or_dot = v4_hex if rng.random() < 0.5 else v4_dot
+            ip = f"[{prefix}{hex_or_dot}]"
+        elif gen_kind < 0.35:
+            # Targeted transition: 6to4
+            v4_dot, v4_hex = rng.choice(target_v4s)
+            ip = f"[2002:{v4_hex}::]"
+        elif gen_kind < 0.45:
+            # Targeted transition: IPv4-compatible (::v4)
+            v4_dot, v4_hex = rng.choice(target_v4s)
+            ip = f"[::{v4_dot}]" if rng.random() < 0.5 else f"[::{v4_hex}]"
+        elif gen_kind < 0.55:
+            # Targeted transition: SIIT (::ffff:0:v4)
+            v4_dot, v4_hex = rng.choice(target_v4s)
+            ip = f"[::ffff:0:{v4_hex}]"
+        elif gen_kind < 0.65:
+            # Targeted transition: IPv4-mapped (::ffff:v4)
+            v4_dot, v4_hex = rng.choice(target_v4s)
+            ip = f"[::ffff:{v4_dot}]" if rng.random() < 0.5 else f"[::ffff:{v4_hex}]"
+        elif gen_kind < 0.72:
+            # Targeted: 6to4 anycast (192.88.99.x)
+            ip = f"192.88.99.{rng.randint(0, 255)}"
+        elif gen_kind < 0.78:
+            # Targeted: Site-local or Teredo
+            ip = f"[fec0::{rng.randint(1, 999)}]" if rng.random() < 0.5 else f"[2001::{rng.randint(1, 999)}]"
+        else:
+            # Standard pool
+            ip = rng.choice(base_ips)
+
         # Mutations: injection of @, backslash, control chars, whitespace
         mutation = rng.random()
-        if mutation < 0.1:
+        if mutation < 0.08:
             url = f"{scheme}://user:pw@{ip}{port}{path}" if scheme else f"user:pw@{ip}{port}{path}"
-        elif mutation < 0.2:
+        elif mutation < 0.15:
             url = f"{scheme}://{ip}{port}\\test"
-        elif mutation < 0.25:
+        elif mutation < 0.20:
             url = f"{scheme}://{ip}\t{port}{path}"
-        elif mutation < 0.3:
+        elif mutation < 0.25:
             url = f"{scheme}://{ip}\n{port}{path}"
         else:
             url = f"{scheme}://{ip}{port}{path}" if scheme else f"{ip}{port}{path}"
