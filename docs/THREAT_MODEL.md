@@ -33,6 +33,7 @@ Everything left of the Reasoner is attacker-controlled until proven otherwise. G
 | T11 | **Hostile sandbox output** — the one writable folder is attacker-controlled | Mitigated (policy as code) | `read_sandbox_results`: exactly one `results.json`, ≤ 256 KB, strict schema, no links/extra files (ADR-003) |
 | T12 | **Malicious, tampered or rolled-back update** | Mitigated (prototype) | Ed25519 signature over manifest, per-file SHA-256, anti-rollback counter, pinned Constitution hash, TOCTOU re-verification, atomic install (ADR-005). Residual: OS-level privilege separation is installer work; key custody procedure TBD |
 | T13 | **External inference process memory retention** — local model runner (Ollama / llama-server) keeps prompt and generated tokens resident in external process memory and VRAM across tasks | Partial / Residual risk | Python internal buffers zeroized post-task (T5); external model server memory retention bounded by server idle timeout (e.g. keep_alive). Residual: external process memory zeroization is outside the Python agent boundary |
+| T14 | **Trust-label injection** — context text claiming a higher-trust source (e.g. `[Source: local_knowledge]`) to influence conflict resolution | **Fixed** | Cryptographic per-task nonce (`secrets.token_hex(8)`); parser accepts `[[SRC:<nonce>:<source>]]` only; in-band text headers ignored; incoming `[[SRC:` tokens neutralized |
 
 ## 4. Out of Scope (for now)
 Physical access, a compromised OS or kernel, malicious hardware, side-channel attacks.

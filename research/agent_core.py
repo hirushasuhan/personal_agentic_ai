@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import gc
 import re
+import secrets
 import time
 import tracemalloc
 from dataclasses import dataclass, field
@@ -90,12 +91,17 @@ class StatelessAgentCore:
 
             # 2. INGEST
             topic = topic_hint or self._extract_topic_intent(query)
+            run_nonce = secrets.token_hex(8)
             if topic:
                 payload = self.network.query_live_knowledge(topic, max_bytes=budget.max_context_bytes, lang=self.lang)
-                sources.append(f"lookup '{topic}' ({self.lang}) -> {payload.source or 'no source'}")
+                src_name = payload.source or "web"
+                sources.append(f"lookup '{topic}' ({self.lang}) -> {src_name}")
                 if payload.is_valid:
                     buf = SecureBuffer(label="live_context", capacity=budget.max_context_bytes)
-                    buf.write(payload.sanitized_text)
+                    # Neutralize any attacker-injected [[SRC: tokens in incoming web text
+                    safe_text = payload.sanitized_text.replace("[[SRC:", "[ [SRC:")
+                    tagged_text = f"[[SRC:{run_nonce}:{src_name}]]\n{safe_text}"
+                    buf.write(tagged_text)
                     buffers["live_context"] = buf
                     tainted = True
                     payload.sanitized_text = ""  # drop the extra str reference immediately
@@ -105,7 +111,10 @@ class StatelessAgentCore:
 
             # 3. REASON
             context = buffers["live_context"].text() if "live_context" in buffers else None
-            output = self.reasoner.reason(query, context, budget)
+            try:
+                output = self.reasoner.reason(query, context, budget, nonce=run_nonce)
+            except TypeError:
+                output = self.reasoner.reason(query, context, budget)
             context = None
             peak += len(output.encode("utf-8"))
         except Exception as e:  # never let a failure skip the purge

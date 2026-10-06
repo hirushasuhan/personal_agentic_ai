@@ -346,15 +346,57 @@ class SymbolicCore:
         if "verify" in words or "proof" in words or "check" in words:
             return IntentKind.VERIFY_CLAIM
 
+# Single source of truth for source trust weights (Threat T14 defense)
+SOURCE_TRUST: Dict[str, float] = {
+    "local_knowledge": 0.95,
+    "wikipedia": 0.75,
+    "duckduckgo": 0.50,
+    "user": 0.90,
+    "untrusted": 0.50,
+}
+
+
+class SymbolicCore:
+    """
+    Symbolic deduction and logic extraction engine.
+    Extracts semantic EvidenceAtoms from raw or sanitized text and analyzes intent.
+    """
+
+    def __init__(self):
+        self.conflict_detector = ConflictDetector()
+        self.grounding_validator = GroundingValidator()
+
+    def classify_intent(self, query: str) -> IntentKind:
+        words = set(re.findall(r"\b\w+\b", query.lower()))
+
+        if any(w in words for w in {"code", "function", "implement", "script", "program", "write"}):
+            return IntentKind.GENERATE_CODE
+        if "optimize" in words or "profile" in words or "memory" in words or "perf" in words:
+            return IntentKind.OPTIMIZE_ALGORITHM
+        if "explain" in words or "what" in words or "how" in words or "describe" in words or "why" in words:
+            return IntentKind.EXPLAIN_CONCEPT
+        if "verify" in words or "proof" in words or "check" in words:
+            return IntentKind.VERIFY_CLAIM
+
         return IntentKind.GENERAL_QUERY
 
-    def extract_atoms(self, context: Optional[str], default_trust: float = 0.5) -> List[EvidenceAtom]:
-        """Extracts structured EvidenceAtoms from raw or fenced context."""
+    def extract_atoms(
+        self,
+        context: Optional[str],
+        default_trust: float = 0.50,
+        active_nonce: Optional[str] = None,
+        start_id: int = 1
+    ) -> List[EvidenceAtom]:
+        """
+        Extracts structured EvidenceAtoms from raw or fenced context.
+        Authentic source provenance requires active_nonce matching [[SRC:<nonce>:<source_id>]].
+        In-band [Source: ...] strings in text are treated strictly as untrusted prose (Threat T14).
+        """
         if not context:
             return []
 
         atoms: List[EvidenceAtom] = []
-        atom_counter = 1
+        atom_counter = start_id
 
         current_trust = default_trust
         lines = [line.strip() for line in context.split("\n") if line.strip()]
@@ -362,21 +404,22 @@ class SymbolicCore:
             if line.startswith("<<") or line.startswith(">>"):
                 continue
 
-            # Check for provenance source header in context stream
-            line_low = line.lower()
-            if line_low.startswith("[source:") or line_low.startswith("source:"):
-                if "local" in line_low:
-                    current_trust = 0.95
-                elif "wikipedia" in line_low:
-                    current_trust = 0.75
-                elif "duckduckgo" in line_low or "ddg" in line_low:
-                    current_trust = 0.50
-                elif "user" in line_low:
-                    current_trust = 0.90
+            # Nonce-authenticated pipeline provenance header check (Threat T14 mitigation)
+            if active_nonce and line.startswith(f"[[SRC:{active_nonce}:"):
+                m = re.match(rf"^\[\[SRC:{re.escape(active_nonce)}:([a-zA-Z0-9_-]+)\]\]$", line)
+                if m:
+                    src_id = m.group(1).lower()
+                    current_trust = SOURCE_TRUST.get(src_id, default_trust)
+                    continue
+
+            # Skip bracketed metadata lines (e.g. [Source: ...], [citation needed])
+            if line.startswith("[") and line.endswith("]"):
                 continue
 
+            # In-band text claims like "[Source: local_knowledge]" are UNTRUSTED and NEVER parsed as headers.
+
             # Tagged property lines: e.g. "TOPIC: Rust", "DESCRIPTION: Fast systems language"
-            if ":" in line and not line.startswith("http"):
+            if ":" in line and not line.startswith("http") and not line.startswith("["):
                 parts = line.split(":", 1)
                 tag, val = parts[0].strip(), parts[1].strip()
                 if tag.upper() in {"TOPIC", "DESCRIPTION", "SUMMARY", "DETAILS", "PROPERTY", "AUTHOR", "VERSION"}:
@@ -478,7 +521,8 @@ class SymbolicCore:
         query: str,
         context: Optional[str],
         budget: HardwareBudget,
-        synthesizer: Optional[Any] = None
+        synthesizer: Optional[Any] = None,
+        active_nonce: Optional[str] = None
     ) -> ExecutionGraph:
         """
         Builds an executable DAG of logical deduction steps bounded by budget.
@@ -500,7 +544,7 @@ class SymbolicCore:
 
         # Node 2: Extract Evidence Atoms
         def handle_atoms(ctx: Dict[str, Any], b: HardwareBudget) -> List[EvidenceAtom]:
-            return self.extract_atoms(context)
+            return self.extract_atoms(context, active_nonce=active_nonce)
 
         graph.add_node(LogicNode(
             node_id="step_2_premises",

@@ -33,12 +33,10 @@ Where:
 * **`object` ($O$, str)**: The target entity, value, or attribute.
 * **`polarity` ($\text{bool}$)**: `True` if positive assertion ($S \text{ has } P(O)$); `False` if negated assertion ($\neg [S \text{ has } P(O)]$).
 * **`source_trust` ($\tau \in [0.0, 1.0]$)**: Trust weight assigned to the originating data stream.
-  * In prototype implementation, source trust is extracted from context stream headers:
-    * `[Source: local_knowledge]`: $\tau = 0.95$
-    * `[Source: wikipedia]`: $\tau = 0.75$
-    * `[Source: duckduckgo]`: $\tau = 0.50$
-    * `[User Instruction]`: $\tau = 0.90$
-    * Default unannotated context: $\tau = 0.85$ (baseline parameter)
+  * In prototype implementation, source trust is authenticated via out-of-band ephemeral nonces to prevent spoofing (Threat T14):
+    * Central mapping table: `SOURCE_TRUST = {"local_knowledge": 0.95, "wikipedia": 0.75, "duckduckgo": 0.50, "user": 0.90, "untrusted": 0.50}`.
+    * The pipeline inserts `[[SRC:<nonce>:<source_id>]]` into the verified buffer, neutralizing any existing `[[SRC:` tokens.
+    * The parser strictly requires the active per-run nonce; in-band text claims like `[Source: local_knowledge]` inside scraped web prose are ignored as untrusted body text.
 * **`timestamp` ($t$, float/ISO-8601)**: Ingestion timestamp for freshness evaluation.
 * **`raw_text` (str)**: Verbatim context snippet from which the atom was parsed.
 

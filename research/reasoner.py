@@ -36,7 +36,7 @@ def fence(context: str) -> str:
 class Reasoner(Protocol):
     name: str
 
-    def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
+    def reason(self, query: str, context: Optional[str], budget: HardwareBudget, nonce: Optional[str] = None) -> str:
         """`context` is verified-but-untrusted external text (or None). Must not execute it."""
         ...
 
@@ -46,7 +46,7 @@ class TemplateReasoner:
 
     name = "TemplateReasoner (stub - no inference)"
 
-    def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
+    def reason(self, query: str, context: Optional[str], budget: HardwareBudget, nonce: Optional[str] = None) -> str:
         lines = [
             f"=== Personal Agentic AI Synthesis [{budget.compute_tier} COMPUTE TIER] ===",
             f"Task: {query}",
@@ -89,9 +89,9 @@ class NeuroSymbolicReasoner:
         self.core = SymbolicCore()
         self.synthesizer = CodeSynthesizer()
 
-    def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
+    def reason(self, query: str, context: Optional[str], budget: HardwareBudget, nonce: Optional[str] = None) -> str:
         intent = self.core.classify_intent(query)
-        graph = self.core.build_execution_graph(query, context, budget, synthesizer=self.synthesizer)
+        graph = self.core.build_execution_graph(query, context, budget, synthesizer=self.synthesizer, active_nonce=nonce)
         try:
             ctx, trace = graph.execute(budget)
             if "step_5_grounding_audit" in ctx:
@@ -185,7 +185,7 @@ class LocalLLMReasoner:
             return 1500
         return 2000
 
-    def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
+    def reason(self, query: str, context: Optional[str], budget: HardwareBudget, nonce: Optional[str] = None) -> str:
         # Model RAM fit check (Decision D1): Available RAM >= Model RAM + Headroom
         model_req_mb = self._estimate_model_ram_mb()
         headroom_mb = 1024  # 1 GB host headroom to avoid thrashing/freezing
@@ -201,7 +201,11 @@ class LocalLLMReasoner:
                 f"insufficient RAM headroom: model '{self.model}' requires >= {model_req_mb} MB, but system is in COMPRESSED tier"
             )
 
-        user = f"Task: {query}\n\nContext:\n" + (fence(context) if context else "(none)")
+        clean_context = context
+        if clean_context and nonce and f"[[SRC:{nonce}:" in clean_context:
+            clean_context = re.sub(rf"^\[\[SRC:{re.escape(nonce)}:[^\]]+\]\]\n?", "", clean_context)
+
+        user = f"Task: {query}\n\nContext:\n" + (fence(clean_context) if clean_context else "(none)")
         max_tokens = _TOKENS_BY_TIER.get(budget.compute_tier, 256)
         body = {
             "model": self.model,
