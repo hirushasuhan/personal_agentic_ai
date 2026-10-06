@@ -2,7 +2,7 @@
 
 This roadmap outlines the systematic development of the **Personal Agentic AI (PAI)** from an agile Python research prototype to a fully autonomous, recursive self-improving native intelligence daemon.
 
-_Last reviewed: 2026-10-05, second pass (risks R1–R7 remediated — see [PROJECT_REVIEW.md](PROJECT_REVIEW.md) §4.1 and the [ADRs](adr/README.md))._
+_Last reviewed: 2026-10-07. Phase 1 gate closed; Phase 2 slice VS2 (Rust policy conformance) complete and hardened; local assistant and gated own-model tracks added (ADR-008). Risks R1–R7 remediated, R8–R12 opened — see [PROJECT_REVIEW.md](PROJECT_REVIEW.md) and the [ADRs](adr/README.md)._
 
 ---
 
@@ -10,31 +10,35 @@ _Last reviewed: 2026-10-05, second pass (risks R1–R7 remediated — see [PROJE
 
 ```mermaid
 gantt
-    title Personal Agentic AI Development Roadmap
+    title Personal Agentic AI Development Roadmap (dates after 2026-10-07 are planning estimates)
     dateFormat  YYYY-MM-DD
     section Phase 1: Research Prototype
-    Python Agentic Loop & Telemetry (done)   :done, 2026-10-01, 2026-10-05
-    Review, hardening & risk remediation (done) :done, 2026-10-05, 2026-10-05
-    Windows validation & exit gate           :active, 2026-10-06, 2026-10-20
-    section Phase 2: Hardware Daemon
-    Win32/C++ Hardware Telemetry Daemon      :2026-10-21, 2026-11-10
-    Network spike: Rust baseline vs C++ (ADR-004) :2026-11-01, 2026-11-15
-    section Phase 3: Rust Core Engine
-    Reasoner ADR-001 confirmed + model chosen :milestone, 2026-11-10, 0d
-    VS2 Rust conformance CLI -> VS3 full cycle :2026-11-15, 2026-12-15
-    Cross-Language IPC & FFI Bindings        :2026-12-01, 2026-12-30
+    Python agentic loop, telemetry, hardening (done)  :done, 2026-10-01, 2026-10-05
+    Risk remediation R1-R7 (done)                     :done, 2026-10-05, 2026-10-06
+    Exit gate: sandbox, local model, CI, signing (done) :done, 2026-10-06, 2026-10-07
+    section Phase 2: Native layers
+    VS2 Rust tier + URL policy conformance (done)     :done, 2026-10-06, 2026-10-07
+    VS3 Rust Win32 telemetry + parity (ADR-009)       :active, 2026-10-08, 2026-11-05
+    C++ GPU/NPU probe (VS4, reduced charter)          :2026-11-05, 2026-11-30
+    section Track L: Local assistant (ADR-008)
+    M1 pai code (generate) + baseline                 :2026-10-08, 2026-10-22
+    M2 verify loop (restricted runner)                :2026-10-22, 2026-11-12
+    M3 pai analyze (folders)                          :2026-11-12, 2026-11-26
+    M4 docs, M5 forecast                              :2026-11-26, 2026-12-31
+    M6 local web interface, M7 Singlish front-end     :2027-01-05, 2027-02-15
+    section Track M: Own model (gated research)
+    Stage 0 tokenizer + tiny model (laptop)           :2026-11-15, 2027-01-15
+    Self-play data engine + LoRA experiments          :2027-01-15, 2027-03-15
     section Phase 4: Sandboxed RSI
-    Windows Sandbox smoke test (ADR-003)     :milestone, 2026-12-15, 0d
-    Sandbox launch + result collection       :2027-01-01, 2027-02-01
-    Formal Verification & Auditor AI         :2027-01-15, 2027-02-15
-    Signed Hot-Swap Engine                   :2027-02-01, 2027-03-01
-    section Phase 5: Autonomous Assistant
-    Native OS Desktop Control & Voice        :2027-03-01, 2027-04-15
+    Sandbox launch + result collection                :2027-02-01, 2027-03-01
+    Signed hot-swap engine (Rust)                     :2027-03-01, 2027-04-01
+    section Phase 5: Autonomous assistant
+    OS control and voice                              :2027-04-01, 2027-06-01
 ```
 
 ---
 
-## 📍 Phase 1: Python Research Prototype & Verification Lab (CURRENT — implementation complete, exit gate pending)
+## 📍 Phase 1: Python Research Prototype & Verification Lab (COMPLETE — exit gate closed 2026-10-07)
 **Objective**: Build a working, testable prototype in Python to validate the 3-pillar concepts and the safety ideas before committing them to native compiled languages.
 
 ### Deliverables
@@ -50,7 +54,7 @@ gantt
 - [x] `research/ast_guard.py` — RSI Tier-1 static gate prototype.
 - [x] `research/benchmark.py` — purge benchmark that can actually fail.
 - [x] `research/main.py` — interactive CLI + scriptable flags.
-- [x] `research/tests/` — 140 unit tests (stdlib `unittest`).
+- [x] `research/tests/` — 170 unit tests at 2026-10-07 (stdlib `unittest`; 5 skipped on Windows).
 - [x] Docs aligned with code; `THREAT_MODEL.md`, `PROJECT_REVIEW.md` added.
 - [x] **Risk remediation (second pass)** — each risk has an ADR and tested code:
   - R1 `reasoner.py::LocalLLMReasoner` (ADR-001) · R2 `outbound_policy.py`, `local_knowledge.py` (ADR-002) · R3 claims lint `tests/test_claims.py`
@@ -59,7 +63,7 @@ gantt
 
 ### 🚦 Phase 1 Exit Criteria (gate to Phase 2)
 All must be true before Phase 2 starts:
-- [x] `python -m unittest discover -s tests` is green **on the Windows development machine** (163 tests passed).
+- [x] `python -m unittest discover -s tests` is green **on the Windows development machine** (170 tests at the 2026-10-07 check).
 - [x] Live ingestion verified on Windows: `main.py --ask "Explain Rust ownership"` and `--lang si`, with both `--transport urllib` and `--transport raw`.
 - [x] `main.py --benchmark` passes on Windows; RSS trend recorded in `PROJECT_REVIEW.md`.
 - [x] Telemetry JSON schema v1 and the tier-policy table are frozen (they become the C++ daemon's conformance tests).
@@ -75,14 +79,16 @@ All must be true before Phase 2 starts:
 
 ---
 
-## 📍 Phase 2: C / C++ Hardware Awareness Daemon (+ network spike)
+## 📍 Phase 2: Native layers — Rust policy core (VS2 done), Win32 telemetry (VS3), C++ probe (VS4)
+_Status 2026-10-07: the Rust slice VS2 was completed first (see Phase 3 section); the C++ daemon below has not been started and is now sequenced after VS3 (ADR-004, ADR-009)._
+
 **Objective**: Native low-level Windows daemon for hardware telemetry (reduced C++ charter, ADR-004) and a time-boxed spike to confirm Rust as the network layer.
 
 ### Deliverables
 - **Hardware Telemetry Daemon (`hardware/telemetry/`)**: Win32 (`GlobalMemoryStatusEx`, `GetSystemTimes`, `GetSystemPowerStatus`), PDH counters, NVIDIA NVML/CUDA/DXGI for GPU/NPU. Publishes **telemetry schema v1** (`ARCHITECTURE.md` §3.1) over `\\.\pipe\pai_telemetry` with an ACL limited to the current user.
 - **Conformance**: the daemon must pass `research/conformance/tier_policy_vectors.json` (200 vectors) — a C++ runner for the golden files is part of the deliverable.
 - **Memory-protection hooks**: `VirtualLock` for working buffers, disable Windows Error Reporting dumps for the engine process (threat T5).
-- **Network spike (2 weeks, decision gate)**: Rust baseline (`hyper`/`rustls`) vs a minimal C++ Winsock/IOCP+TLS client on 100 sequential + 8 concurrent fetches. C++ is adopted only if it is ≥ 20 % better on p95 latency **and** ≥ 30 % lower on peak RSS **and** passes all 28 URL-policy vectors including IP pinning (ADR-004). Otherwise networking stays in Rust and the C++ network engine is dropped.
+- **Network spike (2 weeks, decision gate)**: Rust baseline (`hyper`/`rustls`) vs a minimal C++ Winsock/IOCP+TLS client on 100 sequential + 8 concurrent fetches. C++ is adopted only if it is ≥ 20 % better on p95 latency **and** ≥ 30 % lower on peak RSS **and** passes every URL-policy vector (87 at 2026-10-07) including IP pinning (ADR-004). Otherwise networking stays in Rust and the C++ network engine is dropped.
 
 ---
 
@@ -97,16 +103,19 @@ Adopt a local open-weights model behind the `Reasoner` interface (Option A); a c
   - Pure Rust implementations of resource tier policy (`src/tier.rs`) and outbound URL policy with Canonical Blocked CIDRs (`src/url_policy.rs`).
   - Zero unsafe code blocks (`unsafe = 0`), zero network crate dependencies (strictly `serde` + `serde_json` + `std::net`).
   - Fake telemetry removed from skeleton per ADR-004.
-  - Passes 200 tier vectors and 73 URL vectors (28 baseline + 45 new edge cases).
+  - Passes 200 tier vectors and 87 URL vectors (28 baseline + 45 edge cases + 14 IPv6-transition and port-format cases added in the 2026-10-07 hardening).
+  - Hardening found by independent review (commit `70fd7f6`): IPv6 transition/embedded-IPv4 prefixes (NAT64 `64:ff9b::/96`, `64:ff9b:1::/48`, 6to4 `2002::/16`, Teredo `2001::/23`, IPv4-compatible `::/96`, SIIT, site-local `fec0::/10`) and `192.88.99.0/24` are blocked; leading-zero ports are rejected. Lesson recorded: a differential fuzzer proves two implementations agree, not that the shared policy table is complete — adversarial vectors from an independent source are required.
   - Differential fuzz testing (`python conformance.py --fuzz 10000 --seed 42`): 10,000 cases with 0 mismatches between Python and Rust.
   - Windows CI job verifying `cargo fmt`, `cargo clippy -D warnings`, `cargo test`, and drift checking.
 - **VS2 Exit Criteria (Gate to VS3)**:
-  - [x] Tier vectors (200) and URL vectors (73) pass 100% in Rust (`pai-core --conformance`).
+  - [x] Tier vectors (200) and URL vectors (87) pass 100% in Rust (`pai-core --conformance`).
   - [x] Differential fuzzer passes 10,000 cases with 0 mismatches.
   - [x] No `unsafe` blocks and no fake telemetry in Rust core.
   - [x] Windows CI workflow includes dedicated Rust job.
   - [x] `core/README.md` and `core/Cargo.lock` updated and committed.
-- **Vertical Slice 3 (VS3) — Full Reasoning Cycle in Rust**:
+- **Vertical Slice 3 (VS3) — Native telemetry first, then the full cycle in Rust** (entry decisions in ADR-009, proposed):
+  - Step 3a: `core/src/win32.rs` is the only file allowed to contain `unsafe`; Rust readers must match the Python readers (available RAM within ±5 %, identical tier for identical inputs).
+  - Step 3b onward as listed below.
   - Live OS telemetry via Win32 APIs (replacing Python `HardwareTelemetry`).
   - Direct Winsock / `hyper` + `rustls` network pipeline with IP pinning.
   - Local model reasoner integration behind `Reasoner` trait with pre-load headroom hysteresis.
@@ -145,6 +154,26 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 
 ---
 
+## 🛤️ Track L: Local assistant `pai` (ADR-008) — runs in parallel with Phase 2/3
+**Objective**: a simple local, stateless assistant that analyzes code, documents, web pages and business datasets (with forecasts) and writes and tests code. Full specification: [LOCAL_ASSISTANT_SPEC.md](LOCAL_ASSISTANT_SPEC.md).
+
+| Milestone | Deliverable | Acceptance (summary) |
+|-----------|-------------|----------------------|
+| M1 | `pai code` generate-only with an open coder model; model card + `host_delta_mb` | pass@1 baseline on 20 owner-written tasks recorded; RAM-fit refusal tested |
+| M2 | Verify loop with restricted runner | infinite loop, file-delete, network and fork-bomb tests all contained |
+| M3 | `pai analyze <folder>` | path-escape, injection-in-file, secret-file and size-cap tests pass |
+| M4 | `pai docs` (txt/md/csv; PDF after an ADR) | injection and oversize tests pass |
+| M5 | `pai forecast` | backtested forecast with interval; refuses on insufficient data; synthetic-series tests |
+| M6 | Local web interface | loopback-only, token, Origin/Host checks tested |
+| M7 | Singlish front-end | beats rule baseline on a frozen intent set |
+
+Every milestone needs: new tests (including hostile inputs), claims-lint green, CI green, and a threat-register update.
+
+## 🛤️ Track M: Own model (gated research, ADR-008)
+Budget: no paid cloud GPU. Stages: **0** bilingual tokenizer + 10–25M-parameter model on the laptop (learn the pipeline, no quality claim); **1** LoRA fine-tune of a small pretrained open base on verified self-play trajectories, scheduled only when the machine is idle on AC power; **2+** only if the promotion gate in ADR-008 is passed (beats the router baseline on frozen evaluations, safety suites not worse, signed release, rollback). Until then the router uses open-weights models and no claim is made that an "own" model exists.
+
+---
+
 ## ⚠️ Roadmap Risks (status after the second review pass)
 
 | ID | Risk | Status | Where handled |
@@ -156,5 +185,10 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 | R5 | Firecracker unavailable on Windows | **Decided (default)**: Windows Sandbox (smoke test verified 7/7, `docs/evidence/sandbox_results.json`) | ADR-003 |
 | R6 | Three languages, one developer | **Mitigated**: Rust-first networking, C++ reduced, vertical slices, golden vectors | ADR-004 |
 | R7 | Prompt injection once the model has tools | **Mitigated (prototype)**: capability broker + taint | ADR-006 |
+| R8 | Small local models give wrong answers/code (observed with 1B and 3B) | **Planned mitigation**: verify loop with tests, frozen baselines, grounding checks, no unmeasured quality claims | ADR-008, M1–M2 |
+| R9 | Self-training poisons or memorizes data; a bad model regresses the system | **Designed**: self-play data, tainted trajectories excluded, hardware-aware scheduling, promotion gate with rollback | ADR-008, T18 |
+| R10 | Untrusted local files and documents (injection, path escape, secrets) | **Planned**: M3/M4 controls and tests | LOCAL_ASSISTANT_SPEC, T15 |
+| R11 | Forecasts read as certainties | **Planned**: code-computed numbers, backtest error and intervals shown, refusal on thin data | LOCAL_ASSISTANT_SPEC §M5, T19 |
+| R12 | Model supply chain and licences | **Planned**: model cards (licence, SHA-256), explicit allow-list of models | ADR-008, T20 |
 
-Open items that need a Windows machine or the owner are listed in the Phase 1 exit criteria.
+Phase 1 exit items are all closed (evidence: `docs/evidence/sandbox_results.json`, `research/model_profiles.json`, CI runs). Open owner decisions: confirm ADR-009 (Rust `unsafe` boundary and toolchains) and the model licences chosen in M1.

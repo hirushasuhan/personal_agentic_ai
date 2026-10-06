@@ -166,8 +166,8 @@ sequenceDiagram
 | Buffers zeroed after task | Yes for `SecureBuffer` (memset + verified); **not** for `str` copies | All working memory (Rust `zeroize`, RAII) |
 | Purge on error paths | Yes (`finally`) | Yes (Drop guards) |
 | Pagefile / crash-dump exposure | Not handled | `VirtualLock`, dump control (Phase 2/3) |
-| Outbound URL policy | `net_guard` (urllib: DNS re-resolved; raw: IP pinned) | Native client with IP pinning |
-| Reasoner | Stub (`TemplateReasoner`) | Real model behind the same trait (Phase 3 ADR) |
+| Outbound URL policy | `net_guard` (urllib: DNS re-resolved; raw: IP pinned); same table in Rust (`url_policy.rs`, conformance-tested) | Native client with IP pinning (VS3) |
+| Reasoner | Stub (`TemplateReasoner`) or a local open-weights model through `LocalLLMReasoner`; symbolic engine is experimental | Router over verified models behind the same trait (ADR-008) |
 | Telemetry | Polled in-process | 100 Hz push from daemon |
 
 ## 6. Privacy Note
@@ -182,3 +182,22 @@ Fetching knowledge from Wikipedia/DuckDuckGo reveals the user's topics to those 
 | Self-update trust | External Ed25519 signing, separate updater, pinned Constitution hash | 005 |
 | Code-execution isolation | Windows Sandbox checklist as code, hostile-output reader | 003 |
 | Cross-language correctness | Golden conformance vectors | 004 |
+
+## 8. Layering of the local assistant (ADR-008, planned)
+
+```
+ User ──► Singlish front-end / CLI / local web page      (L1, own code)
+              │
+              ▼
+        Planner + tool broker + verify loop                (L1, own code: AST guard → restricted runner → repair)
+              │                    ▲
+              ▼                    │ test results, evidence
+        Reasoner interface ──► open-weights models         (L2, replaceable, model cards + licences)
+              │
+              ▼
+        Stateless purge ──► output only to the user-chosen folder
+
+ Own-model research (L3): self-play data → fine-tune → promotion gate (ADR-008) → signed release (ADR-005)
+```
+
+Principles: the model is replaceable; numbers come from tested code; every input channel (files, documents, web, data sets, local web page) has a threat-register entry and tests; training never touches private data without explicit opt-in; no automatic weight update bypasses the promotion gate. Details: [LOCAL_ASSISTANT_SPEC.md](LOCAL_ASSISTANT_SPEC.md).

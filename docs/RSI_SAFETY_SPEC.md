@@ -83,13 +83,13 @@ When a code update passes all four tiers:
 
 ---
 
-## 4. Implementation Status (2026-10-05)
+## 4. Implementation Status (2026-10-07)
 
 | Tier | Status |
 |------|--------|
 | Tier 0 — untrusted-input handling (web data, prompt injection) | Prototyped in `research/data_verifier.py` + `net_guard.py` (see `THREAT_MODEL.md` T1–T4) |
 | Tier 1 — static AST allow-list | Prototyped in `research/ast_guard.py` (import allow-list, forbidden builtins, dunder ban, size caps); unit-tested |
-| Tier 2 — MicroVM + airgap | Isolation checklist implemented as code for Windows Sandbox (`research/sandbox_policy.py`, ADR-003): config generator + fail-closed validator + hostile-output reader; launching/smoke test = Phase 4 |
+| Tier 2 — MicroVM + airgap | Isolation checklist implemented as code for Windows Sandbox (`research/sandbox_policy.py`, ADR-003): config generator + fail-closed validator + hostile-output reader; smoke test passed 7/7 on the owner's Windows host (`docs/evidence/sandbox_results.json`); the RSI launch-and-collect pipeline is Phase 4 |
 | Tier 3 — Auditor agent | Not started |
 | Tier 4 — Constitution | Redesigned (ADR-005): text in `CONSTITUTION.md`; hash pinned in the updater's trust root; externally signed releases; `research/updater.py` + `sign_release.py` prototyped and tested |
 
@@ -108,3 +108,12 @@ When a code update passes all four tiers:
 5. **Auditor independence.** If Generator and Auditor are the same model with the same blind spots they fail together: use a different model or prompt lineage, plus non-AI checks (fuzzers, sanitizers, property tests).
 6. **Intent drift needs a metric.** Define a fixed regression suite of behavioural tests that every candidate must pass unchanged; the Constitution is checked by that suite as well as by hash.
 7. **Update rate limiting.** Cap the number of self-updates per period and require human approval for the first N generations.
+
+## 6. Model and adapter promotion (ADR-008)
+
+Changing the *weights* the assistant relies on is a self-modification just like changing code, so it passes the same gates:
+1. Candidate is built from verified, taint-filtered, locally generated data only (private data only with explicit opt-in).
+2. Candidate must beat the current router on frozen coding evaluations by a pre-registered margin, must not be worse on the prompt-injection/file-analysis suites, and must not regress the Singlish intent evaluation.
+3. Candidate ships as a signed release through the updater (ADR-005); the previous version is kept for rollback.
+4. Rate limit and human approval for the first N promotions (see §5, item 7).
+Evaluation sets are frozen and never used for training. A failed gate leaves the previous configuration untouched.

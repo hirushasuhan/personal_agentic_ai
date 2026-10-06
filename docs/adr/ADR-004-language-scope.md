@@ -19,14 +19,14 @@ On the same machine, 100 sequential and 8 concurrent Wikipedia-summary fetches. 
 
 ## Delivery order — vertical slices, one layer at a time
 1. **VS1 (done):** Python end-to-end: perceive → ingest → reason (local model) → verified purge.
-2. **VS2:** Rust CLI reproduces `--telemetry --json` and passes `conformance/tier_policy_vectors.json` and `url_policy_vectors.json`.
+2. **VS2 (done 2026-10-07):** Rust CLI reproduces `--telemetry --json` and passes `conformance/tier_policy_vectors.json` and `url_policy_vectors.json`.
 3. **VS3:** Rust runs the full cycle with `LocalLLMReasoner` equivalent; Python becomes a client/test harness.
 4. **VS4:** C++ GPU/NPU probe feeds the same JSON schema; passes the same tier vectors.
 5. Only then: RSI sandbox integration (Phase 4), OS control (Phase 5).
 A slice is finished when its conformance vectors pass in CI; no layer is started before the previous slice ships.
 
 ## Conformance mechanism (implemented)
-`research/conformance.py` emits 200 tier-policy vectors and 28 URL-policy vectors; `tests/test_conformance.py` fails when code and vectors drift. Native implementations must pass the same files.
+`research/conformance.py` emits 200 tier-policy vectors and 87 URL-policy vectors (28 at creation, extended through 2026-10-07); `tests/test_conformance.py` fails when code and vectors drift. Native implementations must pass the same files.
 
 ## If reversed
 Keep the vectors as the contract; add a C++ conformance runner for the network layer and extend the spike criteria to cover maintenance cost.

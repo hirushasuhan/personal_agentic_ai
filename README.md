@@ -2,7 +2,7 @@
 
 > **A Stateless, Hardware-Aware, Recursive Self-Improving Personal Intelligence Engine**
 
-**Status (2026-10-05):** Phase 1 (Python research prototype) implemented and hardened — 140 passing unit tests, the seven strategic risks from the review remediated (ADRs 001–006), exit gate pending Windows validation. See [Roadmap](docs/ROADMAP.md) · [Project Review](docs/PROJECT_REVIEW.md) · [Threat Model](docs/THREAT_MODEL.md) · [Decisions (ADRs)](docs/adr/README.md).
+**Status (2026-10-07):** Phase 1 (Python research prototype) is complete and its exit gate is closed (Windows Sandbox smoke test 7/7, real local models measured, Windows CI, offline signing key). Phase 2 slice VS2 — the Rust policy core (`core/`) — passes 200 tier and 87 URL golden vectors against the Python reference. Next: VS3 (native Win32 telemetry) and the local assistant `pai` (planned, not yet implemented). See [Roadmap](docs/ROADMAP.md) · [Local Assistant Spec](docs/LOCAL_ASSISTANT_SPEC.md) · [Project Review](docs/PROJECT_REVIEW.md) · [Threat Model](docs/THREAT_MODEL.md) · [Decisions (ADRs)](docs/adr/README.md).
 
 ---
 
@@ -61,12 +61,16 @@ personal_agentic_ai/
 │   ├── ROADMAP.md                # Phases 1-5, exit criteria, decision gates, risks
 │   ├── RSI_SAFETY_SPEC.md        # Recursive self-improvement safety tiers + known weaknesses
 │   ├── PROTOTYPE_SPEC.md         # Python prototype specification (matches the code)
-│   ├── THREAT_MODEL.md           # Assets, trust boundaries, threat register T1-T12
+│   ├── THREAT_MODEL.md           # Assets, trust boundaries, threat register T1-T20
 │   ├── PROJECT_REVIEW.md         # Review findings, strategic risks, remediation status
 │   ├── CONSTITUTION.md           # Safety Constitution v0.1 (hash pinned in the updater's trust root)
-│   └── adr/                      # Architecture Decision Records 001-006
+│   ├── ALGORITHM.md              # Evidence-atom reasoning engine specification (experimental, ADR-007)
+│   ├── NET_POLICY.md             # Outbound URL/IP policy shared by Python and Rust
+│   ├── LOCAL_ASSISTANT_SPEC.md   # Planned local assistant `pai` (ADR-008)
+│   ├── evidence/                 # Recorded gate evidence (sandbox smoke test)
+│   └── adr/                      # Architecture Decision Records 001-009
 │
-├── core/                         # Rust Engine (Phase 3)
+├── core/                         # Rust core: tier policy + URL policy (VS2 done), conformance runner; telemetry/engine next (VS3)
 ├── hardware/                     # C / C++ Daemon (Phase 2)
 │
 └── research/                     # Python Prototype & Verification Lab (Phase 1)
@@ -92,7 +96,8 @@ personal_agentic_ai/
     ├── conformance/              # tier_policy_vectors.json, url_policy_vectors.json
     ├── benchmark.py              # Purge benchmark that can fail
     ├── requirements.txt          # Standard library only (psutil/cryptography optional)
-    └── tests/                    # 140 unit tests (stdlib unittest)
+    ├── model_profiles.json       # Measured RAM profiles for local models (ADR-008)
+    └── tests/                    # 170 unit tests (stdlib unittest)
 ```
 
 ---
@@ -133,6 +138,24 @@ The prototype demonstrates:
 
 ---
 
+### Rust core (VS2)
+
+Requires a Rust toolchain (`rustup`; a C linker such as MSVC build tools or MinGW is needed on Windows).
+
+```powershell
+cd core
+cargo test                                   # unit tests
+cargo run -- --conformance ../research/conformance   # golden vectors (tier + URL)
+```
+
+CI also runs `cargo fmt --check`, `cargo clippy -D warnings`, a vector drift check and a 10,000-case differential fuzz against the Python reference. The Rust core currently contains policies only — no model, no telemetry readers, no network client yet.
+
+### Models and what is planned
+
+The Rust core and the Python prototype do **not** include a language model. Real answers need a locally served open-weights model (Ollama, llama.cpp, …) reached through `--model-url`. The plan (ADR-008) is a local assistant `pai` with a verify loop for code, read-only folder/document analysis and backtested forecasts; a gated track may later fine-tune the owner's own adapter. None of that exists yet — see the [Roadmap](docs/ROADMAP.md) and the [spec](docs/LOCAL_ASSISTANT_SPEC.md).
+
+---
+
 ## 📚 In-Depth Documentation
 
 * [System Architecture & Memory Model](docs/ARCHITECTURE.md)
@@ -140,4 +163,7 @@ The prototype demonstrates:
 * [Recursive Self-Improvement (RSI) Safety Specification](docs/RSI_SAFETY_SPEC.md)
 * [Python Research Prototype Specification](docs/PROTOTYPE_SPEC.md)
 * [Threat Model](docs/THREAT_MODEL.md)
+* [Local Assistant Specification](docs/LOCAL_ASSISTANT_SPEC.md)
+* [Outbound Network Policy](docs/NET_POLICY.md)
+* [Reasoning Algorithm (experimental)](docs/ALGORITHM.md)
 * [Project Review & Open Decisions](docs/PROJECT_REVIEW.md)

@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.4.0] — 2026-10-07 — Phase 1 closed, Rust VS2, local assistant plan
+
+### Phase 1 exit evidence
+- Windows Sandbox smoke test passed 7/7 (`docs/evidence/sandbox_results.json`, ADR-003); two guest profiles on newer Windows builds added to the allowed list.
+- Real local models measured on the owner's laptop (Ollama, 1B and 3B, iGPU offload): `research/model_profiles.json`; RAM-fit check uses the measured host delta + 512 MB headroom, evaluated before load only (hysteresis).
+- Signing key generated offline; public key in `research/trust.json`. GitHub remote and Windows CI established.
+
+### Security fixes
+- **T14** trust-label injection: provenance is accepted only through a per-task random nonce (`[[SRC:<nonce>:<source>]]`); in-band text headers are ignored.
+- Negation handling in the symbolic engine fixed (direct-negation conflicts are now detected and lower the grounding score); grounding status renamed `SYNTACTIC_GROUNDING` because it checks citations, not truth.
+- Misleading output strings removed or reworded; unconditional "verified" wording dropped.
+- Review found that the first explicit URL blocklist missed IPv6 transition/embedded-IPv4 prefixes (NAT64, 6to4, Teredo, SIIT, IPv4-compatible, site-local) and `192.88.99.0/24`; fixed in `70fd7f6`. Leading-zero ports are rejected. A model-loaded check no longer accepts an empty model name.
+
+### Rust core (slice VS2)
+- `core/`: pure `tier.rs` and `url_policy.rs`, `unsafe = 0`, dependencies `serde`/`serde_json` only; fake telemetry removed.
+- Conformance: 200 tier + 87 URL golden vectors; differential fuzz (10,000 cases) against Python; CI job `rust-core` (fmt, clippy `-D warnings`, test, conformance, drift check, fuzz).
+- `docs/NET_POLICY.md`: single documented outbound policy table shared by Python and Rust.
+
+### Documentation and planning
+- New: ADR-008 (local assistant and model strategy, owner decision D6), ADR-009 (Rust toolchain and `unsafe` boundary, proposed), `docs/LOCAL_ASSISTANT_SPEC.md`.
+- ROADMAP rewritten for the current state (Phase 1 complete, VS2 done, VS3 next, Track L local assistant, Track M gated own model, risks R8–R12).
+- THREAT_MODEL v0.2 (T15–T20); RSI spec gains a model/adapter promotion section; PROJECT_REVIEW gains a status and verification log.
+
+### Tests
+- Python 170, Rust 10 (unit) at the time of writing.
+
 ## [0.3.1] — 2026-10-06
 - Sandbox smoke test: exit code is now truthful (0 only after a real in-sandbox pass), probe strengthened (DNS, adapters, host-path invisibility, foreign profiles, drives), results written without BOM; `read_sandbox_results` also tolerates a UTF-8 BOM (PowerShell 5.1).
 - `.gitignore` blocks `*.key` / `*.pem`; CI live-network step is non-blocking.

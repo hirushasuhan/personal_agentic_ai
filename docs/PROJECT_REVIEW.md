@@ -73,7 +73,7 @@ Test suite: **140 tests, all passing** (Linux, Python 3.10).
 | D4 | Network layer language (C++ vs Rust) | Phase 2 spike end | **ADR-004 accepted (default)**: Rust unless C++ meets the written spike criteria |
 | D5 | Target OS scope (Windows only vs cross-platform) | Phase 2 | Windows first, keep the schema OS-neutral |
 
-## 6. Phase 1 Status vs Exit Criteria
+## 6. Phase 1 Status vs Exit Criteria (historical, as of 2026-10-05 — superseded by §8)
 
 | Criterion | State |
 |-----------|-------|
@@ -91,3 +91,30 @@ Test suite: **140 tests, all passing** (Linux, Python 3.10).
 * The Windows ctypes calls follow the documented signatures (struct sizes asserted: `MEMORYSTATUSEX` = 64 B, `SYSTEM_POWER_STATUS` = 12 B) but have not been exercised on a real Windows host.
 * `raw_http.py` is verified against a local HTTP server only (Content-Length, chunked, redirect, cap, refused). No live HTTPS exchange has been tested.
 * The injection patterns are heuristics; their false-positive rate on real pages is unmeasured.
+
+## 8. Status update and verification log (2026-10-07)
+
+### Phase 1 exit gate — closed
+| Criterion | Evidence |
+|-----------|----------|
+| Unit tests on the Windows machine | Run by the owner; 170 tests green at the 2026-10-07 check (also re-run independently on Linux) |
+| Windows Sandbox smoke test | 7/7, `docs/evidence/sandbox_results.json` (commit `5b7e3c0`) |
+| Real local model with RAM/latency | Ollama 1B and 3B on iGPU; 5 cold runs each; `research/model_profiles.json` |
+| CI on Windows | GitHub Actions runs reported by the owner (python-research and rust-core jobs). Not independently re-checked by the reviewer — the review environment has no access to the repository host |
+| Signing key | Public key in `research/trust.json`; no private key or `*.key` file tracked in the repository (checked) |
+| Decisions D1–D4 | Confirmed by the owner |
+
+### Decisions
+D6 (ADR-008): open-weights models allowed as the replaceable "code brain"; own model = gated fine-tuning. ADR-009 (Rust `unsafe` boundary and toolchains) proposed.
+
+### Review log: claims that did not hold on first inspection, and what happened
+* "Native neuro-symbolic engine from scratch" — was a template/keyword system with unconditional "verified" wording; wording removed, engine kept as an experimental track (ADR-007), later rebuilt with evidence atoms and tests.
+* Negation and trust wiring reported as fixed before they were; confirmed fixed in `d571180`/`2429a4d` after probes (trust-label spoofing found by review, now T14).
+* "0 mismatches in 10,000 inputs" for Rust vs Python — true, but both shared an incomplete IPv6 table; independent adversarial URLs exposed the gap (fixed in `70fd7f6`, re-verified on both implementations).
+* One benchmark report listed memory rows identical to an earlier run while describing them as re-measured; later measurements were taken through `main.py` itself and recorded in `model_profiles.json`.
+
+### Verified by the reviewer on 2026-10-07
+Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.97 on Linux); 25 hostile URL cases on both implementations behave as specified (NAT64, 6to4, Teredo, IPv4-compatible, SIIT, site-local, `192.88.99.0/24`, leading-zero ports rejected; real public addresses accepted).
+
+### Not verified
+CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
