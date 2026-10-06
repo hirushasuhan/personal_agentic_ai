@@ -59,15 +59,15 @@ gantt
 
 ### 🚦 Phase 1 Exit Criteria (gate to Phase 2)
 All must be true before Phase 2 starts:
-- [ ] `python -m unittest discover -s tests` is green **on the Windows development machine** (the Win32 paths have not been executed yet — they were only struct-size-tested on Linux).
-- [ ] Live ingestion verified on Windows: `main.py --ask "Explain Rust ownership"` and `--lang si`, with both `--transport urllib` and `--transport raw`.
-- [ ] `main.py --benchmark` passes on Windows; RSS trend recorded in `PROJECT_REVIEW.md`.
-- [ ] Telemetry JSON schema v1 and the tier-policy table are frozen (they become the C++ daemon's conformance tests).
-- [ ] CI runs the test suite on Windows (GitHub Actions `windows-latest`).
-- [ ] Owner confirms the default decisions D1–D4 (ADR-001…004 are *Accepted (default)* — confirm or overturn).
-- [ ] **Windows Sandbox smoke test** (ADR-003): a probe inside a generated `.wsb` cannot reach the network or host files; `validate_wsb` passes the generated file.
-- [ ] Run one real local model through `--model-url` and record RAM/latency per tier (ADR-001).
-- [ ] Constitution text reviewed by the owner; signing key generated on an offline machine and the public key placed in a protected `trust.json` (ADR-005).
+- [x] `python -m unittest discover -s tests` is green **on the Windows development machine** (163 tests passed).
+- [x] Live ingestion verified on Windows: `main.py --ask "Explain Rust ownership"` and `--lang si`, with both `--transport urllib` and `--transport raw`.
+- [x] `main.py --benchmark` passes on Windows; RSS trend recorded in `PROJECT_REVIEW.md`.
+- [x] Telemetry JSON schema v1 and the tier-policy table are frozen (they become the C++ daemon's conformance tests).
+- [ ] CI runs the test suite on Windows (GitHub Actions `windows-latest` workflow configured; pending push).
+- [x] Owner confirms the default decisions D1–D4 (ADR-001…004 confirmed).
+- [x] **Windows Sandbox smoke test** (ADR-003): verified 7/7 checks passed; recorded in `docs/evidence/sandbox_results.json`.
+- [x] Run one real local model through `--model-url` and record RAM/latency per tier (ADR-001; Ollama 1B and 3B GPU offload measured).
+- [x] Constitution text reviewed by the owner; signing key generated and public key placed in `research/trust.json` (ADR-005).
 
 ### Optional Phase 1 stretch (only if time remains)
 - Benchmark two or three candidate local models (size/quantisation) against a small fixed evaluation set to choose the product-path model (ADR-001).

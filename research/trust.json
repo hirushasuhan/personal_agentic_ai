@@ -1,0 +1,10 @@
+{
+  "keys": [
+    {
+      "id": "rel-1",
+      "public_hex": "2d37e829568f4802381effafa3deeeb0af7abc51665a372570422d7b4da3a278",
+      "revoked": false
+    }
+  ],
+  "constitution_sha256": "737ed05485439909cbd4c56d362c07b3c4916c1b358f9e1ecd161d3ca111b331"
+}
