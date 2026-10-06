@@ -7,7 +7,7 @@ on:
     branches: [ master, main ]
 
 jobs:
-  test:
+  python-research:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
@@ -25,7 +25,7 @@ jobs:
           if (Test-Path requirements.txt) { pip install -r requirements.txt }
           pip install cryptography
 
-      - name: Run Test Suite (140+ unit tests)
+      - name: Run Test Suite (170 unit tests)
         working-directory: research
         run: |
           python -m unittest discover -s tests -v
@@ -45,3 +45,56 @@ jobs:
         working-directory: research
         run: |
           python main.py --ask "Summarize" --topic "Rust (programming language)" --transport raw
+
+  rust-core:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Set up Python for conformance drift check
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        working-directory: research
+        run: |
+          python -m pip install --upgrade pip
+          if (Test-Path requirements.txt) { pip install -r requirements.txt }
+          pip install cryptography
+
+      - name: Conformance Drift Check
+        run: |
+          python research/conformance.py
+          git diff --exit-code research/conformance
+
+      - name: Rust Format Check
+        working-directory: core
+        run: |
+          cargo fmt --all --check
+
+      - name: Rust Clippy
+        working-directory: core
+        run: |
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Rust Test Suite
+        working-directory: core
+        run: |
+          cargo test
+
+      - name: Conformance Vectors CLI Runner
+        working-directory: core
+        run: |
+          cargo run -- --conformance ../research/conformance
+
+      - name: Differential Fuzz Verification (10,000 cases)
+        working-directory: research
+        run: |
+          python conformance.py --fuzz 10000 --seed 42

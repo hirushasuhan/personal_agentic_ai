@@ -92,8 +92,24 @@ All must be true before Phase 2 starts:
 ### Entry decision: Reasoner strategy — **ADR-001 accepted (default)**
 Adopt a local open-weights model behind the `Reasoner` interface (Option A); a custom architecture is a parallel research track that must beat the adopted model on a fixed evaluation to replace it (Option B). The Python `LocalLLMReasoner` already exercises the contract; owner to confirm and choose the model by 2026-11-10.
 
-### Deliverables
-- **Delivery by vertical slice (ADR-004):** VS2 Rust CLI reproduces `--telemetry --json` and passes both golden-vector files in CI → VS3 full cycle in Rust with the local-model reasoner → only then the rest. No slice starts before the previous one is green.
+### Deliverables & Vertical Slices
+- **Vertical Slice 2 (VS2) — Stateless Core & Policy Conformance (COMPLETE)**:
+  - Pure Rust implementations of resource tier policy (`src/tier.rs`) and outbound URL policy with Canonical Blocked CIDRs (`src/url_policy.rs`).
+  - Zero unsafe code blocks (`unsafe = 0`), zero network crate dependencies (strictly `serde` + `serde_json` + `std::net`).
+  - Fake telemetry removed from skeleton per ADR-004.
+  - Passes 200 tier vectors and 73 URL vectors (28 baseline + 45 new edge cases).
+  - Differential fuzz testing (`python conformance.py --fuzz 10000 --seed 42`): 10,000 cases with 0 mismatches between Python and Rust.
+  - Windows CI job verifying `cargo fmt`, `cargo clippy -D warnings`, `cargo test`, and drift checking.
+- **VS2 Exit Criteria (Gate to VS3)**:
+  - [x] Tier vectors (200) and URL vectors (73) pass 100% in Rust (`pai-core --conformance`).
+  - [x] Differential fuzzer passes 10,000 cases with 0 mismatches.
+  - [x] No `unsafe` blocks and no fake telemetry in Rust core.
+  - [x] Windows CI workflow includes dedicated Rust job.
+  - [x] `core/README.md` and `core/Cargo.lock` updated and committed.
+- **Vertical Slice 3 (VS3) — Full Reasoning Cycle in Rust**:
+  - Live OS telemetry via Win32 APIs (replacing Python `HardwareTelemetry`).
+  - Direct Winsock / `hyper` + `rustls` network pipeline with IP pinning.
+  - Local model reasoner integration behind `Reasoner` trait with pre-load headroom hysteresis.
 - **Rust Cargo workspace (`core/Cargo.toml`)**: `pai-core`, `pai-telemetry-client`, `pai-network` (default: Rust networking).
 - **Stateless Task Planner & Interpreter**: graph-based planner; Rust lifetimes ensure temporary data cannot outlive the reasoning scope.
 - **Purge guarantees**: working buffers use the `zeroize` crate (guaranteed non-elided wipe) + `mlock`/`VirtualLock`; this replaces the Python prototype's best-effort purge.
