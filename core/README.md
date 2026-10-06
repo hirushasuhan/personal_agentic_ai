@@ -10,7 +10,7 @@ Charter (ADR-004): engine, planner, stateless purge (`zeroize`), network client,
 4. `src/main.rs`: CLI runner for `--conformance <DIR>` and `--differential <FILE>`.
 
 ### Design & Safety Guarantees
-- **No Unsafe Code**: 100% safe Rust.
+- **No Unsafe Code**: Contains zero unsafe blocks.
 - **No Fake Telemetry**: Hardcoded dummy telemetry was completely removed per ADR-004 and the claims policy. Native OS telemetry will land in VS3.
 - **Zero Network Crate Dependencies**: Strictly uses `serde` + `serde_json` and standard library networking types (`std::net`).
 - **Differential Verification**: 10,000 differential fuzz inputs verified against Python specification with 0 mismatches.

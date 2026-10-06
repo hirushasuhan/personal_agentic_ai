@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import os
+import re
 import socket
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Optional, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Tuple
 
 from hardware_telemetry import HardwareBudget
 
@@ -171,35 +173,73 @@ class LocalLLMReasoner:
             if not ip.is_loopback:
                 raise ValueError(f"model host resolves to non-loopback address {ip}; refusing (local-only policy)")
 
-    def _estimate_model_ram_mb(self) -> int:
-        m = self.model.lower()
-        if "70b" in m:
-            return 40000
-        if "13b" in m:
-            return 8000
-        if any(x in m for x in ("7b", "8b")):
-            return 5000
-        if "3b" in m:
-            return 3000
-        if "1b" in m:
-            return 1500
-        return 2000
+    _profiles_cache: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def _load_profiles(cls) -> Dict[str, Any]:
+        if cls._profiles_cache is not None:
+            return cls._profiles_cache
+        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model_profiles.json")
+        try:
+            with open(profiles_path, "r", encoding="utf-8") as f:
+                cls._profiles_cache = json.load(f)
+                return cls._profiles_cache
+        except Exception:
+            return {}
+
+    def _get_model_delta_mb(self) -> Tuple[float, float]:
+        """Returns (host_delta_mb, headroom_mb) for this model from model_profiles.json."""
+        profiles = self._load_profiles()
+        headroom = float(profiles.get("headroom_mb", 512.0))
+        m_lower = self.model.lower()
+        for key, prof in profiles.get("profiles", {}).items():
+            if key.lower() in m_lower or m_lower in key.lower():
+                return float(prof.get("host_delta_mb", 1024.0)), headroom
+        # Empirical fallback heuristics
+        if "70b" in m_lower:
+            return 32000.0, headroom
+        if "13b" in m_lower:
+            return 6000.0, headroom
+        if any(x in m_lower for x in ("7b", "8b")):
+            return 4000.0, headroom
+        if "3b" in m_lower:
+            return 816.0, headroom
+        if "1b" in m_lower:
+            return 734.0, headroom
+        return float(profiles.get("default_fallback", {}).get("host_delta_mb", 1024.0)), headroom
+
+    def _is_model_loaded(self) -> bool:
+        """Checks if the target model is already resident in server memory (hysteresis)."""
+        try:
+            parts = urllib.parse.urlsplit(self.base_url)
+            ps_url = f"{parts.scheme}://{parts.netloc}/api/ps"
+            req = urllib.request.Request(ps_url)
+            with self._opener.open(req, timeout=1.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for m in data.get("models", []):
+                    name = m.get("name", "").lower()
+                    if self.model.lower() in name or name in self.model.lower():
+                        return True
+        except Exception:
+            pass
+        return False
 
     def reason(self, query: str, context: Optional[str], budget: HardwareBudget, nonce: Optional[str] = None) -> str:
-        # Model RAM fit check (Decision D1): Available RAM >= Model RAM + Headroom
-        model_req_mb = self._estimate_model_ram_mb()
-        headroom_mb = 1024  # 1 GB host headroom to avoid thrashing/freezing
-        total_req_mb = model_req_mb + headroom_mb
+        # Model RAM fit check (A2): available_ram_mb >= host_delta_mb + 512 (Pre-load check with hysteresis)
+        is_warm = self._is_model_loaded()
+        if not is_warm:
+            host_delta_mb, headroom_mb = self._get_model_delta_mb()
+            total_req_mb = host_delta_mb + headroom_mb
 
-        if budget.avail_ram_mb is not None:
-            if budget.avail_ram_mb < total_req_mb:
+            if budget.avail_ram_mb is not None:
+                if budget.avail_ram_mb < total_req_mb:
+                    raise ReasonerError(
+                        f"insufficient RAM headroom: model '{self.model}' requires {host_delta_mb:.1f} MB + {headroom_mb:.0f} MB headroom ({total_req_mb:.1f} MB total), but system available RAM is {budget.avail_ram_mb:.1f} MB (tier {budget.compute_tier})"
+                    )
+            elif budget.compute_tier == "COMPRESSED" and host_delta_mb >= 500.0:
                 raise ReasonerError(
-                    f"insufficient RAM headroom: model '{self.model}' requires {model_req_mb} MB + {headroom_mb} MB headroom ({total_req_mb} MB total), but system available RAM is {budget.avail_ram_mb:.1f} MB (tier {budget.compute_tier})"
+                    f"insufficient RAM headroom: model '{self.model}' requires {host_delta_mb:.1f} MB, but system is in COMPRESSED tier"
                 )
-        elif budget.compute_tier == "COMPRESSED" and model_req_mb >= 2500:
-            raise ReasonerError(
-                f"insufficient RAM headroom: model '{self.model}' requires >= {model_req_mb} MB, but system is in COMPRESSED tier"
-            )
 
         clean_context = context
         if clean_context and nonce and f"[[SRC:{nonce}:" in clean_context:

@@ -119,27 +119,45 @@ class LocalModel(unittest.TestCase):
         self.assertEqual(r.status, "ERROR")
     def test_telemetry_model_ram_fit_check(self):
         with Srv() as s:
-            # 3B model requires 3000 MB + 1024 MB headroom = 4024 MB
+            # 3B model requires 816.0 MB + 512.0 MB headroom = 1328.0 MB
             r3b = LocalLLMReasoner(s.url, model="llama3.2:3b", timeout=5)
 
-            # Sufficient RAM: 5000 MB available -> succeeds
+            # Sufficient RAM: 2000 MB available >= 1328 MB -> succeeds
             b_ok = budget("HIGH")
-            b_ok.avail_ram_mb = 5000.0
+            b_ok.avail_ram_mb = 2000.0
             res = r3b.reason("q", None, b_ok)
             self.assertIn("42", res)
 
-            # Insufficient RAM: 3500 MB available < 4024 MB required -> fails closed with ReasonerError
+            # Insufficient RAM: 1000 MB available < 1328 MB required -> fails closed with ReasonerError
             b_low = budget("BALANCED")
-            b_low.avail_ram_mb = 3500.0
+            b_low.avail_ram_mb = 1000.0
             with self.assertRaises(ReasonerError) as cm:
                 r3b.reason("q", None, b_low)
             self.assertIn("insufficient RAM headroom", str(cm.exception))
             self.assertIn("llama3.2:3b", str(cm.exception))
 
-            # 1B model requires 1500 MB + 1024 MB = 2524 MB -> 3500 MB available succeeds
+            # 1B model requires 734.0 MB + 512.0 MB = 1246.0 MB -> 1300 MB available succeeds
+            b_mid = budget("BALANCED")
+            b_mid.avail_ram_mb = 1300.0
             r1b = LocalLLMReasoner(s.url, model="llama3.2:1b", timeout=5)
-            res1b = r1b.reason("q", None, b_low)
+            res1b = r1b.reason("q", None, b_mid)
             self.assertIn("42", res1b)
+
+            # But 3B model with 1300 MB fails (< 1328 MB)
+            with self.assertRaises(ReasonerError):
+                r3b.reason("q", None, b_mid)
+
+    def test_model_ram_fit_hysteresis_warm_bypass(self):
+        with Srv() as s:
+            r3b = LocalLLMReasoner(s.url, model="llama3.2:3b", timeout=5)
+            # Mock warm model (already loaded in server)
+            r3b._is_model_loaded = lambda: True
+
+            # Even with very low available RAM (e.g. 100 MB), pre-load check is bypassed
+            b_very_low = budget("BALANCED")
+            b_very_low.avail_ram_mb = 100.0
+            res = r3b.reason("q", None, b_very_low)
+            self.assertIn("42", res)
 
 
 if __name__ == "__main__":
