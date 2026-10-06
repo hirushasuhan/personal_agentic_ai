@@ -63,7 +63,7 @@ All must be true before Phase 2 starts:
 - [x] Live ingestion verified on Windows: `main.py --ask "Explain Rust ownership"` and `--lang si`, with both `--transport urllib` and `--transport raw`.
 - [x] `main.py --benchmark` passes on Windows; RSS trend recorded in `PROJECT_REVIEW.md`.
 - [x] Telemetry JSON schema v1 and the tier-policy table are frozen (they become the C++ daemon's conformance tests).
-- [ ] CI runs the test suite on Windows (GitHub Actions `windows-latest` workflow configured; pending push).
+- [x] CI runs the test suite on Windows (GitHub Actions `windows-latest` run #37520707673 passed).
 - [x] Owner confirms the default decisions D1–D4 (ADR-001…004 confirmed).
 - [x] **Windows Sandbox smoke test** (ADR-003): verified 7/7 checks passed; recorded in `docs/evidence/sandbox_results.json`.
 - [x] Run one real local model through `--model-url` and record RAM/latency per tier (ADR-001; Ollama 1B and 3B GPU offload measured).
@@ -137,7 +137,7 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 | R2 | Network queries conflict with "private/local" goal | **Mitigated**: allow-list, visible log, offline, local knowledge | ADR-002 |
 | R3 | Absolute-security claims | **Closed**: policy + automatic lint | `THREAT_MODEL.md` §5, `test_claims.py` |
 | R4 | "ROM constitution hash" defeatable | **Mitigated (prototype)**: external signing + separate updater | ADR-005 |
-| R5 | Firecracker unavailable on Windows | **Decided (default)**: Windows Sandbox; smoke test pending | ADR-003 |
+| R5 | Firecracker unavailable on Windows | **Decided (default)**: Windows Sandbox (smoke test verified 7/7, `docs/evidence/sandbox_results.json`) | ADR-003 |
 | R6 | Three languages, one developer | **Mitigated**: Rust-first networking, C++ reduced, vertical slices, golden vectors | ADR-004 |
 | R7 | Prompt injection once the model has tools | **Mitigated (prototype)**: capability broker + taint | ADR-006 |
 
