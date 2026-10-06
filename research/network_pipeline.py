@@ -113,7 +113,13 @@ class NetworkPipeline:
         url = f"https://{lang}.wikipedia.org/w/rest.php/v1/search/title?q={urllib.parse.quote(topic)}&limit=1"
         _, body, _ = self._http_get(url, 256 * 1024, accept="application/json", purpose="wikipedia title search")
         pages = json.loads(body.decode("utf-8", errors="replace")).get("pages", [])
-        return pages[0].get("title") if pages else None
+        if pages:
+            return pages[0].get("title")
+        # Fallback to full-text search/page for compound queries (e.g. 'Rust ownership' -> 'Rust (programming language)')
+        page_url = f"https://{lang}.wikipedia.org/w/rest.php/v1/search/page?q={urllib.parse.quote(topic)}&limit=1"
+        _, pbody, _ = self._http_get(page_url, 256 * 1024, accept="application/json", purpose="wikipedia page search")
+        ppages = json.loads(pbody.decode("utf-8", errors="replace")).get("pages", [])
+        return ppages[0].get("title") if ppages else None
 
     def _duckduckgo(self, query: str, max_bytes: int) -> VerifiedPayload:
         url = f"https://api.duckduckgo.com/?q={urllib.parse.quote_plus(query)}&format=json&no_html=1&skip_disambig=1"

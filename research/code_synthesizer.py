@@ -53,7 +53,10 @@ class CodeSynthesizer:
         atoms: Optional[List[EvidenceAtom]] = None,
         unresolved_conflicts: Optional[List[Tuple[str, str, str]]] = None
     ) -> str:
-        out = [
+        out = []
+        if not atoms and not premises:
+            out.append("[UNGROUNDED: No external context provided. Query evaluated by structural heuristics only.]\n")
+        out += [
             f"=== Neuro-Symbolic Logic Deduction [{tier} TIER] ===",
             f"Query: {query}",
             "",
@@ -144,7 +147,7 @@ class CodeSynthesizer:
                 f'    }}\n'
                 f'}}\n'
             )
-            guard_status = "PASS (Rust memory-safety invariants verified)"
+            guard_status = "PASS (Rust syntax structure valid; static memory safety subject to rustc compiler checks)"
 
         out = [
             f"=== Neuro-Symbolic Program Synthesis [{tier} TIER] ===",
@@ -193,7 +196,7 @@ class CodeSynthesizer:
             "            buf[i] = 0",
             "```",
             "",
-            "Formal Verification: Memory bounded and zeroized via finally-block protocol.",
+            "Structural Pattern Verification: Memory bounded and zeroized via finally-block protocol.",
         ]
         return "\n".join(out)
 
@@ -225,11 +228,13 @@ class CodeSynthesizer:
     ) -> str:
         if atoms:
             a1 = atoms[0]
-            claim1 = f"[{a1.atom_id}] establishes that {a1.subject} {a1.predicate} {a1.object}"
+            pol1 = "" if a1.polarity else "does not "
+            claim1 = f"[{a1.atom_id}] establishes that {a1.subject} {pol1}{a1.predicate} {a1.object}"
             claim2 = ""
             if len(atoms) > 1:
                 a2 = atoms[1]
-                claim2 = f" Furthermore, [{a2.atom_id}] shows {a2.subject} {a2.predicate} {a2.object}."
+                pol2 = "" if a2.polarity else "does not "
+                claim2 = f" Furthermore, [{a2.atom_id}] shows {a2.subject} {pol2}{a2.predicate} {a2.object}."
             return (
                 f"Based on established premises, {claim1}.{claim2} "
                 f"Therefore, the logical decomposition of '{query}' confirms these invariant properties."

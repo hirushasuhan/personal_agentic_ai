@@ -112,7 +112,7 @@ class GroundingValidatorTests(unittest.TestCase):
         self.assertTrue(rep.is_grounded)
         self.assertEqual(len(rep.grounded_atoms), 2)
         self.assertEqual(rep.grounding_score, 1.0)
-        self.assertIn("GROUNDED", rep.status)
+        self.assertIn("SYNTACTIC_GROUNDING", rep.status)
 
     def test_invalid_citation_and_unresolved_hazard(self):
         text = "Claim cites [ATOM-001] and [ATOM-999]."

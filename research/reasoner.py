@@ -103,6 +103,8 @@ class NeuroSymbolicReasoner:
                     f"  * Compute Tier: {trace.budget_tier} (Total time: {trace.total_time_ms:.2f} ms)\n"
                     f"  * Grounding Audit: {grounding_rep.status}"
                 )
+                if trace.halted_early:
+                    trace_summary += f"\n  * [DEPTH_CAP_ENFORCED: {trace.halt_reason}]"
                 return synth_out + trace_summary
             elif "step_4_synthesis" in ctx:
                 return ctx["step_4_synthesis"]
@@ -142,6 +144,7 @@ class LocalLLMReasoner:
       * no redirects, no proxies, no tools/function-calling parameters are ever sent
       * untrusted context is fenced and fence markers inside it are neutralised
       * output length is capped by the hardware tier (token and character caps)
+      * RAM headroom check: refuses 3B+ models in COMPRESSED tier to avoid freezing host
     """
 
     def __init__(self, base_url: str = "http://127.0.0.1:11434/v1", model: str = "local",
@@ -169,11 +172,16 @@ class LocalLLMReasoner:
                 raise ValueError(f"model host resolves to non-loopback address {ip}; refusing (local-only policy)")
 
     def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
+        # Model RAM fit check: fail closed under memory pressure
+        if budget.compute_tier == "COMPRESSED" and any(m in self.model.lower() for m in ("3b", "7b", "8b", "13b", "70b")):
+            raise ReasonerError(f"insufficient RAM headroom: model {self.model} requires >= 2.5 GB headroom, but system is in COMPRESSED tier")
+
         user = f"Task: {query}\n\nContext:\n" + (fence(context) if context else "(none)")
+        max_tokens = _TOKENS_BY_TIER.get(budget.compute_tier, 256)
         body = {
             "model": self.model,
             "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
-            "max_tokens": _TOKENS_BY_TIER.get(budget.compute_tier, 256),
+            "max_tokens": max_tokens,
             "temperature": 0.2,
             "stream": False,
         }
@@ -189,7 +197,16 @@ class LocalLLMReasoner:
         if len(raw) > 2 * 1024 * 1024:
             raise ReasonerError("model response too large")
         try:
-            text = json.loads(raw.decode("utf-8"))["choices"][0]["message"]["content"]
+            choice = json.loads(raw.decode("utf-8"))["choices"][0]
+            text = str(choice["message"]["content"])
+            finish_reason = choice.get("finish_reason")
         except (ValueError, KeyError, IndexError, TypeError):
             raise ReasonerError("malformed model response")
+
+        if finish_reason == "length":
+            text += f"\n\n[TRUNCATED: Response capped by tier token limit ({max_tokens} tokens)]"
+
+        if not context:
+            text = "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n" + text
+
         return str(text)[: self.max_response_chars]

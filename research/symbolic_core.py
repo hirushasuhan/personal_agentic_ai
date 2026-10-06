@@ -184,7 +184,7 @@ class GroundingValidator:
         is_ok = (len(invalid) == 0) and (len(hazards) == 0) and (len(grounded) > 0)
 
         if is_ok:
-            status = f"GROUNDED ({len(grounded)} atom(s) verified, score={score:.2f})"
+            status = f"SYNTACTIC_GROUNDING ({len(grounded)} atom(s) cited, score={score:.2f})"
         else:
             status = f"PARTIAL_GROUNDING (invalid={len(invalid)}, hazards={len(hazards)}, score={score:.2f})"
 
@@ -386,9 +386,8 @@ class SymbolicCore:
                 if len(s_clean) < 15:
                     continue
 
-                # Simple triple parsing: Subject Verb Object
-                # Check for negation
-                is_negated = any(neg in s_clean.lower() for neg in [" not ", " never ", " neither ", " cannot ", " isn't "])
+                # Check for negation with word-boundary matching
+                is_negated = bool(re.search(r"\b(not|never|neither|cannot|isn't|aren't|doesn't|don't|without|no)\b", s_clean, re.IGNORECASE))
                 polarity = not is_negated
 
                 # Identify predicate verb
