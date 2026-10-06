@@ -13,7 +13,7 @@ ENV/
 # Rust build artifacts
 target/
 **/*.rs.bk
-Cargo.lock
+!core/Cargo.lock
 
 # C / C++ build artifacts
 *.obj

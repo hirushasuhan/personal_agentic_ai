@@ -110,5 +110,185 @@
  {
   "expected": "reject",
   "url": "http://8.8.8.8:99999/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://2130706433/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://0x7f.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://127.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://0177.0.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://0x7f.0.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://1.2.3.04/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[::ffff:7f00:1]/"
+ },
+ {
+  "expected": "accept",
+  "url": "http://[::ffff:8.8.8.8]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8@127.0.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://127.0.0.1#@8.8.8.8/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8\\@127.0.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8\\test"
+ },
+ {
+  "expected": "accept",
+  "url": "HTTP://8.8.8.8/"
+ },
+ {
+  "expected": "accept",
+  "url": "HTTPS://8.8.8.8/"
+ },
+ {
+  "expected": "accept",
+  "url": "Http://1.1.1.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8\t/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8\n/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8\r/"
+ },
+ {
+  "expected": "reject",
+  "url": "http:// 8.8.8.8/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8 /"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:0/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:65536/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:65535/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8:80a/"
+ },
+ {
+  "expected": "accept",
+  "url": "http://8.8.8.8:80/"
+ },
+ {
+  "expected": "accept",
+  "url": "https://8.8.8.8:443/"
+ },
+ {
+  "expected": "accept",
+  "url": "http://8.8.8.8:443/"
+ },
+ {
+  "expected": "accept",
+  "url": "https://8.8.8.8:80/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://255.255.255.255/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://192.0.2.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://198.51.100.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://203.0.113.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://198.18.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://192.0.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://240.0.0.1/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://239.255.255.250/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[ff02::1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[2001:db8::1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[100::1]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://[::]/"
+ },
+ {
+  "expected": "accept",
+  "url": "http://9.9.9.9/"
+ },
+ {
+  "expected": "accept",
+  "url": "https://1.0.0.1/"
+ },
+ {
+  "expected": "accept",
+  "url": "http://[2606:4700:4700::1001]/"
+ },
+ {
+  "expected": "reject",
+  "url": "http://8.8.8.8/caf\u00e9"
  }
 ]
