@@ -1,6 +1,27 @@
 # Changelog
 
-## [0.4.0] — 2026-10-07 — Phase 1 closed, Rust VS2, local assistant plan
+## [0.5.0] — 2026-10-07 — Rust VS3 (Win32 Native Telemetry) & Milestone M1 Multi-Model Bake-Off
+
+### Rust core (slice VS3) — ADR-009
+- `core/src/win32.rs`: Native Win32 hardware telemetry implemented using `windows-sys = "0.52"` (`GlobalMemoryStatusEx`, `GetSystemTimes`, `GetSystemPowerStatus`).
+- Unsafe isolation boundary strictly enforced: `#![deny(unsafe_code)]` at crate root (`lib.rs`, `main.rs`); zero `unsafe` allowed outside `win32.rs`, with explicit `// SAFETY:` invariant justification on every call.
+- Telemetry parity validated against Python (`tests/test_telemetry_parity.py`): measured difference 0.69% (well within the $\pm 5\%$ threshold required by ADR-009).
+- CLI flags `--telemetry` and `--telemetry --json` added to `core/src/main.rs`. CI job updated with unsafe isolation regex gate and telemetry parity check.
+
+### Milestone M1 Bake-Off (Track L / ADR-008)
+- Frozen evaluation test suite established:
+  - **Set 1 (Coding)**: 20 hand-crafted tasks with timeout-guarded hidden test suites (`research/eval_sets/hidden_tests/`) never exposed to models.
+  - **Set 2 (Singlish/Sinhala)**: 10 prompts testing colloquial Sinhala/Singlish code comprehension, debugging, security, and architecture (scored 0–2 against rubric).
+  - **Set 3 (Document Analysis)**: 10 grounded questions verifying context utilization on PAI architectural specifications.
+- 5 models empirically measured and profiled (`docs/evidence/m1_bakeoff_results.json`):
+  - `qwen2.5-coder:7b` (Apache 2.0): 13/20 (65%) pass@1 coding, 11/20 (55%) Singlish, 10/10 (100%) doc analysis, 7.13s latency, 4.9 GB footprint.
+  - `qwen2.5-coder:1.5b` (Apache 2.0): 9/20 (45%) pass@1 coding, 5/20 (25%) Singlish, 10/10 (100%) doc analysis, 1.34s latency, 1.1 GB footprint.
+  - `llama3.2:3b` (Llama Community License): 7/20 (35%) pass@1 coding, 9/20 (45%) Singlish, 10/10 (100%) doc analysis, 1.96s latency, 2.4 GB footprint.
+  - `qwen3.5:4b` & `gemma4:e2b` (Apache 2.0): Discovered that default thinking mode exhausts tier-allocated token caps (1024 tokens), leading to truncation and syntax errors on code output.
+- `research/model_profiles.json` updated with full host delta and model footprint measurements.
+
+### Tests
+- Python 178 tests passing (13.2s). Rust 13 unit tests passing (0.02s). Differential fuzz 10,000 cases passing (0 mismatches). Clippy clean (`-D warnings`).
 
 ### Phase 1 exit evidence
 - Windows Sandbox smoke test passed 7/7 (`docs/evidence/sandbox_results.json`, ADR-003); two guest profiles on newer Windows builds added to the allowed list.

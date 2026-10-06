@@ -89,6 +89,14 @@ jobs:
         run: |
           cargo test
 
+      - name: Verify Unsafe Isolation (win32.rs only per ADR-009)
+        run: |
+          $unsafe_matches = Get-ChildItem -Path core/src -Filter "*.rs" | Where-Object { $_.Name -ne "win32.rs" } | Select-String -Pattern "unsafe\s*(\{|fn|trait|impl)"
+          if ($unsafe_matches) {
+            Write-Error "CRITICAL: Unsafe code detected outside win32.rs: $unsafe_matches"
+            exit 1
+          }
+
       - name: Conformance Vectors CLI Runner
         working-directory: core
         run: |
@@ -98,3 +106,19 @@ jobs:
         working-directory: research
         run: |
           python conformance.py --fuzz 10000 --seed 42
+
+      - name: Rust Win32 Telemetry Check
+        working-directory: core
+        run: |
+          cargo run -- --telemetry
+          cargo run -- --telemetry --json
+
+      - name: Telemetry Parity Check (Python vs Rust ±5% per ADR-009)
+        working-directory: research
+        run: |
+          python -m unittest tests/test_telemetry_parity.py
+
+      - name: Milestone M1 Unit Tests (Track L / ADR-008)
+        working-directory: research
+        run: |
+          python -m unittest tests/test_m1_code.py

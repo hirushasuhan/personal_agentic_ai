@@ -1,0 +1,340 @@
+"""
+Comprehensive Milestone M1 Bake-off Evaluation Harness (Track L / ADR-008)
+Evaluates candidate models across:
+1. 20 Hand-crafted Coding Tasks (with timeout-guarded hidden tests)
+2. 10 Singlish / Sinhala Prompts (scored 0-2 against rubric)
+3. 10 Grounded Document / Analysis Tasks
+Measures: RAM Delta, Footprint, Latency, pass@1, Singlish score, Doc accuracy, Truncation.
+"""
+
+import json
+import os
+import re
+import sys
+import threading
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from eval_sets.hidden_tests.test_coding_tasks import HIDDEN_TESTS
+from hardware_telemetry import HardwareBudget, HardwareTelemetry
+from reasoner import LocalLLMReasoner, TemplateReasoner
+
+
+def extract_python_code(raw_text: str) -> str:
+    """Extracts python code from markdown code fences or returns raw text."""
+    py_matches = re.findall(r"```(?:python|py)\s*\n?([\s\S]*?)```", raw_text, re.IGNORECASE)
+    if py_matches:
+        valid_blocks = [m.strip() for m in py_matches if m.strip()]
+        if valid_blocks:
+            return max(valid_blocks, key=len)
+
+    generic_matches = re.findall(r"```(?:\w+)?\s*\n?([\s\S]*?)```", raw_text)
+    for m in generic_matches:
+        cleaned = m.strip()
+        if cleaned and cleaned.lower() not in ("markdown", "python", "py"):
+            return cleaned
+
+    return raw_text.strip()
+
+
+def run_with_timeout(fn: Any, args: tuple = (), timeout: float = 2.0) -> Tuple[bool, Any]:
+    """Runs a callable in a worker thread with timeout to contain infinite loops."""
+    res_box = [False, None]
+
+    def target():
+        try:
+            res_box[1] = fn(*args)
+            res_box[0] = True
+        except Exception as e:
+            res_box[1] = e
+
+    t = threading.Thread(target=target)
+    t.daemon = True
+    t.start()
+    t.join(timeout=timeout)
+
+    if t.is_alive():
+        return False, TimeoutError(f"Execution exceeded timeout of {timeout}s")
+    if isinstance(res_box[1], Exception):
+        return False, res_box[1]
+    return res_box[0], res_box[1]
+
+
+def evaluate_coding_task(code_str: str, entry_point: str, test_fns: List[Any]) -> Tuple[bool, str]:
+    """Compiles generated code and evaluates against hidden unit tests."""
+    scope: Dict[str, Any] = {}
+    try:
+        compiled = compile(code_str, "<model_code>", "exec")
+        success, err = run_with_timeout(exec, (compiled, scope), timeout=2.0)
+        if not success:
+            return False, f"Exec failed: {err}"
+    except Exception as e:
+        return False, f"Syntax/Compile Error: {type(e).__name__}: {e}"
+
+    if entry_point not in scope:
+        return False, f"Entry point '{entry_point}' not found in scope"
+
+    target = scope[entry_point]
+
+    for idx, test_fn in enumerate(test_fns):
+        success, outcome = run_with_timeout(test_fn, (target,), timeout=2.0)
+        if not success:
+            return False, f"Hidden test #{idx + 1} failed: {outcome}"
+        if outcome is not True and outcome != True:
+            return False, f"Hidden test #{idx + 1} assertion failed"
+
+    return True, "Passed all hidden tests"
+
+
+def evaluate_model_bakeoff(
+    model_name: str,
+    base_url: str = "http://127.0.0.1:11434/v1",
+    ollama_base: str = "http://127.0.0.1:11434",
+) -> Dict[str, Any]:
+    print(f"\n=======================================================")
+    print(f"BAKE-OFF EVALUATION: {model_name}")
+    print(f"=======================================================")
+
+    root_dir = os.path.dirname(os.path.abspath(__file__))
+    eval_dir = os.path.join(root_dir, "eval_sets")
+
+    with open(os.path.join(eval_dir, "coding_tasks.json"), "r", encoding="utf-8") as f:
+        coding_tasks = json.load(f)
+    with open(os.path.join(eval_dir, "singlish_prompts.json"), "r", encoding="utf-8") as f:
+        singlish_prompts = json.load(f)
+    with open(os.path.join(eval_dir, "doc_analysis_tasks.json"), "r", encoding="utf-8") as f:
+        doc_tasks = json.load(f)
+
+    reasoner = LocalLLMReasoner(base_url=base_url, model=model_name, timeout=45.0)
+    telem = HardwareTelemetry()
+
+    # Read initial RAM
+    snap_before = telem.get_system_snapshot()
+    ram_before = snap_before["avail_ram_mb"]
+
+    budget = HardwareBudget(
+        compute_tier="HIGH",
+        max_context_bytes=64 * 1024 * 1024,
+        allow_speculation=True,
+        thread_pool_limit=4,
+        throttle_warning="",
+        avail_ram_mb=ram_before,
+    )
+
+    # 1. Evaluate Coding Tasks (20)
+    print("\n[Set 1: Coding Tasks (20)]")
+    code_passed = 0
+    code_latencies = []
+    has_thinking = False
+    has_truncation = False
+
+    sys_code = "You are an expert Python software engineer. Output ONLY valid Python code inside a ```python block. Do not add markdown wrappers or explanations."
+
+    coding_results = []
+    for t in coding_tasks:
+        tid = t["id"]
+        entry = t["entry_point"]
+        prompt = sys_code + "\n\n" + t["prompt"]
+        t0 = time.time()
+        try:
+            resp = reasoner.reason(query=prompt, context=None, budget=budget)
+            lat = round(time.time() - t0, 2)
+            code_latencies.append(lat)
+            if "<think>" in resp or "</think>" in resp:
+                has_thinking = True
+            if "[TRUNCATED:" in resp:
+                has_truncation = True
+            code = extract_python_code(resp)
+            passed, reason = evaluate_coding_task(code, entry, HIDDEN_TESTS.get(tid, []))
+        except Exception as e:
+            lat = round(time.time() - t0, 2)
+            code_latencies.append(lat)
+            passed, reason = False, f"Reasoner error: {e}"
+            code = ""
+
+        if passed:
+            code_passed += 1
+            print(f"  [{tid}] {t['name']}: PASS ({lat}s)")
+        else:
+            print(f"  [{tid}] {t['name']}: FAIL ({reason}) ({lat}s)")
+
+        coding_results.append({"id": tid, "passed": passed, "reason": reason, "latency": lat})
+
+    # 2. Evaluate Singlish / Sinhala Prompts (10)
+    print("\n[Set 2: Singlish / Sinhala Prompts (10)]")
+    singlish_results = []
+    singlish_total_score = 0
+
+    for s in singlish_prompts:
+        sid = s["id"]
+        prompt = s["prompt"]
+        t0 = time.time()
+        try:
+            resp = reasoner.reason(query=prompt, context=None, budget=budget)
+            lat = round(time.time() - t0, 2)
+            if "<think>" in resp:
+                has_thinking = True
+            # Automated keyword scoring as objective baseline
+            kw_matches = [kw for kw in s.get("expected_keywords", []) if kw.lower() in resp.lower()]
+            kw_ratio = len(kw_matches) / max(1, len(s.get("expected_keywords", [])))
+            if kw_ratio >= 0.75:
+                score = 2
+            elif kw_ratio >= 0.25:
+                score = 1
+            else:
+                score = 0
+        except Exception as e:
+            lat = round(time.time() - t0, 2)
+            resp = f"Error: {e}"
+            score = 0
+            kw_matches = []
+
+        singlish_total_score += score
+        print(f"  [{sid}] Score={score}/2 (Keywords: {len(kw_matches)}/{len(s.get('expected_keywords', []))}) ({lat}s)")
+        singlish_results.append({
+            "id": sid,
+            "score": score,
+            "response_sample": resp[:250],
+            "latency": lat,
+        })
+
+    # 3. Evaluate Document Analysis Tasks (10)
+    print("\n[Set 3: Document Analysis Tasks (10)]")
+    doc_results = []
+    doc_passed = 0
+
+    for d in doc_tasks:
+        did = d["id"]
+        ctx = d["document_context"]
+        q = d["question"]
+        t0 = time.time()
+        try:
+            resp = reasoner.reason(query=q, context=ctx, budget=budget)
+            lat = round(time.time() - t0, 2)
+            if "<think>" in resp:
+                has_thinking = True
+            # Check if ground truth keywords are in the answer
+            kws = d.get("ground_truth_keywords", [])
+            match = any(kw.lower() in resp.lower() for kw in kws)
+        except Exception as e:
+            lat = round(time.time() - t0, 2)
+            resp = f"Error: {e}"
+            match = False
+
+        if match:
+            doc_passed += 1
+            print(f"  [{did}]: PASS ({lat}s)")
+        else:
+            print(f"  [{did}]: FAIL ({lat}s)")
+
+        doc_results.append({
+            "id": did,
+            "passed": match,
+            "response": resp[:200],
+            "latency": lat,
+        })
+
+    # Measure RAM drop and model footprint
+    snap_after = telem.get_system_snapshot()
+    ram_after = snap_after["avail_ram_mb"]
+    ram_delta = round(max(0.0, ram_before - ram_after), 1)
+
+    # Footprint via Ollama ps
+    footprint_mb = 0.0
+    try:
+        import urllib.request
+        with urllib.request.urlopen(f"{ollama_base}/api/ps", timeout=2) as r:
+            ps_data = json.loads(r.read().decode())
+            for m in ps_data.get("models", []):
+                if model_name.split(":")[0] in m.get("name", ""):
+                    footprint_mb = round((m.get("size", 0) or m.get("size_vram", 0)) / (1024 * 1024), 1)
+    except Exception:
+        pass
+
+    avg_code_lat = round(sum(code_latencies) / len(code_latencies), 2) if code_latencies else 0.0
+
+    summary = {
+        "model": model_name,
+        "pass_at_1_coding": f"{code_passed}/20 ({code_passed * 5}%)",
+        "singlish_score": f"{singlish_total_score}/20 ({singlish_total_score * 5}%)",
+        "doc_analysis_score": f"{doc_passed}/10 ({doc_passed * 10}%)",
+        "avg_coding_latency_sec": avg_code_lat,
+        "host_ram_delta_mb": ram_delta,
+        "ollama_footprint_mb": footprint_mb,
+        "truncation_detected": has_truncation,
+        "thinking_mode": has_thinking,
+        "coding_results": coding_results,
+        "singlish_results": singlish_results,
+        "doc_results": doc_results,
+    }
+
+    print("\n---------------- SUMMARY ----------------", flush=True)
+    print(f"Model:                {model_name}", flush=True)
+    print(f"Pass@1 Coding:        {summary['pass_at_1_coding']}", flush=True)
+    print(f"Singlish Score:       {summary['singlish_score']}", flush=True)
+    print(f"Doc Analysis Score:   {summary['doc_analysis_score']}", flush=True)
+    print(f"Avg Coding Latency:   {avg_code_lat}s", flush=True)
+    print(f"Host RAM Delta:       {ram_delta} MB", flush=True)
+    print(f"Footprint (VRAM/RAM): {footprint_mb} MB", flush=True)
+    print(f"Thinking Mode:        {has_thinking}", flush=True)
+    print(f"Truncation:           {has_truncation}", flush=True)
+    print("-----------------------------------------", flush=True)
+
+    # Save to docs/evidence/m1_bakeoff_results.json
+    evidence_dir = os.path.join(os.path.dirname(root_dir), "docs", "evidence")
+    os.makedirs(evidence_dir, exist_ok=True)
+    out_file = os.path.join(evidence_dir, "m1_bakeoff_results.json")
+
+    existing_data = {}
+    if os.path.exists(out_file):
+        try:
+            with open(out_file, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+        except Exception:
+            existing_data = {}
+
+    existing_data[model_name] = summary
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(existing_data, f, indent=2)
+    print(f"Updated results in {out_file}", flush=True)
+
+    return summary
+
+
+def unload_model(model_name: str, base_url: str = "http://127.0.0.1:11434"):
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"{base_url}/api/generate",
+            data=json.dumps({"model": model_name, "keep_alive": 0}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            resp.read()
+    except Exception:
+        pass
+    time.sleep(1.0)
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--batch":
+        models = [
+            "llama3.2:3b",
+            "qwen2.5-coder:1.5b",
+            "qwen3.5:4b",
+            "gemma4:e2b",
+            "qwen2.5-coder:7b",
+        ]
+        for m in models:
+            unload_model(m)
+            time.sleep(2.0)
+            try:
+                evaluate_model_bakeoff(m)
+            except Exception as e:
+                print(f"Model {m} evaluation failed: {e}", flush=True)
+            unload_model(m)
+    else:
+        model = sys.argv[1] if len(sys.argv) > 1 else "qwen2.5-coder:1.5b"
+        evaluate_model_bakeoff(model)
+

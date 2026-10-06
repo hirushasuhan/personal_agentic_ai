@@ -1,0 +1,122 @@
+[
+  {
+    "id": "code_01",
+    "name": "parse_simple_csv",
+    "entry_point": "parse_simple_csv",
+    "prompt": "Write a Python function `parse_simple_csv(csv_text: str) -> list[dict]` that parses a CSV string into a list of dictionaries mapping header names to row values.\nAssume the first non-empty line is the header. Empty lines should be ignored.\nStrip surrounding whitespace from headers and values.\nIf a field is enclosed in double quotes, preserve internal commas and strip outer quotes.\nIf `csv_text` is empty or contains only whitespace/header with no data rows, return `[]`.\n\nExample:\n    csv = \"name, age, city\\nAlice, 30, Colombo\\nBob, 25, \\\"Kandy, Central\\\"\"\n    parse_simple_csv(csv) -> [\n        {\"name\": \"Alice\", \"age\": \"30\", \"city\": \"Colombo\"},\n        {\"name\": \"Bob\", \"age\": \"25\", \"city\": \"Kandy, Central\"}\n    ]"
+  },
+  {
+    "id": "code_02",
+    "name": "safe_json_path_lookup",
+    "entry_point": "safe_json_path_lookup",
+    "prompt": "Write a Python function `safe_json_path_lookup(data: dict | list, path: str, default: any = None) -> any` that navigates a nested dictionary/list structure using dot notation.\nIf a path component is a non-negative integer string (e.g. '0', '1'), it should index into a list.\nIf a key or index does not exist, or index is out of bounds, or the traversal encounters a non-container before the end, return `default`.\nAn empty path string `\"\"` returns `data`.\n\nExample:\n    data = {\"users\": [{\"name\": \"Alice\", \"roles\": [\"admin\"]}]}\n    safe_json_path_lookup(data, \"users.0.name\") -> \"Alice\"\n    safe_json_path_lookup(data, \"users.0.roles.1\", default=\"guest\") -> \"guest\"\n    safe_json_path_lookup(data, \"users.5\", default=None) -> None"
+  },
+  {
+    "id": "code_03",
+    "name": "compact_number_formatter",
+    "entry_point": "compact_number_formatter",
+    "prompt": "Write a Python function `compact_number_formatter(n: int | float) -> str` that formats numbers into metric suffixes: 'K' for thousands (>= 1,000), 'M' for millions (>= 1,000,000), 'B' for billions (>= 1,000,000,000).\nNumbers less than 1,000 should be formatted as integers (if whole) or floats with up to 1 decimal place.\nFor values with suffixes, show up to 1 decimal place, but omit the decimal if it is zero (e.g. '1K' not '1.0K', '1.5M' not '1.50M').\nSupport negative numbers appropriately (e.g. -1500 -> '-1.5K').\n\nExample:\n    compact_number_formatter(950) -> \"950\"\n    compact_number_formatter(1000) -> \"1K\"\n    compact_number_formatter(1500) -> \"1.5K\"\n    compact_number_formatter(-2500000) -> \"-2.5M\""
+  },
+  {
+    "id": "code_04",
+    "name": "validate_password_strength",
+    "entry_point": "validate_password_strength",
+    "prompt": "Write a Python function `validate_password_strength(pw: str) -> dict` that evaluates password complexity.\nReturns a dict: `{\"valid\": bool, \"score\": int, \"missing\": list[str]}`.\nCriteria (1 point each, max score 5):\n- length: at least 8 characters (missing key: 'length')\n- uppercase: at least one uppercase letter A-Z (missing key: 'uppercase')\n- lowercase: at least one lowercase letter a-z (missing key: 'lowercase')\n- digit: at least one digit 0-9 (missing key: 'digit')\n- special: at least one special character from '!@#$%^&*()-_=+[]{}' (missing key: 'special')\nA password is valid if and only if score == 5 (all criteria satisfied).\n`missing` should list the missing requirement names in the exact order: ['length', 'uppercase', 'lowercase', 'digit', 'special']."
+  },
+  {
+    "id": "code_05",
+    "name": "top_k_frequent_words",
+    "entry_point": "top_k_frequent_words",
+    "prompt": "Write a Python function `top_k_frequent_words(text: str, k: int) -> list[str]` that extracts words from `text`, counts their frequencies case-insensitively, and returns the top `k` most frequent words.\nA word is defined as a contiguous sequence of alphanumeric characters [a-zA-Z0-9]. All punctuation is stripped.\nWords must be returned in lower-case.\nSorting order:\n1. Frequency descending\n2. Alphabetical (lexicographical) ascending on tie\nIf `k <= 0` or `text` has no words, return `[]`.\n\nExample:\n    top_k_frequent_words(\"The cat and the dog chased the cat.\", 2) -> [\"the\", \"cat\"]"
+  },
+  {
+    "id": "code_06",
+    "name": "time_diff_humanized",
+    "entry_point": "time_diff_humanized",
+    "prompt": "Write a Python function `time_diff_humanized(seconds: int) -> str` that formats non-negative elapsed seconds into a concise human-readable duration string using components: days ('d'), hours ('h'), minutes ('m'), and seconds ('s').\nIgnore zero units, unless the total elapsed time is exactly 0 seconds (in which case return '0s').\nComponents should be space-separated.\n\nExample:\n    time_diff_humanized(90) -> \"1m 30s\"\n    time_diff_humanized(3600) -> \"1h\"\n    time_diff_humanized(86461) -> \"1d 1m 1s\"\n    time_diff_humanized(0) -> \"0s\""
+  },
+  {
+    "id": "code_07",
+    "name": "clean_phone_number",
+    "entry_point": "clean_phone_number",
+    "prompt": "Write a Python function `clean_phone_number(raw: str, default_country_code: str = \"+94\") -> str | None` that normalizes messy telephone numbers.\n1. Remove all spaces, dashes, dots, and parentheses.\n2. If number starts with '0' followed by 9 digits (e.g. 0771234567), replace leading '0' with `default_country_code` -> `+94771234567`.\n3. If number starts with '00', replace '00' with '+' (e.g. 0094771234567 -> +94771234567).\n4. If number already starts with '+', verify it has between 10 and 15 total digits after '+' and return it.\n5. If invalid length or contains unexpected non-digit characters (other than the leading '+'), return `None`.\n\nExample:\n    clean_phone_number(\"077-123-4567\") -> \"+94771234567\"\n    clean_phone_number(\"+94 77 123 4567\") -> \"+94771234567\"\n    clean_phone_number(\"123\") -> None"
+  },
+  {
+    "id": "code_08",
+    "name": "find_first_missing_positive",
+    "entry_point": "find_first_missing_positive",
+    "prompt": "Write a Python function `find_first_missing_positive(nums: list[int]) -> int` that finds the smallest positive integer (greater than 0) that does NOT appear in `nums`.\nMust handle negative numbers, zeroes, duplicate entries, and unsorted lists.\n\nExample:\n    find_first_missing_positive([1, 2, 0]) -> 3\n    find_first_missing_positive([3, 4, -1, 1]) -> 2\n    find_first_missing_positive([7, 8, 9, 11, 12]) -> 1"
+  },
+  {
+    "id": "code_09",
+    "name": "generate_slug",
+    "entry_point": "generate_slug",
+    "prompt": "Write a Python function `generate_slug(title: str, max_length: int = 50) -> str` that converts an article title into an SEO-friendly URL slug.\nRules:\n1. Lowercase all ASCII characters.\n2. Replace any run of non-alphanumeric characters with a single hyphen '-'.\n3. Trim leading and trailing hyphens.\n4. If length exceeds `max_length`, truncate to at most `max_length` characters, avoiding cutting a word in half by snapping back to the previous hyphen if a hyphen exists within the truncated portion. Finally strip any trailing hyphen.\nIf title is empty or results in no alphanumeric characters, return `\"\"`.\n\nExample:\n    generate_slug(\"Hello, World! 2026 Update\") -> \"hello-world-2026-update\"\n    generate_slug(\"This is a very long title that should be truncated cleanly\", 20) -> \"this-is-a-very-long\""
+  },
+  {
+    "id": "code_10",
+    "name": "calculate_tax_bracket",
+    "entry_point": "calculate_tax_bracket",
+    "prompt": "Write a Python function `calculate_tax_bracket(income: float, brackets: list[tuple[float, float]]) -> float` that computes progressive income tax.\n`brackets` is a sorted list of `(upper_limit, rate)` where `rate` is a decimal (e.g. 0.10 for 10%).\nThe last bracket can have `upper_limit = float('inf')`.\nIncome below or equal to 0 incurs 0.0 tax.\nTax is calculated progressively for each segment.\nReturn the total tax rounded to 2 decimal places.\n\nExample:\n    brackets = [(10000.0, 0.0), (30000.0, 0.10), (float('inf'), 0.20)]\n    calculate_tax_bracket(25000.0, brackets) -> 1500.0  # 10000*0% + 15000*10%"
+  },
+  {
+    "id": "code_11",
+    "name": "fuzzy_search_score",
+    "entry_point": "fuzzy_search_score",
+    "prompt": "Write a Python function `fuzzy_search_score(pattern: str, text: str) -> int` that calculates a match score of `pattern` characters appearing in `text` in order (subsequence match), case-insensitively.\nScoring rules:\n- If all characters of `pattern` cannot be matched in order in `text`, return 0.\n- Base score: +10 points for each matched character.\n- Consecutive match bonus: +15 points for each character matched immediately adjacent to the previous matched character.\n- Word-start bonus: +20 points if the matched character is at index 0 or immediately follows whitespace, underscore, or hyphen.\n\nExample:\n    fuzzy_search_score(\"pai\", \"personal_agentic_ai\") > 0\n    fuzzy_search_score(\"xyz\", \"hello world\") -> 0"
+  },
+  {
+    "id": "code_12",
+    "name": "simple_caesar_cipher",
+    "entry_point": "simple_caesar_cipher",
+    "prompt": "Write a Python function `simple_caesar_cipher(text: str, shift: int) -> str` that encrypts or decrypts `text` using a Caesar cipher.\nAlphabetical characters ('a'-'z', 'A'-'Z') are shifted by `shift` positions with wraparound.\nPreserve letter case.\nAll non-alphabetical characters (numbers, spaces, punctuation) must remain completely unchanged.\n`shift` may be negative or larger than 26.\n\nExample:\n    simple_caesar_cipher(\"Hello, World!\", 3) -> \"Khoor, Zruog!\"\n    simple_caesar_cipher(\"Khoor, Zruog!\", -3) -> \"Hello, World!\""
+  },
+  {
+    "id": "code_13",
+    "name": "matrix_transpose_ragged",
+    "entry_point": "matrix_transpose_ragged",
+    "prompt": "Write a Python function `matrix_transpose_ragged(matrix: list[list[any]], fill_value: any = None) -> list[list[any]]` that transposes a 2D list where rows may have varying lengths.\nThe number of columns in the transposed matrix is the number of rows of `matrix`.\nThe number of rows in the transposed matrix is the maximum length of any row in `matrix`.\nMissing elements are padded with `fill_value`.\nIf `matrix` is empty or contains only empty lists, return `[]`.\n\nExample:\n    m = [[1, 2, 3], [4, 5]]\n    matrix_transpose_ragged(m, fill_value=0) -> [[1, 4], [2, 5], [3, 0]]"
+  },
+  {
+    "id": "code_14",
+    "name": "run_length_compress",
+    "entry_point": "run_length_compress",
+    "prompt": "Write a Python function `run_length_compress(data: list[int]) -> list[tuple[int, int]]` that compresses a list of integers into run-length pairs `(value, count)`.\nConsecutive occurrences of the same integer are grouped.\nReturn an empty list `[]` if `data` is empty.\n\nExample:\n    run_length_compress([1, 1, 1, 2, 2, 3, 1, 1]) -> [(1, 3), (2, 2), (3, 1), (1, 2)]"
+  },
+  {
+    "id": "code_15",
+    "name": "parse_duration_string",
+    "entry_point": "parse_duration_string",
+    "prompt": "Write a Python function `parse_duration_string(s: str) -> int` that parses a time duration string into total seconds.\nSupported units: 'd' (86400 seconds), 'h' (3600 seconds), 'm' (60 seconds), 's' (1 second).\nUnits can be concatenated with or without spaces, e.g. '1d 2h 30m' or '1d2h30m'.\nIf string is invalid, contains unsupported units, negative values, or empty, raise `ValueError`.\n\nExample:\n    parse_duration_string(\"1h 30m\") -> 5400\n    parse_duration_string(\"45s\") -> 45\n    parse_duration_string(\"2d 12h\") -> 216000"
+  },
+  {
+    "id": "code_16",
+    "name": "sliding_window_median",
+    "entry_point": "sliding_window_median",
+    "prompt": "Write a Python function `sliding_window_median(nums: list[float], k: int) -> list[float]` that computes the median of each sliding window of size `k` moving from left to right across `nums`.\nFor an even `k`, median is the average of the two middle elements.\nRound each median in the output list to 2 decimal places.\nIf `k <= 0` or `k > len(nums)`, return `[]`.\n\nExample:\n    sliding_window_median([1.0, 3.0, -1.0, -3.0, 5.0, 3.0, 6.0, 7.0], 3) -> [1.0, -1.0, -1.0, 3.0, 5.0, 6.0]"
+  },
+  {
+    "id": "code_17",
+    "name": "CircularBuffer",
+    "entry_point": "CircularBuffer",
+    "prompt": "Write a Python class `CircularBuffer` implementing a fixed-capacity FIFO circular queue:\n- `__init__(self, capacity: int)`: Raise `ValueError` if capacity <= 0.\n- `enqueue(self, item: any) -> bool`: Add item to the buffer. If buffer is full, do not add item and return `False`. Otherwise return `True`.\n- `dequeue(self) -> any`: Remove and return oldest item. If buffer is empty, raise `IndexError`.\n- `peek(self) -> any`: Return oldest item without removing it. If empty, raise `IndexError`.\n- `is_full(self) -> bool`: Return True if size == capacity.\n- `is_empty(self) -> bool`: Return True if size == 0.\n- `size(self) -> int`: Return current count of items."
+  },
+  {
+    "id": "code_18",
+    "name": "deep_merge_dicts",
+    "entry_point": "deep_merge_dicts",
+    "prompt": "Write a Python function `deep_merge_dicts(base: dict, update: dict) -> dict` that recursively merges `update` into `base` without mutating either input dictionary.\nIf a key in both is a dictionary, merge their sub-dictionaries recursively.\nOtherwise, the value in `update` overwrites the value in `base`.\nReturn a newly created merged dictionary.\n\nExample:\n    base = {\"a\": 1, \"b\": {\"x\": 10, \"y\": 20}}\n    update = {\"b\": {\"y\": 25, \"z\": 30}, \"c\": 3}\n    deep_merge_dicts(base, update) -> {\"a\": 1, \"b\": {\"x\": 10, \"y\": 25, \"z\": 30}, \"c\": 3}"
+  },
+  {
+    "id": "code_19",
+    "name": "retry_with_backoff_simulator",
+    "entry_point": "retry_with_backoff_simulator",
+    "prompt": "Write a Python function `retry_with_backoff_simulator(attempts_needed: int, max_retries: int, base_delay: float = 1.0, factor: float = 2.0, max_delay: float = 60.0) -> tuple[bool, float, list[float]]` that calculates retry timings without executing sleep.\n`attempts_needed` is how many attempts are required to succeed (1 means success on initial call, no retries).\nIf `attempts_needed <= max_retries + 1`, the operation succeeds: return `(True, total_delay, delays_list)`.\nOtherwise, after `max_retries` attempts fail, return `(False, total_delay, delays_list)`.\nFor retry #k (1-indexed, starting at k=1 for first retry), `delay = min(base_delay * (factor ** (k - 1)), max_delay)`.\nAll delays rounded to 2 decimal places.\n\nExample:\n    retry_with_backoff_simulator(3, 3, base_delay=1.0, factor=2.0) -> (True, 3.0, [1.0, 2.0])"
+  },
+  {
+    "id": "code_20",
+    "name": "evaluate_simple_expression",
+    "entry_point": "evaluate_simple_expression",
+    "prompt": "Write a Python function `evaluate_simple_expression(expr: str) -> int` that parses and computes the integer result of an arithmetic string containing non-negative integers and operators '+', '-', '*', '/'.\nRules:\n- Respect standard operator precedence: '*' and '/' before '+' and '-'.\n- Division '/' is integer truncation division towards zero (e.g. 5/2 = 2, -5/2 = -2).\n- Disregard whitespace.\n- Do NOT use Python's built-in `eval()` or `exec()`.\n- If expression contains division by zero, raise `ZeroDivisionError`.\n\nExample:\n    evaluate_simple_expression(\"3 + 2 * 2\") -> 7\n    evaluate_simple_expression(\" 3/2 \") -> 1\n    evaluate_simple_expression(\" 3 + 5 / 2 \") -> 5"
+  }
+]

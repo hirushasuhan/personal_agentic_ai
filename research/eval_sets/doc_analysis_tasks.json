@@ -1,0 +1,82 @@
+[
+  {
+    "id": "doc_01",
+    "document_name": "CONSTITUTION.md",
+    "document_context": "The agent operates strictly under human oversight. The Constitution hash is frozen in trust.json. Automatic self-updating is bounded: no more than 3 consecutive autonomous releases may be deployed without explicit, interactive owner review and cryptographic re-signing.",
+    "question": "What is the maximum number of consecutive autonomous releases permitted before manual owner review?",
+    "ground_truth_answer": "3 consecutive autonomous releases.",
+    "ground_truth_keywords": ["3", "three", "consecutive"]
+  },
+  {
+    "id": "doc_02",
+    "document_name": "NET_POLICY.md",
+    "document_context": "Outbound HTTP requests are filtered against an explicit canonical blocked CIDR list. In addition to private RFC 1918 networks, the policy blocks 192.88.99.0/24 (RFC 3068 / RFC 7526 6to4 Anycast relay) and transition prefixes such as 64:ff9b::/96 (NAT64).",
+    "question": "Which specific IPv4 prefix is blocked for the 6to4 Anycast relay?",
+    "ground_truth_answer": "192.88.99.0/24",
+    "ground_truth_keywords": ["192.88.99.0/24"]
+  },
+  {
+    "id": "doc_03",
+    "document_name": "NET_POLICY.md",
+    "document_context": "URL ports must be formatted as standard decimal strings without leading zeros. Ports such as ':080' or ':00080' are strictly rejected with an explicit port format error to eliminate octal vs decimal parser ambiguity.",
+    "question": "Are URL ports with leading zeros (e.g. :080) accepted or rejected, and for what reason?",
+    "ground_truth_answer": "They are strictly rejected to eliminate octal vs decimal parser ambiguity.",
+    "ground_truth_keywords": ["rejected", "octal", "ambiguity", "leading zero"]
+  },
+  {
+    "id": "doc_04",
+    "document_name": "core/Cargo.toml",
+    "document_context": "[dependencies]\nserde = { version = \"1.0\", features = [\"derive\"] }\nserde_json = \"1.0\"\n\n[target.'cfg(windows)'.dependencies]\nwindows-sys = { version = \"0.52\", features = [\"Win32_Foundation\", \"Win32_System_SystemInformation\", \"Win32_System_Threading\", \"Win32_System_Power\"] }",
+    "question": "Which crate is used for native Win32 FFI bindings on Windows targets?",
+    "ground_truth_answer": "windows-sys (version 0.52)",
+    "ground_truth_keywords": ["windows-sys"]
+  },
+  {
+    "id": "doc_05",
+    "document_name": "ADR-009-rust-toolchain-and-unsafe-boundary.md",
+    "document_context": "unsafe boundary: unsafe is allowed only in core/src/win32.rs (and later one dedicated memory-protection module). Every unsafe block carries a // SAFETY: comment stating the invariant it relies on. All other modules keep #![forbid(unsafe_code)]-style enforcement via #![deny(unsafe_code)] at crate level.",
+    "question": "Which single file in core is permitted to contain unsafe code?",
+    "ground_truth_answer": "core/src/win32.rs",
+    "ground_truth_keywords": ["core/src/win32.rs", "win32.rs"]
+  },
+  {
+    "id": "doc_06",
+    "document_name": "model_profiles.json",
+    "document_context": "{\n  \"schema_version\": 1,\n  \"headroom_mb\": 512,\n  \"rule\": \"available_ram_mb >= host_delta_mb + headroom_mb\"\n}",
+    "question": "What is the configured memory headroom in MB required on top of host_delta_mb?",
+    "ground_truth_answer": "512 MB",
+    "ground_truth_keywords": ["512", "512 mb"]
+  },
+  {
+    "id": "doc_07",
+    "document_name": "THREAT_MODEL.md",
+    "document_context": "T18: Self-training poisoning and memorization.\nT19: Misleading numeric output.\nT20: Model supply chain and licensing — a downloaded model is tampered with or its licence forbids the intended use.\nT21: Model-selection manipulation.",
+    "question": "What threat ID represents 'Model supply chain and licensing'?",
+    "ground_truth_answer": "T20",
+    "ground_truth_keywords": ["T20"]
+  },
+  {
+    "id": "doc_08",
+    "document_name": "LOCAL_ASSISTANT_SPEC.md",
+    "document_context": "Milestone M1: pai code (generate only).\nMilestone M2: Verify loop with restricted runner (plan -> generate -> Tier-1 AST guard -> run tests in restricted runner -> repair on failure).\nMilestone M3: pai analyze <folder>.",
+    "question": "What functionality does Milestone M2 deliver?",
+    "ground_truth_answer": "The verify loop with a restricted test runner and automated repair.",
+    "ground_truth_keywords": ["verify loop", "restricted runner", "repair"]
+  },
+  {
+    "id": "doc_09",
+    "document_name": "LOCAL_ASSISTANT_SPEC.md",
+    "document_context": "Milestone M6 (Local web interface): Binds to 127.0.0.1 only on a random port; per-session token; Host and Origin checks; no CORS; no server-side history; same core as the CLI.",
+    "question": "To which IP address does the M6 local web interface bind, and is CORS enabled?",
+    "ground_truth_answer": "It binds to 127.0.0.1 only, and CORS is disabled (no CORS).",
+    "ground_truth_keywords": ["127.0.0.1", "no CORS", "loopback"]
+  },
+  {
+    "id": "doc_10",
+    "document_name": "ADR-008-local-assistant-and-model-strategy.md",
+    "document_context": "Own model definition: the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base. The base remains third-party. From-scratch pre-training is deferred until compute and data exist; the project does not claim otherwise.",
+    "question": "What is the project's exact definition of an 'Own model'?",
+    "ground_truth_answer": "The owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base.",
+    "ground_truth_keywords": ["weights delta", "LoRA", "fine-tune", "open base"]
+  }
+]

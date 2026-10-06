@@ -1,0 +1,112 @@
+[
+  {
+    "id": "singlish_01",
+    "task_type": "explain",
+    "prompt": "Python eke list comprehension ekak use karala even numbers filter karana hati poddak explain karala example ekak denna.",
+    "rubric": {
+      "0": "Irrelevant, hallucinatory, or completely incorrect code syntax.",
+      "1": "Explains concept or gives syntax, but broken Sinhala/English or missing the if condition for even numbers.",
+      "2": "Clear, fluent Singlish/Sinhala explanation with correct syntax e.g. `[x for x in nums if x % 2 == 0]`."
+    },
+    "expected_keywords": ["even", "% 2 == 0", "comprehension", "filter"]
+  },
+  {
+    "id": "singlish_02",
+    "task_type": "fix-this-code",
+    "prompt": "Meka run karaddi 'IndexError: list index out of range' enawa. Code eka fix karala hari widiha kiyanna:\n```python\ndata = [10, 20]\nprint(data[2])\n```",
+    "rubric": {
+      "0": "Does not identify 0-based indexing or offers a non-working fix.",
+      "1": "Identifies that index 2 is out of range, but explanation is vague or fix is incomplete.",
+      "2": "Explains that Python lists are 0-indexed (indices are 0 and 1) and provides correct fix: access `data[1]` or check `len(data)`."
+    },
+    "expected_keywords": ["0-based", "len", "index 1", "out of range"]
+  },
+  {
+    "id": "singlish_03",
+    "task_type": "explain",
+    "prompt": "Rust language eke 'ownership' concept eka simple Singlish walin explain karanna. Borrowing and references genath kiyanna.",
+    "rubric": {
+      "0": "Incorrect definition of ownership or mentions garbage collection in Rust.",
+      "1": "Mentions that variables own memory, but confuses borrowing or mutable vs immutable references.",
+      "2": "Accurately explains that each value has a single owner, dropped when out of scope, and borrowing (`&` vs `&mut`) allows temporary access without transferring ownership."
+    },
+    "expected_keywords": ["owner", "scope", "borrow", "references", "drop"]
+  },
+  {
+    "id": "singlish_04",
+    "task_type": "explain",
+    "prompt": "API request ekak fail unoth exponential backoff retry use karanne ai? Eken server ekata wena benefit eka mokakda?",
+    "rubric": {
+      "0": "Says it doesn't matter or explains standard retry without backoff.",
+      "1": "Explains delay increases, but does not mention server load or thundering herd problem.",
+      "2": "Explains delays increase exponentially (1s, 2s, 4s...) to prevent overwhelming an already struggling server (avoids thundering herd / denial of service)."
+    },
+    "expected_keywords": ["exponential", "delay", "server overload", "traffic"]
+  },
+  {
+    "id": "singlish_05",
+    "task_type": "write-code",
+    "prompt": "SQLite database ekakata python standard library (sqlite3) walin connect wela 'users' table ekak hadala row ekak insert karana podi script ekak liyala denna.",
+    "rubric": {
+      "0": "Does not use sqlite3 or writes syntax that doesn't execute.",
+      "1": "Writes sqlite code but forgets `conn.commit()` or closing the connection.",
+      "2": "Clean, working code using `sqlite3.connect()`, `CREATE TABLE IF NOT EXISTS`, parameterized `INSERT INTO`, and `conn.commit()`."
+    },
+    "expected_keywords": ["sqlite3", "connect", "cursor", "commit"]
+  },
+  {
+    "id": "singlish_06",
+    "task_type": "security-audit",
+    "prompt": "Meke tiyena security vulnerability eka mokakda? Fix karana widiha kiyanna:\n```python\ncursor.execute(f\"SELECT * FROM users WHERE username = '{user_input}'\")\n```",
+    "rubric": {
+      "0": "Fails to identify SQL Injection.",
+      "1": "Identifies SQL Injection but suggests string replacement rather than parameterized queries.",
+      "2": "Clearly identifies SQL Injection (f-string vulnerability) and shows the parameterized fix: `cursor.execute('SELECT * FROM users WHERE username = ?', (user_input,))`."
+    },
+    "expected_keywords": ["SQL Injection", "parameterized", "?", "tuple"]
+  },
+  {
+    "id": "singlish_07",
+    "task_type": "explain",
+    "prompt": "Git cherry-pick kiyanne mokakda? Ekai git merge ekai athara thiyena wenasa kiyanna.",
+    "rubric": {
+      "0": "Completely confuses git commands or hallucinates definition.",
+      "1": "Defines cherry-pick as copying commits, but does not clearly contrast with whole branch merging.",
+      "2": "Clearly explains cherry-pick copies a specific individual commit SHA to the current branch, whereas merge integrates an entire branch's history."
+    },
+    "expected_keywords": ["commit", "specific", "branch", "history"]
+  },
+  {
+    "id": "singlish_08",
+    "task_type": "summarize",
+    "prompt": "Ollama server eka local machine eke run wenne kohomada, RAM eka save karaganna model unload karanne kohomada kiyala steps 3kin kiyanna.",
+    "rubric": {
+      "0": "Mentions cloud APIs or wrong commands.",
+      "1": "Mentions ollama run, but doesn't know how to unload (keep_alive: 0 or ollama stop).",
+      "2": "Clearly lists: 1. `ollama serve` / daemon, 2. Run model on loopback `127.0.0.1:11434`, 3. Unload via `keep_alive: 0` or `ollama stop <model>` to release RAM."
+    },
+    "expected_keywords": ["serve", "11434", "keep_alive", "stop", "RAM"]
+  },
+  {
+    "id": "singlish_09",
+    "task_type": "explain",
+    "prompt": "Python dictionary ekaka key ekak nathi unoth KeyError nogena default value ekak ganna puluwan krama 2k kiyala denna.",
+    "rubric": {
+      "0": "Gives incorrect syntax or only 1 incorrect method.",
+      "1": "Explains `dict.get()`, but misses a second clean method (e.g. `defaultdict` or `try...except`).",
+      "2": "Explains both `dict.get(key, default)` and `collections.defaultdict` (or `dict.setdefault`)."
+    },
+    "expected_keywords": ["get", "default", "defaultdict", "KeyError"]
+  },
+  {
+    "id": "singlish_10",
+    "task_type": "explain",
+    "prompt": "PAI architecture eke 'stateless reasoning' kiyanne mokakda? Hamadama conversation history save nokaranne security reason eka mokakda?",
+    "rubric": {
+      "0": "Says stateless means no RAM or forgets privacy rationale.",
+      "1": "Says no history is saved, but doesn't explain the security/privacy benefit.",
+      "2": "Explains that each task is independently ingested, reasoned, and memory is purged with zero persistent prompt cache to prevent data leaks, prompt injection persistence, and unauthorized forensic discovery."
+    },
+    "expected_keywords": ["stateless", "purge", "privacy", "injection", "history"]
+  }
+]
