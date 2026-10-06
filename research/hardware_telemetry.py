@@ -73,6 +73,7 @@ class HardwareBudget:
     thread_pool_limit: int   # Concurrency limit
     throttle_warning: str    # Human-readable explanation
     reasons: List[str] = field(default_factory=list)  # Machine-readable downgrade reasons
+    avail_ram_mb: Optional[float] = None  # Telemetry available RAM for model sizing checks
 
 
 class HardwareTelemetry:
@@ -184,6 +185,7 @@ class HardwareTelemetry:
             thread_pool_limit=threads,
             throttle_warning=note,
             reasons=reasons,
+            avail_ram_mb=avail_ram_mb,
         )
 
     @staticmethod

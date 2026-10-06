@@ -60,17 +60,23 @@ class CodeSynthesizer:
             f"=== Neuro-Symbolic Logic Deduction [{tier} TIER] ===",
             f"Query: {query}",
             "",
-            "--- Core Logical Premises (Extracted & Grounded) ---",
+            "--- Core Logical Premises (Extracted from Context) ---",
         ]
 
         if atoms:
             for a in atoms:
-                out.append(f"  [{a.atom_id}] (trust={a.source_trust:.2f}): {a.subject} {a.predicate} {a.object}")
+                pred_str = (
+                    f"{a.predicate} not"
+                    if a.predicate in ("is", "are", "was", "were")
+                    else f"does not {a.predicate}"
+                )
+                display_pred = pred_str if not a.polarity else a.predicate
+                out.append(f"  [{a.atom_id}] (trust={a.source_trust:.2f}): {a.subject} {display_pred} {a.object}")
         elif premises:
             for i, p in enumerate(premises, 1):
                 out.append(f"  P{i}: {p}")
         else:
-            out.append("  (No external premises grounded; evaluating from fundamental syntax rules)")
+            out.append("  (No external premises extracted; evaluating from fundamental syntax rules)")
 
         if unresolved_conflicts:
             out.append("")
@@ -83,7 +89,7 @@ class CodeSynthesizer:
         # Grounding status determination
         num_premises = len(atoms) if atoms is not None else len(premises)
         if num_premises > 0:
-            grounding_status = f"Grounded on {num_premises} premise(s) from external context."
+            grounding_status = f"Extracted {num_premises} premise(s) from external context (verification pending audit)."
         else:
             grounding_status = "UNGROUNDED (no external premises provided; query evaluated by structural heuristics only)."
 
@@ -147,7 +153,7 @@ class CodeSynthesizer:
                 f'    }}\n'
                 f'}}\n'
             )
-            guard_status = "PASS (Rust syntax structure valid; static memory safety subject to rustc compiler checks)"
+            guard_status = "NOT_EVALUATED (Python AST guard skipped for Rust; static analysis deferred to rustc)"
 
         out = [
             f"=== Neuro-Symbolic Program Synthesis [{tier} TIER] ===",
@@ -228,13 +234,15 @@ class CodeSynthesizer:
     ) -> str:
         if atoms:
             a1 = atoms[0]
-            pol1 = "" if a1.polarity else "does not "
-            claim1 = f"[{a1.atom_id}] establishes that {a1.subject} {pol1}{a1.predicate} {a1.object}"
+            pred1 = f"{a1.predicate} not" if a1.predicate in ("is", "are", "was", "were") else f"does not {a1.predicate}"
+            display1 = pred1 if not a1.polarity else a1.predicate
+            claim1 = f"[{a1.atom_id}] establishes that {a1.subject} {display1} {a1.object}"
             claim2 = ""
             if len(atoms) > 1:
                 a2 = atoms[1]
-                pol2 = "" if a2.polarity else "does not "
-                claim2 = f" Furthermore, [{a2.atom_id}] shows {a2.subject} {pol2}{a2.predicate} {a2.object}."
+                pred2 = f"{a2.predicate} not" if a2.predicate in ("is", "are", "was", "were") else f"does not {a2.predicate}"
+                display2 = pred2 if not a2.polarity else a2.predicate
+                claim2 = f" Furthermore, [{a2.atom_id}] shows {a2.subject} {display2} {a2.object}."
             return (
                 f"Based on established premises, {claim1}.{claim2} "
                 f"Therefore, the logical decomposition of '{query}' confirms these invariant properties."

@@ -98,6 +98,45 @@ class ConflictDetectorTests(unittest.TestCase):
         # Delta is 0.05 (< 0.20), so dialectic tension is flagged as unresolved
         self.assertEqual(len(rep.unresolved_conflicts), 1)
 
+    def test_negation_extraction_and_unresolved_conflict(self):
+        core = SymbolicCore()
+        context = "Python is slow.\nPython is not slow."
+        atoms = core.extract_atoms(context)
+        self.assertEqual(len(atoms), 2)
+        self.assertEqual(atoms[0].subject.lower(), "python")
+        self.assertEqual(atoms[0].predicate, "is")
+        self.assertEqual(atoms[0].object, "slow")
+        self.assertTrue(atoms[0].polarity)
+
+        self.assertEqual(atoms[1].subject.lower(), "python")
+        self.assertEqual(atoms[1].predicate, "is")
+        self.assertEqual(atoms[1].object, "slow")
+        self.assertFalse(atoms[1].polarity)
+
+        rep = self.detector.detect_and_resolve(atoms)
+        self.assertEqual(len(rep.conflicts_detected), 1)
+        self.assertEqual(len(rep.unresolved_conflicts), 1)
+        self.assertIn("Direct negation", rep.conflicts_detected[0][2])
+
+    def test_per_source_trust_wiring(self):
+        core = SymbolicCore()
+        context = (
+            "[Source: local_knowledge]\n"
+            "Python is dynamic.\n\n"
+            "[Source: duckduckgo]\n"
+            "Python is static.\n"
+        )
+        atoms = core.extract_atoms(context)
+        self.assertEqual(len(atoms), 2)
+        self.assertAlmostEqual(atoms[0].source_trust, 0.95)
+        self.assertAlmostEqual(atoms[1].source_trust, 0.50)
+
+        rep = self.detector.detect_and_resolve(atoms)
+        self.assertEqual(len(rep.conflicts_detected), 1)
+        self.assertIn(atoms[0].atom_id, rep.resolved_atoms)
+        self.assertNotIn(atoms[1].atom_id, rep.resolved_atoms)
+        self.assertEqual(len(rep.unresolved_conflicts), 0)
+
 
 class GroundingValidatorTests(unittest.TestCase):
     def setUp(self):
@@ -155,6 +194,25 @@ class ExecutionGraphTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             graph.execute(budget)
 
+    def test_depth_cap_halts_execution_early(self):
+        graph = ExecutionGraph()
+        executed = []
+        for i in range(6):
+            def make_h(idx):
+                return lambda ctx, b: executed.append(idx)
+            graph.add_node(LogicNode(node_id=f"n{i}", operation=f"OP{i}", handler=make_h(i)))
+
+        # COMPRESSED tier cap is 4
+        budget = HardwareBudget(compute_tier="COMPRESSED", max_context_bytes=1024,
+                                allow_speculation=False, thread_pool_limit=1, throttle_warning="")
+        ctx, trace = graph.execute(budget)
+        self.assertTrue(trace.halted_early)
+        self.assertEqual(trace.node_count, 4)
+        self.assertEqual(executed, [0, 1, 2, 3])
+        self.assertIn("Depth cap 4 reached for tier COMPRESSED", trace.halt_reason)
+        self.assertIsNone(graph.nodes["n4"].result)
+        self.assertIsNone(graph.nodes["n5"].result)
+
 
 class CodeSynthesizerTests(unittest.TestCase):
     def setUp(self):
@@ -177,7 +235,7 @@ class CodeSynthesizerTests(unittest.TestCase):
         res = self.synth.synthesize(IntentKind.EXPLAIN_CONCEPT, "Explain Rust", premises, "BALANCED")
         self.assertIn("P1: Premise A: Systems language", res)
         self.assertIn("P2: Premise B: Zero cost abstractions", res)
-        self.assertIn("Factual Grounding: Grounded on 2 premise(s)", res)
+        self.assertIn("Extracted 2 premise(s)", res)
 
 
 class FormalInvariantsTests(unittest.TestCase):
@@ -204,7 +262,7 @@ class FormalInvariantsTests(unittest.TestCase):
             IntentKind.EXPLAIN_CONCEPT, "Shape of Earth", [], "BALANCED", atoms=[atom]
         )
         self.assertIn("[ATOM-001]", res_grounded)
-        self.assertIn("Grounded on 1 premise(s)", res_grounded)
+        self.assertIn("Extracted 1 premise(s)", res_grounded)
 
     def test_invariant_i2_deterministic_termination(self):
         """I2: Execution graph halts deterministically within budget depth cap."""

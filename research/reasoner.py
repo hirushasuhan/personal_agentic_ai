@@ -171,10 +171,35 @@ class LocalLLMReasoner:
             if not ip.is_loopback:
                 raise ValueError(f"model host resolves to non-loopback address {ip}; refusing (local-only policy)")
 
+    def _estimate_model_ram_mb(self) -> int:
+        m = self.model.lower()
+        if "70b" in m:
+            return 40000
+        if "13b" in m:
+            return 8000
+        if any(x in m for x in ("7b", "8b")):
+            return 5000
+        if "3b" in m:
+            return 3000
+        if "1b" in m:
+            return 1500
+        return 2000
+
     def reason(self, query: str, context: Optional[str], budget: HardwareBudget) -> str:
-        # Model RAM fit check: fail closed under memory pressure
-        if budget.compute_tier == "COMPRESSED" and any(m in self.model.lower() for m in ("3b", "7b", "8b", "13b", "70b")):
-            raise ReasonerError(f"insufficient RAM headroom: model {self.model} requires >= 2.5 GB headroom, but system is in COMPRESSED tier")
+        # Model RAM fit check (Decision D1): Available RAM >= Model RAM + Headroom
+        model_req_mb = self._estimate_model_ram_mb()
+        headroom_mb = 1024  # 1 GB host headroom to avoid thrashing/freezing
+        total_req_mb = model_req_mb + headroom_mb
+
+        if budget.avail_ram_mb is not None:
+            if budget.avail_ram_mb < total_req_mb:
+                raise ReasonerError(
+                    f"insufficient RAM headroom: model '{self.model}' requires {model_req_mb} MB + {headroom_mb} MB headroom ({total_req_mb} MB total), but system available RAM is {budget.avail_ram_mb:.1f} MB (tier {budget.compute_tier})"
+                )
+        elif budget.compute_tier == "COMPRESSED" and model_req_mb >= 2500:
+            raise ReasonerError(
+                f"insufficient RAM headroom: model '{self.model}' requires >= {model_req_mb} MB, but system is in COMPRESSED tier"
+            )
 
         user = f"Task: {query}\n\nContext:\n" + (fence(context) if context else "(none)")
         max_tokens = _TOKENS_BY_TIER.get(budget.compute_tier, 256)

@@ -156,10 +156,10 @@ class GroundingValidator:
         hazards: List[str] = []
 
         for cid in sorted(cited_ids):
-            if cid in available_atoms:
+            if cid in hazard_ids:
+                hazards.append(cid)
+            elif cid in available_atoms:
                 grounded.append(cid)
-                if cid in hazard_ids:
-                    hazards.append(cid)
             else:
                 invalid.append(cid)
 
@@ -356,9 +356,23 @@ class SymbolicCore:
         atoms: List[EvidenceAtom] = []
         atom_counter = 1
 
+        current_trust = default_trust
         lines = [line.strip() for line in context.split("\n") if line.strip()]
         for line in lines:
             if line.startswith("<<") or line.startswith(">>"):
+                continue
+
+            # Check for provenance source header in context stream
+            line_low = line.lower()
+            if line_low.startswith("[source:") or line_low.startswith("source:"):
+                if "local" in line_low:
+                    current_trust = 0.95
+                elif "wikipedia" in line_low:
+                    current_trust = 0.75
+                elif "duckduckgo" in line_low or "ddg" in line_low:
+                    current_trust = 0.50
+                elif "user" in line_low:
+                    current_trust = 0.90
                 continue
 
             # Tagged property lines: e.g. "TOPIC: Rust", "DESCRIPTION: Fast systems language"
@@ -372,7 +386,7 @@ class SymbolicCore:
                         predicate="is",
                         object=val,
                         polarity=True,
-                        source_trust=default_trust,
+                        source_trust=current_trust,
                         raw_text=line,
                     )
                     atoms.append(atom)
@@ -390,20 +404,37 @@ class SymbolicCore:
                 is_negated = bool(re.search(r"\b(not|never|neither|cannot|isn't|aren't|doesn't|don't|without|no)\b", s_clean, re.IGNORECASE))
                 polarity = not is_negated
 
-                # Identify predicate verb
+                # Identify predicate verb with support for negation contractions
                 predicate = "is"
-                for p_cand in ["is a", "is", "has", "requires", "implements", "supports", "provides", "conflicts with"]:
+                matched_cand = None
+                for p_cand in ["is a", "isn't", "is not", "is", "aren't", "are not", "are", "has", "requires", "implements", "supports", "provides", "conflicts with"]:
                     if f" {p_cand} " in s_clean.lower():
-                        predicate = p_cand
+                        matched_cand = p_cand
+                        if p_cand in ("isn't", "is not"):
+                            predicate = "is"
+                            polarity = False
+                        elif p_cand in ("aren't", "are not"):
+                            predicate = "are"
+                            polarity = False
+                        else:
+                            predicate = p_cand
                         break
 
-                parts = re.split(rf"\b{re.escape(predicate)}\b", s_clean, flags=re.IGNORECASE, maxsplit=1)
+                split_verb = matched_cand if matched_cand else predicate
+                parts = re.split(rf"\b{re.escape(split_verb)}\b", s_clean, flags=re.IGNORECASE, maxsplit=1)
                 if len(parts) == 2 and len(parts[0].strip()) > 1 and len(parts[1].strip()) > 1:
                     subj = parts[0].strip().rstrip(",")
-                    obj = parts[1].strip().lstrip(",").rstrip(".")
+                    raw_obj = parts[1].strip().lstrip(",").rstrip(".")
                 else:
                     subj = "concept"
-                    obj = s_clean.rstrip(".")
+                    raw_obj = s_clean.rstrip(".")
+
+                # If negated, strip leading negation particle so object reflects the underlying semantic concept
+                if not polarity:
+                    clean_obj = re.sub(r"^(not|never|neither|no)\s+", "", raw_obj, flags=re.IGNORECASE).strip()
+                    obj = clean_obj if clean_obj else raw_obj
+                else:
+                    obj = raw_obj
 
                 atom = EvidenceAtom(
                     atom_id=f"ATOM-{atom_counter:03d}",
@@ -411,7 +442,7 @@ class SymbolicCore:
                     predicate=predicate,
                     object=obj[:80],
                     polarity=polarity,
-                    source_trust=default_trust,
+                    source_trust=current_trust,
                     raw_text=s_clean,
                 )
                 atoms.append(atom)

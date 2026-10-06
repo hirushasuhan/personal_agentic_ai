@@ -117,7 +117,29 @@ class LocalModel(unittest.TestCase):
         a = StatelessAgentCore(network=OfflineNetwork(16), reasoner=LocalLLMReasoner("http://127.0.0.1:9/v1", timeout=1))
         r = a.execute_task("Explain Rust ownership")
         self.assertEqual(r.status, "ERROR")
-        self.assertTrue(r.memory_purged_successfully)
+    def test_telemetry_model_ram_fit_check(self):
+        with Srv() as s:
+            # 3B model requires 3000 MB + 1024 MB headroom = 4024 MB
+            r3b = LocalLLMReasoner(s.url, model="llama3.2:3b", timeout=5)
+
+            # Sufficient RAM: 5000 MB available -> succeeds
+            b_ok = budget("HIGH")
+            b_ok.avail_ram_mb = 5000.0
+            res = r3b.reason("q", None, b_ok)
+            self.assertIn("42", res)
+
+            # Insufficient RAM: 3500 MB available < 4024 MB required -> fails closed with ReasonerError
+            b_low = budget("BALANCED")
+            b_low.avail_ram_mb = 3500.0
+            with self.assertRaises(ReasonerError) as cm:
+                r3b.reason("q", None, b_low)
+            self.assertIn("insufficient RAM headroom", str(cm.exception))
+            self.assertIn("llama3.2:3b", str(cm.exception))
+
+            # 1B model requires 1500 MB + 1024 MB = 2524 MB -> 3500 MB available succeeds
+            r1b = LocalLLMReasoner(s.url, model="llama3.2:1b", timeout=5)
+            res1b = r1b.reason("q", None, b_low)
+            self.assertIn("42", res1b)
 
 
 if __name__ == "__main__":

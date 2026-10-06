@@ -33,9 +33,12 @@ Where:
 * **`object` ($O$, str)**: The target entity, value, or attribute.
 * **`polarity` ($\text{bool}$)**: `True` if positive assertion ($S \text{ has } P(O)$); `False` if negated assertion ($\neg [S \text{ has } P(O)]$).
 * **`source_trust` ($\tau \in [0.0, 1.0]$)**: Trust weight assigned to the originating data stream.
-  * Ingested web data (sanitized): $\tau \in [0.3, 0.7]$ based on domain repute.
-  * Direct user instruction: $\tau = 0.9$.
-  * Constitution / System policy: $\tau = 1.0$.
+  * In prototype implementation, source trust is extracted from context stream headers:
+    * `[Source: local_knowledge]`: $\tau = 0.95$
+    * `[Source: wikipedia]`: $\tau = 0.75$
+    * `[Source: duckduckgo]`: $\tau = 0.50$
+    * `[User Instruction]`: $\tau = 0.90$
+    * Default unannotated context: $\tau = 0.85$ (baseline parameter)
 * **`timestamp` ($t$, float/ISO-8601)**: Ingestion timestamp for freshness evaluation.
 * **`raw_text` (str)**: Verbatim context snippet from which the atom was parsed.
 
