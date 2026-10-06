@@ -40,6 +40,9 @@ def main(argv=None) -> int:
     if a.gen_key:
         if os.path.exists(a.gen_key):
             sys.exit(f"{a.gen_key} already exists; refusing to overwrite a private key")
+        parent = os.path.dirname(a.gen_key)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         k = Ed25519PrivateKey.generate()
         seed = k.private_bytes(serialization.Encoding.Raw, serialization.PrivateFormat.Raw, serialization.NoEncryption())
         fd = os.open(a.gen_key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
