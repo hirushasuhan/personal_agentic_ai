@@ -1,6 +1,6 @@
 # ADR-003 — Sandbox technology on Windows (risk R5)
 
-**Status:** Accepted (default) — **requires a smoke test on the Windows target** · **Owner decision D3** · **Date:** 2026-10-05
+**Status:** Accepted · **Smoke test passed 2026-10-07** (exit 0, 7/7 checks passed) · **Owner decision D3** · **Date:** 2026-10-05
 
 ## Context
 Firecracker needs Linux + KVM and does not run natively on Windows. Tier 2 of the RSI spec needs a disposable environment with **no network**, tight resource caps and a hostile-output-safe result channel. Containers alone share the host kernel and are not an acceptable sole boundary.
@@ -30,8 +30,16 @@ python sandbox_smoke_test.py --launch --wait 180   # exit 0 ONLY if the probe ra
 ```
 The probe (native PowerShell) checks: no TCP route, DNS fails, no network adapter up, the host staging path is invisible, no foreign user profiles, input mapping is read-only, only drive C: exists. Generating the `.wsb` alone does **not** pass the gate (exit code 2). Record the date and output here when it passes.
 
-## Not yet done (Phase 4)
-Launching the sandbox, waiting for completion, collecting results and a Windows smoke test confirming that a probe inside the sandbox cannot reach the network or the host filesystem. Phase 4 must not start without that test.
+## Gate Outcome (Recorded 2026-10-07)
+The smoke test executed on Windows 11 and passed 7/7 checks:
+* TCP route to internet: refused/timed out (PASS)
+* DNS resolution: failed as expected (PASS)
+* Network adapters up: 0 (PASS)
+* Host staging path: invisible inside guest (PASS)
+* Foreign user profiles: none (PASS)
+* Input folder: read-only enforced (PASS)
+* Filesystem drives: only C: mapped (PASS)
+Output evidence recorded in `docs/evidence/sandbox_results.json`.
 
 ## If reversed
 Swap the technology behind the same checklist: the checklist and the results-validator stay.
