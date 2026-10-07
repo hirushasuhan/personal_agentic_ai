@@ -144,5 +144,16 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
   - `llama3.2:3b`: 8/20 (40.0%) pass@1 coding, 11/20 (55.0%) Singlish, 20/20 (100.0%) doc analysis, 2.30s coding latency, 740.0 MB cold delta.
   - `qwen3.5:4b`: 8/20 (40.0%) pass@1 coding, 15/20 (75.0%) Singlish, 20/20 (100.0%) doc analysis, 5.50s coding latency, 1038.6 MB cold delta.
 
+### M1.2 review (commit `bcade6e`, 2026-10-07)
+**Verified by the reviewer:** Python suite 184 OK (2 skipped); eval-set hashes on disk match both `eval_sets_hashes.json` and the `run_metadata` of all five models; each model has 20 coding, 10 Singlish and 20 document results; `cold_ram_measurements.json` holds 5 runs per model with tight spread (for example `qwen2.5-coder:7b` 1226-1367 MB, `gemma4:e2b` 2855-2997 MB).
+
+**Limits on what the numbers show:**
+* Coding pass@1 moved between two runs on identical frozen sets (`qwen2.5-coder:7b` 13 to 12, `qwen3.5:4b` 10 to 8, `llama3.2:3b` 7 to 8; temperature 0.2, no seed). With 20 tasks, differences of 2-3 tasks are noise; only the gap between `qwen2.5-coder:7b` (60%) and the 40-45% group is suggestive.
+* Document scoring accepts a response if any expected keyword appears, so it rewards long answers; `llama3.2:3b` scores 100% and the 7B coder 95%. It does not separate the models. Singlish scoring is keyword matching on 10 prompts.
+* For `gemma4:e2b`, `/api/ps` reports `size` and `size_vram` as the same 214.4 MB. The claim that the rest of the weights sit in host RAM comes from the measured 2935 MB delta, not from `/api/ps`; the footprint field is not a usable memory figure for this model. `measured_live_delta_mb` varies from 46 MB to 5326 MB across models and is not a measurement of the model.
+* The Radeon 760M uses shared system memory, so whether iGPU allocations lower `available_ram_mb` as the cold delta assumes is established only by the measured deltas.
+* Licence URLs for `qwen3.5:4b` and `gemma4:e2b` are the generic Apache page and the source is the Ollama library page, not an official model card; the Llama URL appears to be the Llama 3 licence page, not the 3.2 one. To be re-read before adoption.
+* The report listed 5 skipped tests; the reviewer's run shows 2. Rust tests, clippy and fuzz were not re-run in this review.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

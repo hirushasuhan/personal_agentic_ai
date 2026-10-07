@@ -163,6 +163,7 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 | M1 | Model bake-off (`qwen2.5-coder:7b`/`1.5b`, `qwen3.5:4b`, `gemma4:e2b` vs `llama3.2:3b`) + `pai code` generate-only | Model cards (licence checked, hash, `host_delta_mb`, latency); frozen sets: 20 coding tasks (pass@1), 10 Singlish prompts, 10 document questions; thinking/truncation behaviour recorded |
 | M1.1 | Bake-off hardening (subprocess runner, thinking control, frozen sets, re-measured RAM) | Done in `7795e7b` |
 | M1.2 | Standardized RAM measurements & full 20-doc batch evaluation | Done (5-run cold median in `MEASUREMENT_PROCEDURE.md`, all 20 doc tasks scored, run metadata recorded, profiles reconciled with SPDX/HF cards) |
+| M1.2 | Bake-off re-run with metadata, standard cold-RAM procedure, 20 document tasks | Done in `bcade6e`; open (M1.3): repeat runs with fixed seed for pass@1 variance, stricter document scoring, licence re-read on official cards |
 | M1b | Adaptive model router (task class + machine condition → model, explained) | Properties and golden decision vectors pass; router beats the best single model under equal RAM budgets, otherwise shelved |
 | M2 | Verify loop with restricted runner | infinite loop, file-delete, network and fork-bomb tests all contained |
 | M3 | `pai analyze <folder>` | path-escape, injection-in-file, secret-file and size-cap tests pass |
