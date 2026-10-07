@@ -61,29 +61,15 @@ def run_with_timeout(fn: Any, args: tuple = (), timeout: float = 2.0) -> Tuple[b
     return res_box[0], res_box[1]
 
 
-def evaluate_coding_task(code_str: str, entry_point: str, test_fns: List[Any]) -> Tuple[bool, str]:
-    """Compiles generated code and evaluates against hidden unit tests."""
-    scope: Dict[str, Any] = {}
-    try:
-        compiled = compile(code_str, "<model_code>", "exec")
-        success, err = run_with_timeout(exec, (compiled, scope), timeout=2.0)
-        if not success:
-            return False, f"Exec failed: {err}"
-    except Exception as e:
-        return False, f"Syntax/Compile Error: {type(e).__name__}: {e}"
+from safe_code_runner import run_isolated_task_eval
 
-    if entry_point not in scope:
-        return False, f"Entry point '{entry_point}' not found in scope"
 
-    target = scope[entry_point]
-
+def evaluate_coding_task(code_str: str, entry_point: str, test_fns: List[Any], timeout_sec: float = 2.0) -> Tuple[bool, str]:
+    """Evaluates untrusted model code against hidden unit tests in an isolated sandbox subprocess."""
     for idx, test_fn in enumerate(test_fns):
-        success, outcome = run_with_timeout(test_fn, (target,), timeout=2.0)
-        if not success:
-            return False, f"Hidden test #{idx + 1} failed: {outcome}"
-        if outcome is not True and outcome != True:
-            return False, f"Hidden test #{idx + 1} assertion failed"
-
+        passed, msg = run_isolated_task_eval(code_str, entry_point, test_fn, timeout_sec=timeout_sec)
+        if not passed:
+            return False, f"Hidden test #{idx + 1} failed: {msg}"
     return True, "Passed all hidden tests"
 
 
@@ -91,9 +77,11 @@ def evaluate_model_bakeoff(
     model_name: str,
     base_url: str = "http://127.0.0.1:11434/v1",
     ollama_base: str = "http://127.0.0.1:11434",
+    think: Optional[bool] = None,
 ) -> Dict[str, Any]:
+    think_label = f" (think={think})" if think is not None else ""
     print(f"\n=======================================================")
-    print(f"BAKE-OFF EVALUATION: {model_name}")
+    print(f"BAKE-OFF EVALUATION: {model_name}{think_label}")
     print(f"=======================================================")
 
     root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -106,7 +94,7 @@ def evaluate_model_bakeoff(
     with open(os.path.join(eval_dir, "doc_analysis_tasks.json"), "r", encoding="utf-8") as f:
         doc_tasks = json.load(f)
 
-    reasoner = LocalLLMReasoner(base_url=base_url, model=model_name, timeout=45.0)
+    reasoner = LocalLLMReasoner(base_url=base_url, model=model_name, timeout=45.0, think=think)
     telem = HardwareTelemetry()
 
     # Read initial RAM
@@ -141,9 +129,9 @@ def evaluate_model_bakeoff(
             resp = reasoner.reason(query=prompt, context=None, budget=budget)
             lat = round(time.time() - t0, 2)
             code_latencies.append(lat)
-            if "<think>" in resp or "</think>" in resp:
+            if getattr(reasoner, "last_thinking_detected", False) or "<think>" in resp or "</think>" in resp:
                 has_thinking = True
-            if "[TRUNCATED:" in resp:
+            if getattr(reasoner, "last_truncated", False) or "[TRUNCATED:" in resp:
                 has_truncation = True
             code = extract_python_code(resp)
             passed, reason = evaluate_coding_task(code, entry, HIDDEN_TESTS.get(tid, []))
@@ -173,7 +161,7 @@ def evaluate_model_bakeoff(
         try:
             resp = reasoner.reason(query=prompt, context=None, budget=budget)
             lat = round(time.time() - t0, 2)
-            if "<think>" in resp:
+            if getattr(reasoner, "last_thinking_detected", False) or "<think>" in resp:
                 has_thinking = True
             # Automated keyword scoring as objective baseline
             kw_matches = [kw for kw in s.get("expected_keywords", []) if kw.lower() in resp.lower()]
@@ -212,7 +200,7 @@ def evaluate_model_bakeoff(
         try:
             resp = reasoner.reason(query=q, context=ctx, budget=budget)
             lat = round(time.time() - t0, 2)
-            if "<think>" in resp:
+            if getattr(reasoner, "last_thinking_detected", False) or "<think>" in resp:
                 has_thinking = True
             # Check if ground truth keywords are in the answer
             kws = d.get("ground_truth_keywords", [])
@@ -256,9 +244,9 @@ def evaluate_model_bakeoff(
 
     summary = {
         "model": model_name,
-        "pass_at_1_coding": f"{code_passed}/20 ({code_passed * 5}%)",
-        "singlish_score": f"{singlish_total_score}/20 ({singlish_total_score * 5}%)",
-        "doc_analysis_score": f"{doc_passed}/10 ({doc_passed * 10}%)",
+        "pass_at_1_coding": f"{code_passed}/{len(coding_tasks)} ({round(code_passed / max(1, len(coding_tasks)) * 100, 1)}%)",
+        "singlish_score": f"{singlish_total_score}/{len(singlish_prompts) * 2} ({round(singlish_total_score / max(1, len(singlish_prompts) * 2) * 100, 1)}%)",
+        "doc_analysis_score": f"{doc_passed}/{len(doc_tasks)} ({round(doc_passed / max(1, len(doc_tasks)) * 100, 1)}%)",
         "avg_coding_latency_sec": avg_code_lat,
         "host_ram_delta_mb": ram_delta,
         "ollama_footprint_mb": footprint_mb,
@@ -318,7 +306,16 @@ def unload_model(model_name: str, base_url: str = "http://127.0.0.1:11434"):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--batch":
+    import argparse
+    parser = argparse.ArgumentParser(description="M1 Bake-off Evaluation")
+    parser.add_argument("model", nargs="?", default="qwen2.5-coder:1.5b", help="Model name to evaluate")
+    parser.add_argument("--no-think", action="store_true", help="Disable thinking mode (think=False)")
+    parser.add_argument("--batch", action="store_true", help="Run batch evaluation over all models")
+    args = parser.parse_args()
+
+    think_opt = False if args.no_think else None
+
+    if args.batch:
         models = [
             "llama3.2:3b",
             "qwen2.5-coder:1.5b",
@@ -330,11 +327,12 @@ if __name__ == "__main__":
             unload_model(m)
             time.sleep(2.0)
             try:
-                evaluate_model_bakeoff(m)
+                # Use think=False for reasoning models if specified or by default
+                m_think = False if (args.no_think or m in ("qwen3.5:4b", "gemma4:e2b")) else None
+                evaluate_model_bakeoff(m, think=m_think)
             except Exception as e:
                 print(f"Model {m} evaluation failed: {e}", flush=True)
             unload_model(m)
     else:
-        model = sys.argv[1] if len(sys.argv) > 1 else "qwen2.5-coder:1.5b"
-        evaluate_model_bakeoff(model)
+        evaluate_model_bakeoff(args.model, think=think_opt)
 

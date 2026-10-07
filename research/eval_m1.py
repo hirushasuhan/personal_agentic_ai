@@ -25,30 +25,15 @@ def extract_python_code(raw_text: str) -> str:
     return raw_text.strip()
 
 
+from safe_code_runner import run_isolated_task_eval
+
+
 def run_single_task_eval(code_str: str, entry_point: str, hidden_tests: List[Any], timeout_sec: float = 3.0) -> Tuple[bool, str]:
-    """Executes generated code in an isolated dictionary scope and runs hidden tests."""
-    scope: Dict[str, Any] = {}
-    try:
-        # Pre-compile to catch syntax errors
-        compiled = compile(code_str, "<model_code>", "exec")
-        exec(compiled, scope)
-    except Exception as e:
-        return False, f"Execution/Syntax Error: {type(e).__name__}: {e}"
-
-    if entry_point not in scope:
-        return False, f"Entry point '{entry_point}' not defined in output."
-
-    target_fn = scope[entry_point]
-
-    # Run each hidden test
+    """Executes generated code in an isolated subprocess sandbox and runs hidden tests."""
     for idx, test_fn in enumerate(hidden_tests):
-        try:
-            result = test_fn(target_fn)
-            if not result:
-                return False, f"Hidden test #{idx + 1} assertion returned False"
-        except Exception as e:
-            return False, f"Hidden test #{idx + 1} raised {type(e).__name__}: {e}"
-
+        passed, msg = run_isolated_task_eval(code_str, entry_point, test_fn, timeout_sec=timeout_sec)
+        if not passed:
+            return False, f"Hidden test #{idx + 1} failed: {msg}"
     return True, "Passed all hidden tests"
 
 

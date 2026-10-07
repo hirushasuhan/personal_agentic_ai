@@ -515,11 +515,11 @@
   },
   "qwen3.5:4b": {
     "model": "qwen3.5:4b",
-    "pass_at_1_coding": "0/20 (0%)",
-    "singlish_score": "0/20 (0%)",
-    "doc_analysis_score": "7/10 (70%)",
-    "avg_coding_latency_sec": 20.91,
-    "host_ram_delta_mb": 3699.8,
+    "pass_at_1_coding": "10/20 (50%)",
+    "singlish_score": "14/20 (70%)",
+    "doc_analysis_score": "10/10 (100%)",
+    "avg_coding_latency_sec": 5.57,
+    "host_ram_delta_mb": 1852.2,
     "ollama_footprint_mb": 2985.0,
     "truncation_detected": true,
     "thinking_mode": false,
@@ -527,256 +527,256 @@
       {
         "id": "code_01",
         "passed": false,
-        "reason": "Reasoner error: model server unreachable: timed out",
-        "latency": 45.0
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 14.82
       },
       {
         "id": "code_02",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.85
+        "reason": "Hidden test #2 failed: Hidden test assertion returned False",
+        "latency": 3.34
       },
       {
         "id": "code_03",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.76
+        "reason": "Hidden test #1 failed: Compile/Syntax Error: SyntaxError: closing parenthesis ')' does not match opening parenthesis '[' (solution.py, line 12)",
+        "latency": 3.68
       },
       {
         "id": "code_04",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.69
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 3.44
       },
       {
         "id": "code_05",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.71
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.49
       },
       {
         "id": "code_06",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.65
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 3.48
       },
       {
         "id": "code_07",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.77
+        "reason": "Hidden test #1 failed: Compile/Syntax Error: SyntaxError: invalid syntax (solution.py, line 1)",
+        "latency": 19.58
       },
       {
         "id": "code_08",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.48
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.5
       },
       {
         "id": "code_09",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.57
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 4.96
       },
       {
         "id": "code_10",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.62
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 2.74
       },
       {
         "id": "code_11",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.7
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 15.19
       },
       {
         "id": "code_12",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.65
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.95
       },
       {
         "id": "code_13",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.54
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.98
       },
       {
         "id": "code_14",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.62
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.52
       },
       {
         "id": "code_15",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.66
+        "reason": "Hidden test #4 failed: Test failure: ValueError: Invalid number in duration string: 1d2h3m4",
+        "latency": 6.57
       },
       {
         "id": "code_16",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.66
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 4.07
       },
       {
         "id": "code_17",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.51
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 5.73
       },
       {
         "id": "code_18",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.58
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.82
       },
       {
         "id": "code_19",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.6
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 3.59
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 19.59
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 6.03
       }
     ],
     "singlish_results": [
       {
         "id": "singlish_01",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.5
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython ma **list comprehension** (list comp) ekak use karala even numbers filter karana hatyap, kintu context missing astha. List comprehension ek simple synta",
+        "latency": 4.1
       },
       {
         "id": "singlish_02",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.5
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nCode-ku `IndexError` error aagidanaa, `data` list-ki index `2` (third element) access karuna try karayina. Maathra, `data` list-ki only `10` (index 0) ani `20`",
+        "latency": 3.03
       },
       {
         "id": "singlish_03",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.47
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nHuh, task clear! But wait, context missing. No data provided to reference. Can't proceed without info. Say so.",
+        "latency": 0.66
       },
       {
         "id": "singlish_04",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.5
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0928\u0939\u0940\u0902, \u090f\u0915\u093e API request fail \u091c\u093e\u0932\u093e \u0906\u0928\u0940 **exponential backoff** (\u090f\u0915\u094d\u0938\u092a\u094b\u0928\u0947\u0928\u094d\u0936\u093f\u092f\u0932 \u092c\u0945\u0915\u0911\u092b) \u0930\u0940\u0924\u0940\u0928 \u092a\u0941\u0928\u0930\u094d\u0930\u094d\u092f\u093e \u0915\u0930\u092a\u093e\u0915 AI \u0935\u093e\u092a\u0930\u0942\u0902\u0915 \u0928\u093e\u0938\u0924\u093e.\n\n\u0924\u0947\u0902\u091a\u094b \u092e\u0941\u0916\u0947\u0932 \u092b\u093e\u092f\u0926\u093e \u092e\u094d\u0939\u0923\u0932\u094d\u092f\u093e\u0930:\n1.  **",
+        "latency": 10.29
       },
       {
         "id": "singlish_05",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.46
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nKaranuki context missing hae, kintu task clear ahe. Python standard library `sqlite3` walin 'users' table create karana ekak row insert karana podi script nee ",
+        "latency": 5.01
       },
       {
         "id": "singlish_06",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.46
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nYes, the code snippet you provided is vulnerable to **SQL Injection**.\n\n### Vulnerability Analysis\nThe vulnerability exists because `user_input` is directly in",
+        "latency": 7.86
       },
       {
         "id": "singlish_07",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.45
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit-er chery-pick (ekai athara thiyena wenasa kiyanna) ani Git-er merge (ekai athara thiyena wenasa kiyanna) anta mukhya antar **branch-a branch-e** ekai athar",
+        "latency": 7.78
       },
       {
         "id": "singlish_08",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.45
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nOllama server-ki local machine-e run karunna model RAM-ki save karana (unload karana) kiyala steps 3 kin kiyanna:\n\n1. **Model unload karana:** Ollama terminal-",
+        "latency": 3.67
       },
       {
         "id": "singlish_09",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.47
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython-er `dictionary` (dict)-er key ekak nathi error hoy na, te default value ekak ganna **`get()`** method ta use korben.\n\nTader code krama:\n\n```python\nmy_di",
+        "latency": 4.48
       },
       {
         "id": "singlish_10",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.45
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPAI (Personal Assistant Interface) architecture-ki \"stateless reasoning\" karanne mukaddam, hamadama conversation history save nokaranne security reasons ke muk",
+        "latency": 5.19
       }
     ],
     "doc_results": [
       {
         "id": "doc_01",
-        "passed": false,
-        "response": "\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.5
+        "passed": true,
+        "response": "Based on the provided context, the maximum number of consecutive autonomous releases permitted before manual owner review is **3**.\n\nAfter this limit is reached, an explicit, interactive owner review ",
+        "latency": 1.09
       },
       {
         "id": "doc_02",
         "passed": true,
-        "response": "The specific IPv4 prefix blocked for the 6to4 Anycast relay is **192.88.99.0/24**.",
-        "latency": 11.19
+        "response": "Based on the provided context, the specific IPv4 prefix blocked for the **6to4 Anycast relay** is **192.88.99.0/24**.\n\nThe context explicitly states that this policy blocks \"192.88.99.0/24 (RFC 3068 /",
+        "latency": 1.82
       },
       {
         "id": "doc_03",
         "passed": true,
-        "response": "Based on the provided context, URL ports with leading zeros (e.g., :080) are **rejected**.\n\nThey are strictly rejected with an explicit port format error because they must be formatted as standard dec",
-        "latency": 16.0
+        "response": "Based on the provided context, URL ports with leading zeros (such as `:080` or `:00080`) are **rejected**.\n\nThe reason for this rejection is to eliminate **octal vs. decimal parser ambiguity**. The sy",
+        "latency": 1.67
       },
       {
         "id": "doc_04",
         "passed": true,
-        "response": "Based on the provided context, the crate used for native Win32 FFI bindings on Windows targets is **windows-sys**. It is listed under the `[target.'cfg(windows)'.dependencies]` section with features s",
-        "latency": 19.55
+        "response": "Based on the provided context, the crate used for native Win32 FFI bindings on Windows targets is **`windows-sys`**.\n\nThe context explicitly lists it under `[target.'cfg(windows)'.dependencies]`, indi",
+        "latency": 1.61
       },
       {
         "id": "doc_05",
-        "passed": false,
-        "response": "\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.51
+        "passed": true,
+        "response": "Based on the provided context, the single file in `core` permitted to contain unsafe code is **`core/src/win32.rs`**.\n\nThe context specifies that unsafe code is allowed only in this file (and a later ",
+        "latency": 1.45
       },
       {
         "id": "doc_06",
         "passed": true,
-        "response": "Based on the provided context, the configured memory headroom is **512 MB**.",
-        "latency": 10.31
+        "response": "Based on the provided context, the configured memory headroom is **512 MB**.\n\nThis value is explicitly stated in the `headroom_mb` field of the JSON data. The rule confirms that this amount must be ad",
+        "latency": 1.57
       },
       {
         "id": "doc_07",
         "passed": true,
-        "response": "Based on the provided context, the threat ID that represents 'Model supply chain and licensing' is **T20**.",
-        "latency": 11.84
+        "response": "Based on the provided context, the threat ID that represents 'Model supply chain and licensing' is **T20**.\n\nThis corresponds to the description: \"a downloaded model is tampered with or its licence fo",
+        "latency": 1.08
       },
       {
         "id": "doc_08",
-        "passed": false,
-        "response": "\n\n[TRUNCATED: Response capped by tier token limit (1024 tokens)]",
-        "latency": 19.52
+        "passed": true,
+        "response": "Based on the provided context, **Milestone M2** delivers functionality to **verify a loop using a restricted runner**.\n\nThis process involves the following steps:\n1.  Creating a plan.\n2.  Generating c",
+        "latency": 1.76
       },
       {
         "id": "doc_09",
         "passed": true,
         "response": "Based on the provided context:\n\n*   **IP Address:** The M6 local web interface binds to **127.0.0.1** only.\n*   **CORS:** CORS is **not enabled**.",
-        "latency": 11.46
+        "latency": 1.06
       },
       {
         "id": "doc_10",
         "passed": true,
-        "response": "Based on the provided context, the project's exact definition of an 'Own model' is: the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base, where the base remains th",
-        "latency": 15.84
+        "response": "Based on the provided context, the project's exact definition of an **'Own model'** is:\n\nThe owner's own weights delta (specifically a **LoRA adapter** or **fine-tune**) applied to a **pretrained smal",
+        "latency": 2.18
       }
     ]
   },
   "gemma4:e2b": {
     "model": "gemma4:e2b",
-    "pass_at_1_coding": "0/20 (0%)",
-    "singlish_score": "11/20 (55%)",
+    "pass_at_1_coding": "11/20 (55%)",
+    "singlish_score": "13/20 (65%)",
     "doc_analysis_score": "10/10 (100%)",
-    "avg_coding_latency_sec": 8.57,
-    "host_ram_delta_mb": 220.8,
+    "avg_coding_latency_sec": 3.62,
+    "host_ram_delta_mb": 1245.7,
     "ollama_footprint_mb": 214.4,
     "truncation_detected": true,
     "thinking_mode": false,
@@ -784,184 +784,184 @@
       {
         "id": "code_01",
         "passed": false,
-        "reason": "Reasoner error: model server unreachable: timed out",
-        "latency": 45.17
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 12.42
       },
       {
         "id": "code_02",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 11.55
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.17
       },
       {
         "id": "code_03",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.06
+        "reason": "Hidden test #6 failed: Hidden test assertion returned False",
+        "latency": 2.0
       },
       {
         "id": "code_04",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 5.68
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.09
       },
       {
         "id": "code_05",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.2
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 2.23
       },
       {
         "id": "code_06",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 5.78
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.53
       },
       {
         "id": "code_07",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 7.47
+        "reason": "Hidden test #2 failed: Hidden test assertion returned False",
+        "latency": 4.14
       },
       {
         "id": "code_08",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.68
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 3.24
       },
       {
         "id": "code_09",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.51
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 3.27
       },
       {
         "id": "code_10",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.64
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 3.81
       },
       {
         "id": "code_11",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.26
+        "reason": "Hidden test #1 failed: Test failure: NameError: name 'text_idx_of_previous_match' is not defined",
+        "latency": 4.29
       },
       {
         "id": "code_12",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.68
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.35
       },
       {
         "id": "code_13",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.18
+        "reason": "Hidden test #3 failed: Test failure: IndexError: list index out of range",
+        "latency": 4.12
       },
       {
         "id": "code_14",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 5.5
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 0.79
       },
       {
         "id": "code_15",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.87
+        "reason": "Hidden test #1 failed: Compile/Syntax Error: SyntaxError: invalid syntax (solution.py, line 1)",
+        "latency": 7.37
       },
       {
         "id": "code_16",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 5.69
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.71
       },
       {
         "id": "code_17",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.85
+        "reason": "Hidden test #1 failed: Test failure: IndexError: dequeue from empty circular buffer",
+        "latency": 5.02
       },
       {
         "id": "code_18",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 6.42
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.25
       },
       {
         "id": "code_19",
-        "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 5.95
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 3.73
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Syntax/Compile Error: SyntaxError: invalid syntax (<model_code>, line 1)",
-        "latency": 7.3
+        "reason": "Hidden test #1 failed: Test failure: IndexError: list index out of range",
+        "latency": 5.78
       }
     ],
     "singlish_results": [
       {
         "id": "singlish_01",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython \u0dc0\u0dbd list comprehension \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf \u0d9a\u0dbb\u0dbd\u0dcf even numbers filter \u0d9a\u0dbb\u0db1 \u0d91\u0d9a \u0dc4\u0dbb\u0dd2\u0db8 \u0dc3\u0dbb\u0dbd\u0dba\u0dd2. List comprehension \u0d9a\u0dd2\u0dba\u0db1\u0dca\u0db1\u0dda, existing list \u0d91\u0d9a\u0d9a\u0dd2\u0db1\u0dca (\u0dc4\u0ddd iterable \u0d91\u0d9a\u0d9a\u0dd2\u0db1\u0dca) \u0d85\u0dbd\u0dd4\u0dad\u0dca lis",
-        "latency": 7.44
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython-e list comprehension use karala even numbers filter karana eka explain karala, example ekak denna.\n\n**List Comprehension Mu:**\n\nList comprehension eka P",
+        "latency": 6.16
       },
       {
         "id": "singlish_02",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0d94\u0db6\u0da7 \u0dbd\u0dd0\u0db6\u0dd3 \u0d87\u0dad\u0dd2 `IndexError: list index out of range` \u0daf\u0ddd\u0dc2\u0dba \u0d87\u0dad\u0dd2\u0dc0\u0dd3\u0db8\u0da7 \u0dc4\u0dda\u0dad\u0dd4\u0dc0 \u0dc0\u0db1\u0dca\u0db1\u0dda \u0d94\u0db6 \u0dbd\u0dd0\u0dba\u0dd2\u0dc3\u0dca\u0dad\u0dd4\u0dc0\u0dda (list) \u0db1\u0ddc\u0db8\u0dd0\u0dad\u0dd2 \u0daf\u0dbb\u0dca\u0dc1\u0d9a\u0dba\u0d9a\u0dca (index) \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf \u0d9a\u0dd2\u0dbb\u0dd3\u0db8\u0da7 \u0d8b\u0dad\u0dca\u0dc3\u0dcf\u0dc4 \u0d9a\u0dd2\u0dbb\u0dd3\u0db8\u0dba\u0dd2.\n\n**\u0db4\u0dca\u200d\u0dbb\u0dc1",
-        "latency": 5.58
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nMeka run karaddi 'IndexError: list index out of range' enawa kiyanne, eka **list index out of range** error. Eka mokakda kiyanne, oya list eka thiyena index ek",
+        "latency": 3.77
       },
       {
         "id": "singlish_03",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nAiyo, Rust eke 'Ownership' concept eka simple Singlish walin explain karanawa. Easy ah!\n\n**Ownership kiyanne mokakda? (What is Ownership?)**\n\nOwnership kiyanne",
-        "latency": 8.08
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nRust language eke 'ownership' concept eka simple Singlish walin explain karanna kiyanne, eka meka kiyala dennam.\n\n**Ownership Concept (Ownership Concept)**\n\nRu",
+        "latency": 6.13
       },
       {
         "id": "singlish_04",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad. \u0d9a\u0dbb\u0dd4\u0dab\u0dcf\u0d9a\u0dbb \u0dc3\u0db1\u0dca\u0daf\u0dbb\u0dca\u0db7\u0dba (context) \u0dbd\u0db6\u0dcf \u0daf\u0dd9\u0db1\u0dca\u0db1.",
-        "latency": 2.52
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.\n\nAPI request \u0d91\u0d9a\u0d9a\u0dca fail \u0dc0\u0dd4\u0db1 \u0dc0\u0dd2\u0da7 exponential backoff retry \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf \u0d9a\u0dd2\u0dbb\u0dd3\u0db8\u0dda \u0dc0\u0dcf\u0dc3\u0dd2 (benefits) \u0d9c\u0dd0\u0db1 \u0dc3\u0dcf\u0db8\u0dcf\u0db1\u0dca\u200d\u0dba \u0dad\u0ddc\u0dbb\u0dad\u0dd4\u0dbb\u0dd4 \u0db8\u0dd9\u0db1\u0dca\u0db1:\n\n**Exponential Ba",
+        "latency": 5.16
       },
       {
         "id": "singlish_05",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0d94\u0db6 \u0d89\u0dbd\u0dca\u0dbd\u0dd6 \u0db4\u0dbb\u0dd2\u0daf\u0dd2, Python \u0dc4\u0dd2 `sqlite3` module \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf \u0d9a\u0dbb\u0db8\u0dd2\u0db1\u0dca, \u0daf\u0dad\u0dca\u0dad \u0dc3\u0db8\u0dd4\u0daf\u0dcf\u0dba\u0d9a\u0dca \u0dc3\u0db8\u0dca\u0db6\u0db1\u0dca\u0db0 \u0d9a\u0dbb, 'users' \u0db1\u0db8\u0dca \u0dc0\u0d9c\u0dd4\u0dc0 (table) \u0db1\u0dd2\u0dbb\u0dca\u0db8\u0dcf\u0dab\u0dba \u0d9a\u0dbb, \u0d91\u0d9a\u0dca \u0dbb\u0dda\u0d9b\u0dcf\u0dc0\u0d9a\u0dca (row) \u0d87\u0dad\u0dd4\u0dc5\u0dad\u0dca \u0d9a\u0dbb\u0db1 Python s",
-        "latency": 7.15
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0d94\u0db6\u0da7 SQLite \u0daf\u0dad\u0dca\u0dad \u0dc3\u0db8\u0dd4\u0daf\u0dcf\u0dba\u0d9a\u0da7 Python \u0dc4\u0dd2 `sqlite3` \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dba\u0dd9\u0db1\u0dca \u0dc3\u0db8\u0dca\u0db6\u0db1\u0dca\u0db0 \u0dc0\u0dd3, 'users' \u0db1\u0db8\u0dca \u0dc0\u0d9c\u0dd4\u0dc0\u0d9a\u0dca (table) \u0db1\u0dd2\u0dbb\u0dca\u0db8\u0dcf\u0dab\u0dba \u0d9a\u0dbb, \u0db4\u0dc3\u0dd4\u0dc0 \u0d91\u0d9a\u0dca \u0db4\u0dda\u0dc5\u0dd2\u0dba\u0d9a\u0dca (row) \u0d87\u0dad\u0dd4\u0dc5\u0dad\u0dca \u0d9a\u0dbb\u0db1 \u0dc3\u0dca\u0d9a\u0dca\u200d\u0dbb\u0dd2\u0db4\u0dca\u0da7\u0dca \u0d91\u0d9a\u0d9a\u0dca \u0db4",
+        "latency": 6.3
       },
       {
         "id": "singlish_06",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0db8\u0dd9\u0db8 \u0d9a\u0dda\u0dad\u0dba\u0dda \u0d87\u0dad\u0dd2 \u0db4\u0dca\u200d\u0dbb\u0db0\u0dcf\u0db1\u0db8 \u0d86\u0dbb\u0d9a\u0dca\u0dc2\u0d9a \u0daf\u0dd4\u0dbb\u0dca\u0dc0\u0dbd\u0dad\u0dcf\u0dc0\u0dba \u0dc0\u0db1\u0dca\u0db1\u0dda **SQL Injection (SQLi)** \u0dba\u0dd2.\n\n### \u0d86\u0dbb\u0d9a\u0dca\u0dc2\u0d9a \u0daf\u0dd4\u0dbb\u0dca\u0dc0\u0dbd\u0dad\u0dcf\u0dc0\u0dba (Security Vulnerability)\n\n**\u0d9a\u0dda\u0dad\u0dba:**\n```python\ncursor.execute",
-        "latency": 7.59
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe provided Python code snippet:\n```python\ncursor.execute(f\"SELECT * FROM users WHERE username = '{user_input}'\")\n```\nis vulnerable to **SQL Injection (SQLi)*",
+        "latency": 3.11
       },
       {
         "id": "singlish_07",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0db8\u0da7 \u0db4\u0dd2\u0dc5\u0dd2\u0dad\u0dd4\u0dbb\u0dd4 \u0dc3\u0dd0\u0db4\u0dba\u0dd3\u0db8\u0da7 \u0d85\u0dc0\u0dc1\u0dca\u200d\u0dba \u0dc3\u0db1\u0dca\u0daf\u0dbb\u0dca\u0db7\u0dba (context) \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad. \u0d9a\u0dbb\u0dd4\u0dab\u0dcf\u0d9a\u0dbb \u0dc3\u0db1\u0dca\u0daf\u0dbb\u0dca\u0db7\u0dba \u0dbd\u0db6\u0dcf \u0daf\u0dd9\u0db1\u0dca\u0db1.",
-        "latency": 3.99
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit cherry-pick \u0d9a\u0dd2\u0dba\u0db1\u0dca\u0db1\u0dda Git \u0d91\u0d9a\u0dda \u0dad\u0dd2\u0dba\u0dd9\u0db1 \u0dc0\u0dd2\u0dc1\u0dda\u0dc2 \u0d9a\u0dca\u200d\u0dbb\u0dd2\u0dba\u0dcf\u0dc0\u0dbd\u0dd2\u0dba\u0d9a\u0dca.\n\n**\u0dc3\u0dbb\u0dbd\u0dc0\u0db8 \u0d9a\u0dd2\u0dc0\u0dca\u0dc0\u0ddc\u0dad\u0dca:**\n\n\u0d94\u0db6\u0dda branch \u0d91\u0d9a\u0d9a \u0dad\u0dd2\u0dba\u0dd9\u0db1 **\u0db1\u0dd2\u0dc1\u0dca\u0da0\u0dd2\u0dad commit \u0d91\u0d9a\u0d9a\u0dca** (\u0dc4\u0ddd \u0d9a\u0dd2\u0dc4\u0dd2\u0db4\u0dba\u0d9a\u0dca) \u0dad\u0ddd\u0dbb\u0dcf\u0d9c\u0dd9\u0db1, \u0d92 commit \u0d91",
+        "latency": 3.94
       },
       {
         "id": "singlish_08",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0db8\u0da7 \u0db4\u0dd2\u0dc5\u0dd2\u0dad\u0dd4\u0dbb\u0dd4 \u0daf\u0dd3\u0db8\u0da7 \u0d85\u0dc0\u0dc1\u0dca\u200d\u0dba \u0dc3\u0db1\u0dca\u0daf\u0dbb\u0dca\u0db7\u0dba (Context) \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad. \u0d9a\u0dbb\u0dd4\u0dab\u0dcf\u0d9a\u0dbb \u0d85\u0dc0\u0dc1\u0dca\u200d\u0dba \u0dad\u0ddc\u0dbb\u0dad\u0dd4\u0dbb\u0dd4 \u0dbd\u0db6\u0dcf \u0daf\u0dd9\u0db1\u0dca\u0db1.",
-        "latency": 2.16
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.\n\n\u0d94\u0db6 Ollama \u0dc3\u0dbb\u0dca\u0dc0\u0dbb\u0dca \u0d91\u0d9a \u0d94\u0db6\u0dda \u0dbd\u0dcf\u0db7\u0db8 \u0db4\u0dbb\u0dd2\u0d9c\u0dab\u0d9a\u0dba\u0dda (local machine) \u0d9a\u0dca\u200d\u0dbb\u0dd2\u0dba\u0dcf\u0dad\u0dca\u0db8\u0d9a \u0d9a\u0dbb\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3\u0dda\u0daf, RAM \u0d89\u0dad\u0dd2\u0dbb\u0dd2 \u0d9a\u0dbb\u0d9c\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3\u0dda\u0daf, \u0dc3\u0dc4 \u0db8\u0ddc\u0da9\u0dbd\u0dca Unload \u0d9a\u0dbb\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3",
+        "latency": 1.12
       },
       {
         "id": "singlish_09",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython dictionary \u0d91\u0d9a\u0d9a key \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0dd0\u0dad\u0dd2\u0dc0 (missing) `KeyError` \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0ddc\u0d9c\u0dd0\u0db1\u0dd3\u0db8\u0da7 \u0dc3\u0dc4 \u0d92 \u0dc0\u0dd9\u0db1\u0dd4\u0dc0\u0da7 default value \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0d9c\u0dd0\u0db1\u0dd3\u0db8\u0da7 \u0db4\u0dca\u200d\u0dbb\u0db0\u0dcf\u0db1 \u0d9a\u0dca\u200d\u0dbb\u0db8 \u0daf\u0dd9\u0d9a\u0d9a\u0dca \u0dad\u0dd2\u0db6\u0dda.\n\n### 1. `.get()` Me",
-        "latency": 7.15
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython dictionary \u0d91\u0d9a\u0d9a key \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0dd0\u0dad\u0dd2\u0dc0 (missing) KeyError \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0ddc\u0d9c\u0dd0\u0db1\u0dd3\u0db8\u0da7 default value \u0d91\u0d9a\u0d9a\u0dca \u0d9c\u0db1\u0dca\u0db1 \u0db4\u0dd4\u0dc5\u0dd4\u0dc0\u0db1\u0dca \u0db4\u0dca\u200d\u0dbb\u0db0\u0dcf\u0db1 \u0d9a\u0dca\u200d\u0dbb\u0db8 \u0daf\u0dd9\u0d9a\u0d9a\u0dca \u0db8\u0dd9\u0db1\u0dca\u0db1:\n\n### 1. `.get()` method \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf",
+        "latency": 4.62
       },
       {
         "id": "singlish_10",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0db8\u0da7 \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0d87\u0dad\u0dd2 \u0dc3\u0db1\u0dca\u0daf\u0dbb\u0dca\u0db7\u0dba (context) \u0db1\u0ddc\u0db8\u0dd0\u0dad. \u0d91\u0db8 \u0db1\u0dd2\u0dc3\u0dcf, PAI architecture \u0dc4\u0dd2 'stateless reasoning' \u0db4\u0dd2\u0dc5\u0dd2\u0db6\u0db3\u0dc0 \u0dc4\u0ddd \u0dc3\u0d82\u0dc0\u0dcf\u0daf \u0d89\u0dad\u0dd2\u0dc4\u0dcf\u0dc3\u0dba \u0dc3\u0dd4\u0dbb\u0dd0\u0d9a\u0dd3\u0db8\u0dda \u0d86\u0dbb\u0d9a\u0dca\u0dc2\u0d9a \u0dc4\u0dda\u0dad\u0dd4 \u0db4\u0dd2\u0dc5\u0dd2\u0db6\u0db3\u0dc0 \u0db8\u0da7 \u0db4\u0dd2\u0dc5\u0dd2\u0dad\u0dd4\u0dbb\u0dd4 \u0daf\u0dd2",
-        "latency": 2.29
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.",
+        "latency": 0.19
       }
     ],
     "doc_results": [
@@ -969,61 +969,61 @@
         "id": "doc_01",
         "passed": true,
         "response": "No more than 3 consecutive autonomous releases may be deployed without explicit, interactive owner review and cryptographic re-signing.",
-        "latency": 1.47
+        "latency": 0.2
       },
       {
         "id": "doc_02",
         "passed": true,
-        "response": "The IPv4 prefix blocked for the 6to4 Anycast relay is 192.88.99.0/24 (RFC 3068 / RFC 7526 6to4 Anycast relay).",
-        "latency": 1.52
+        "response": "The specific IPv4 prefix blocked for the 6to4 Anycast relay is **192.88.99.0/24**.",
+        "latency": 0.25
       },
       {
         "id": "doc_03",
         "passed": true,
-        "response": "URL ports with leading zeros (e.g., `:080`) are strictly rejected. This is done to eliminate ambiguity between octal and decimal parsing. URL ports must be formatted as standard decimal strings withou",
-        "latency": 1.57
+        "response": "URL ports must be formatted as standard decimal strings without leading zeros. Ports such as ':080' or ':00080' are strictly rejected with an explicit port format error to eliminate octal vs decimal p",
+        "latency": 0.34
       },
       {
         "id": "doc_04",
         "passed": true,
         "response": "The crate used for native Win32 FFI bindings on Windows targets is `windows-sys`.",
-        "latency": 1.14
+        "latency": 0.19
       },
       {
         "id": "doc_05",
         "passed": true,
         "response": "The single file in `core` permitted to contain unsafe code is `core/src/win32.rs` (and a later one dedicated memory-protection module).",
-        "latency": 1.3
+        "latency": 0.29
       },
       {
         "id": "doc_06",
         "passed": true,
-        "response": "The configured memory headroom is 512 MB.",
-        "latency": 1.19
+        "response": "The configured memory headroom required on top of `host_delta_mb` is 512 MB.",
+        "latency": 0.21
       },
       {
         "id": "doc_07",
         "passed": true,
         "response": "The threat ID that represents 'Model supply chain and licensing' is T20.",
-        "latency": 1.19
+        "latency": 0.18
       },
       {
         "id": "doc_08",
         "passed": true,
-        "response": "Milestone M2 delivers the functionality to \"Verify loop with restricted runner (plan -> generate -> Tier-1 AST guard -> run tests in restricted runner -> repair on failure).\"",
-        "latency": 1.15
+        "response": "Milestone M2 delivers the functionality to: \"Verify loop with restricted runner (plan -> generate -> Tier-1 AST guard -> run tests in restricted runner -> repair on failure).\"",
+        "latency": 0.3
       },
       {
         "id": "doc_09",
         "passed": true,
-        "response": "The M6 local web interface binds to the IP address 127.0.0.1 on a random port, and CORS is not enabled.",
-        "latency": 1.68
+        "response": "The M6 local web interface binds to 127.0.0.1 only on a random port, and CORS is not enabled.",
+        "latency": 0.24
       },
       {
         "id": "doc_10",
         "passed": true,
-        "response": "The project's definition of an 'Own model' is: the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base. The base remains third-party. From-scratch pre-training is def",
-        "latency": 1.32
+        "response": "The project's exact definition of an 'Own model' is the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base. The base model remains third-party. From-scratch pre-trai",
+        "latency": 0.45
       }
     ]
   },

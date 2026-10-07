@@ -150,12 +150,15 @@ class LocalLLMReasoner:
     """
 
     def __init__(self, base_url: str = "http://127.0.0.1:11434/v1", model: str = "local",
-                 timeout: float = 120.0, max_response_chars: int = 16000):
+                 timeout: float = 120.0, max_response_chars: int = 16000, think: Optional[bool] = None):
         self.base_url = base_url.rstrip("/")
         self._check_loopback(self.base_url)
         self.model = model
         self.timeout = timeout
         self.max_response_chars = max_response_chars
+        self.think = think
+        self.last_thinking_detected = False
+        self.last_truncated = False
         self.name = f"LocalLLMReasoner({model} @ {urllib.parse.urlsplit(self.base_url).netloc})"
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
@@ -255,33 +258,84 @@ class LocalLLMReasoner:
 
         user = f"Task: {query}\n\nContext:\n" + (fence(clean_context) if clean_context else "(none)")
         max_tokens = _TOKENS_BY_TIER.get(budget.compute_tier, 256)
-        body = {
-            "model": self.model,
-            "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
-            "max_tokens": max_tokens,
-            "temperature": 0.2,
-            "stream": False,
-        }
-        req = urllib.request.Request(self.base_url + "/chat/completions", data=json.dumps(body).encode("utf-8"),
-                                     headers={"Content-Type": "application/json"}, method="POST")
-        try:
-            with self._opener.open(req, timeout=self.timeout) as resp:
-                raw = resp.read(2 * 1024 * 1024 + 1)
-        except urllib.error.HTTPError as e:
-            raise ReasonerError(f"model server returned HTTP {e.code}")
-        except (urllib.error.URLError, OSError) as e:
-            raise ReasonerError(f"model server unreachable: {e}")
-        if len(raw) > 2 * 1024 * 1024:
-            raise ReasonerError("model response too large")
-        try:
-            choice = json.loads(raw.decode("utf-8"))["choices"][0]
-            text = str(choice["message"]["content"])
-            finish_reason = choice.get("finish_reason")
-        except (ValueError, KeyError, IndexError, TypeError):
-            raise ReasonerError("malformed model response")
+        parts = urllib.parse.urlsplit(self.base_url)
+        is_ollama = (parts.port == 11434 or ":11434" in self.base_url)
+        use_ollama_native = is_ollama and (self.think is not None)
 
-        if finish_reason == "length":
-            text += f"\n\n[TRUNCATED: Response capped by tier token limit ({max_tokens} tokens)]"
+        self.last_thinking_detected = False
+        self.last_truncated = False
+
+        if use_ollama_native:
+            chat_url = f"{parts.scheme}://{parts.netloc}/api/chat"
+            body = {
+                "model": self.model,
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
+                "stream": False,
+                "think": self.think,
+                "options": {
+                    "num_predict": max_tokens,
+                    "temperature": 0.2,
+                },
+            }
+            req = urllib.request.Request(chat_url, data=json.dumps(body).encode("utf-8"),
+                                         headers={"Content-Type": "application/json"}, method="POST")
+            try:
+                with self._opener.open(req, timeout=self.timeout) as resp:
+                    raw = resp.read(2 * 1024 * 1024 + 1)
+            except urllib.error.HTTPError as e:
+                raise ReasonerError(f"model server returned HTTP {e.code}")
+            except (urllib.error.URLError, OSError) as e:
+                raise ReasonerError(f"model server unreachable: {e}")
+            if len(raw) > 2 * 1024 * 1024:
+                raise ReasonerError("model response too large")
+            try:
+                res_json = json.loads(raw.decode("utf-8"))
+                msg = res_json.get("message", {})
+                text = str(msg.get("content", ""))
+                thinking_text = str(msg.get("thinking", ""))
+                done_reason = res_json.get("done_reason")
+            except (ValueError, KeyError, IndexError, TypeError):
+                raise ReasonerError("malformed model response")
+
+            if thinking_text or "<think>" in text:
+                self.last_thinking_detected = True
+
+            if done_reason == "length":
+                self.last_truncated = True
+                text += f"\n\n[TRUNCATED: Response capped by tier token limit ({max_tokens} tokens)]"
+        else:
+            body = {
+                "model": self.model,
+                "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
+                "max_tokens": max_tokens,
+                "temperature": 0.2,
+                "stream": False,
+            }
+            req = urllib.request.Request(self.base_url + "/chat/completions", data=json.dumps(body).encode("utf-8"),
+                                         headers={"Content-Type": "application/json"}, method="POST")
+            try:
+                with self._opener.open(req, timeout=self.timeout) as resp:
+                    raw = resp.read(2 * 1024 * 1024 + 1)
+            except urllib.error.HTTPError as e:
+                raise ReasonerError(f"model server returned HTTP {e.code}")
+            except (urllib.error.URLError, OSError) as e:
+                raise ReasonerError(f"model server unreachable: {e}")
+            if len(raw) > 2 * 1024 * 1024:
+                raise ReasonerError("model response too large")
+            try:
+                choice = json.loads(raw.decode("utf-8"))["choices"][0]
+                msg = choice.get("message", {})
+                text = str(msg.get("content", ""))
+                reasoning = msg.get("reasoning", "") or msg.get("thinking", "")
+                if reasoning or "<think>" in text:
+                    self.last_thinking_detected = True
+                finish_reason = choice.get("finish_reason")
+            except (ValueError, KeyError, IndexError, TypeError):
+                raise ReasonerError("malformed model response")
+
+            if finish_reason == "length":
+                self.last_truncated = True
+                text += f"\n\n[TRUNCATED: Response capped by tier token limit ({max_tokens} tokens)]"
 
         if not context:
             text = "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n" + text

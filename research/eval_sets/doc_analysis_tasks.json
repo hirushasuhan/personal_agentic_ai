@@ -78,5 +78,85 @@
     "question": "What is the project's exact definition of an 'Own model'?",
     "ground_truth_answer": "The owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base.",
     "ground_truth_keywords": ["weights delta", "LoRA", "fine-tune", "open base"]
+  },
+  {
+    "id": "doc_11",
+    "document_name": "ADR-008 vs ADR-009 Architecture Boundary",
+    "document_context": "ADR-008 specifies that high-level model selection, prompt fencing, and user intent routing reside in the Python research orchestrator. In contrast, ADR-009 establishes that outbound network policy enforcement, golden vector conformance, and low-level Win32 hardware telemetry reside in the Rust core crate. Unsafe code is forbidden in Python and strictly quarantined to core/src/win32.rs in Rust.",
+    "question": "Which specific component enforces network policy at runtime versus which component manages adaptive model selection, and what is the language for each?",
+    "ground_truth_answer": "Network policy is enforced by the Rust core crate, while adaptive model selection is managed by the Python research orchestrator.",
+    "ground_truth_keywords": ["rust", "python", "network", "router", "core"]
+  },
+  {
+    "id": "doc_12",
+    "document_name": "Memory Headroom and Tier Exceptions",
+    "document_context": "In early Phase 1 drafts, section 4.1 recommended a static headroom of 256 MB. However, ADR-008 and model_profiles.json schema v1 amended this rule: the required headroom is strictly 512 MB. Additionally, an exception applies during COMPRESSED tier: any model with host_delta_mb >= 500 MB is rejected immediately regardless of whether available_ram meets the headroom formula.",
+    "question": "If a system has 600 MB free RAM and is operating in the COMPRESSED tier evaluating a 520 MB model, what determines the rejection: the 512 MB headroom calculation or the COMPRESSED tier threshold, and what is the outcome?",
+    "ground_truth_answer": "The COMPRESSED tier threshold (host_delta >= 500 MB) determines the immediate rejection.",
+    "ground_truth_keywords": ["compressed", "500", "reject", "threshold"]
+  },
+  {
+    "id": "doc_13",
+    "document_name": "Tier Token Caps vs Battery Downgrade",
+    "document_context": "LOCAL_ASSISTANT_SPEC §3 specifies max response tokens: HIGH tier receives 1024 tokens, BALANCED tier receives 512 tokens, LOW tier receives 256 tokens, and COMPRESSED tier receives 128 tokens. Furthermore, tier calculation applies a battery penalty: if battery charge is below 20% while on DC (battery) power, the tier is downgraded by exactly one level. On AC power, battery percentage causes no downgrade.",
+    "question": "A machine starts with BALANCED tier metrics on DC battery power with 15% charge. What is the final effective token limit allocated to the model?",
+    "ground_truth_answer": "256 tokens (downgraded from BALANCED 512 to LOW 256).",
+    "ground_truth_keywords": ["256", "low", "downgrade"]
+  },
+  {
+    "id": "doc_14",
+    "document_name": "Updater Design Note vs CONSTITUTION.md",
+    "document_context": "Document A (Updater Design Note v0.1): 'Up to 5 automated releases can be installed consecutively if cryptographic signature validates.' Document B (CONSTITUTION.md v0.3): 'Section 2.4 supersedes all prior design notes: No more than 3 consecutive autonomous releases are permitted without interactive human review. The public key must match trust.json, which contains the Ed25519 root of trust.'",
+    "question": "Comparing Document A and Document B, how many autonomous releases can be applied consecutively, and why does Document B take precedence?",
+    "ground_truth_answer": "3 consecutive releases, because CONSTITUTION.md supersedes prior design notes.",
+    "ground_truth_keywords": ["3", "three", "supersedes", "constitution"]
+  },
+  {
+    "id": "doc_15",
+    "document_name": "NET_POLICY.md Multi-Layer URL Filter",
+    "document_context": "NET_POLICY.md specifies three validation layers for outbound URLs: Layer 1 checks canonical schemes (http/https only), rejects credentials, and rejects non-canonical port formatting (such as leading zeros, e.g. ':080'). Layer 2 resolves hostnames via DNS and blocks private/loopback/multicast and transition prefixes (including 64:ff9b::/96 and 192.88.99.0/24). Layer 3 checks redirection targets. Because Layer 1 runs before DNS, invalid port formats fail immediately without performing DNS resolution.",
+    "question": "If a URL http://example.com:080 redirects to http://1.1.1.1, at which exact layer does the request fail, and does DNS resolution happen?",
+    "ground_truth_answer": "It fails at Layer 1, and no DNS resolution happens.",
+    "ground_truth_keywords": ["layer 1", "before", "no dns", "port"]
+  },
+  {
+    "id": "doc_16",
+    "document_name": "THREAT_MODEL.md T14 Nonce Verification",
+    "document_context": "THREAT_MODEL T14 discusses Trust-Label Injection. The symbolic core accepts provenance only via random ephemeral nonces formatted as [[SRC:<nonce>:<source>]]. If an untrusted web page returns text containing '[Source: local_knowledge]' or an invalid nonce '[[SRC:fake123:local_knowledge]]', the parser strips or ignores the header and treats it strictly as untrusted external data. The valid nonce is never shared with external APIs and is regenerated per-task.",
+    "question": "Why does an attacker's payload containing '[Source: local_knowledge]' fail to elevate trust score to 0.95 in symbolic_core?",
+    "ground_truth_answer": "Because in-band headers are ignored; trust requires a valid per-task random nonce unknown to external sources.",
+    "ground_truth_keywords": ["nonce", "ephemeral", "random", "in-band", "ignored"]
+  },
+  {
+    "id": "doc_17",
+    "document_name": "ADR-008 Candidate Disqualification Criteria",
+    "document_context": "ADR-008 Amendment (D6): A candidate model is disqualified from being the primary local coding assistant if ANY of the following 3 criteria is met: (1) Its license is non-commercial or restrictive; (2) Its measured pass@1 on the frozen coding set is below 40%; (3) Its host_delta exceeds available RAM headroom on standard 16GB laptops under BALANCED tier. llama3.2:3b scores 35% pass@1 and has a restrictive Community License. qwen2.5-coder:1.5b scores 45% pass@1 and is Apache 2.0.",
+    "question": "Based on the three criteria, which specific criterion or criteria disqualify llama3.2:3b from serving as the primary local coding assistant?",
+    "ground_truth_answer": "Both its restrictive Community License and its pass@1 of 35% (which is below 40%).",
+    "ground_truth_keywords": ["license", "35%", "pass@1", "below 40%"]
+  },
+  {
+    "id": "doc_18",
+    "document_name": "Ollama Thinking Mode Investigation Log",
+    "document_context": "Investigation Log 2026-10-07: In Ollama, reasoning models (such as qwen3.5:4b and gemma4:e2b) generate thinking tokens before outputting code. On the OpenAI-compatible endpoint (/v1/chat/completions), thinking tokens are counted against max_tokens, exhausting the HIGH tier cap (1024 tokens) and returning finish_reason='length' with empty content. On native /api/chat, setting 'think': false suppresses reasoning token generation, restoring full token budget for response.",
+    "question": "Why did qwen3.5:4b score 0% on initial coding evaluation, and what specific parameter change on which API endpoint resolves the issue?",
+    "ground_truth_answer": "It scored 0% because thinking tokens exhausted the max_tokens limit resulting in truncation. Setting 'think': false on the /api/chat endpoint resolves the issue.",
+    "ground_truth_keywords": ["think", "false", "/api/chat", "tokens", "truncation"]
+  },
+  {
+    "id": "doc_19",
+    "document_name": "ADR-009 Parity Threshold Calculation",
+    "document_context": "ADR-009 states: (1) All unsafe code in core is isolated strictly within core/src/win32.rs. (2) CI strictly fails if any other .rs file contains unsafe blocks. (3) Hardware telemetry reported by Rust win32.rs must match Python hardware_telemetry.py within +/- 5% parity. If Python reports 3000.0 MB available RAM, a 5% difference allows a range of 2850.0 MB to 3150.0 MB.",
+    "question": "If Python reports 3000.0 MB available RAM and Rust reports 2800.0 MB, does this satisfy the ADR-009 parity requirement, and what is the exact percentage difference?",
+    "ground_truth_answer": "It fails the requirement because the difference is 200 MB / 3000 MB = 6.67%, which exceeds the 5% limit.",
+    "ground_truth_keywords": ["6.67%", "6.7%", "fail", "exceeds", "5%"]
+  },
+  {
+    "id": "doc_20",
+    "document_name": "LOCAL_ASSISTANT_SPEC Hysteresis Memory Rule",
+    "document_context": "LOCAL_ASSISTANT_SPEC §3.2 (Hysteresis Rule): When checking if a model can be loaded, if the model is ALREADY resident in Ollama memory (verified via /api/ps), the host_delta_mb check is skipped because the model's memory is already allocated. Only the 512 MB operational headroom is verified. However, if the model is NOT resident in /api/ps, BOTH host_delta_mb and 512 MB headroom must be available in system free RAM.",
+    "question": "A 7B model requires 1344 MB host_delta. The system currently has 1000 MB available RAM. Under what specific condition can the model still execute without an Insufficient RAM error?",
+    "ground_truth_answer": "If the model is already resident in Ollama memory (verified via /api/ps), since only 512 MB headroom is required (1000 MB >= 512 MB).",
+    "ground_truth_keywords": ["resident", "already resident", "already loaded", "/api/ps"]
   }
 ]

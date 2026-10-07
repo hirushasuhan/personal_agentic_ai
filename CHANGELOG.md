@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.5.1] — 2026-10-07 — Milestone M1.1 Hardening & Sandboxed Code Runner
+
+### M1.1 Sandboxing & Safe Code Runner
+- `research/safe_code_runner.py`: Implemented isolated subprocess execution for model code evaluation.
+  - **Zero in-process exec**: Model code is never executed inside the main Python test process.
+  - **Subprocess termination**: Hard timeouts enforced via `proc.kill()`, cleanly terminating infinite loops and preventing background CPU exhaustion.
+  - **Scrubbed environment**: Child processes receive only minimal OS system variables (`SYSTEMROOT`, `SystemDrive`, `PATH`, `TEMP`, `TMP`), stripping repository paths, credentials, and API keys.
+  - **Network isolation**: Socket creation is intercepted and denied inside the sandbox worker.
+  - **Test isolation**: Hidden unit test logic and assertions remain strictly in Process A; the untrusted child process receives only inputs via standard IPC.
+- `research/eval_m1.py` and `research/run_bakeoff.py`: Integrated `run_isolated_task_eval` to replace all in-process threads. Added `tests/test_safe_code_runner.py` (6 unit tests).
+
+### M1.1 Thinking Mode Control & Model Re-evaluation
+- `research/reasoner.py` (`LocalLLMReasoner`): Added native Ollama `/api/chat` integration with `think: Optional[bool]` parameter and accurate thinking detection inspecting API `thinking`/`reasoning` fields.
+- Re-evaluated reasoning models with `think: False`:
+  - `qwen3.5:4b`: coding pass@1 jumped from 0% to **50% (10/20)**, Singlish score jumped to **70% (14/20)** (highest among all models), latency dropped from 20.91s to 5.57s.
+  - `gemma4:e2b`: coding pass@1 jumped from 0% to **55% (11/20)**, Singlish score rose to **65% (13/20)**, latency dropped from 8.57s to 3.62s.
+  - Both confirmed as viable candidates for the adaptive model router.
+
+### M1.1 Eval Set Expansion & Cryptographic Freezing
+- `research/eval_sets/doc_analysis_tasks.json`: Added 10 harder discriminating tasks (`doc_11`–`doc_20`) testing multi-document cross-referencing, memory headroom calculation, tier exceptions, and policy layer boundaries.
+- `docs/evidence/eval_sets_hashes.json`: SHA-256 hashes of all 4 evaluation sets recorded and frozen.
+- `research/model_profiles.json`: Corrected cold-start host RAM deltas for `qwen3.5:4b` (1029.1 MB) and `gemma4:e2b` (2386.0 MB); added `licence_checked_on: "2026-10-07"` to all profiles.
+
+### Tests
+- Python 184 tests passing (14.8s). Rust 13 unit tests passing. Differential fuzz 10,000 cases passing. Clippy clean.
+
 ## [0.5.0] — 2026-10-07 — Rust VS3 (Win32 Native Telemetry) & Milestone M1 Multi-Model Bake-Off
 
 ### Rust core (slice VS3) — ADR-009

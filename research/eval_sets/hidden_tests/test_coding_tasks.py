@@ -127,23 +127,47 @@ HIDDEN_TESTS: Dict[str, List[Callable[[Any], bool]]] = {
     ],
     "code_17": [  # CircularBuffer
         lambda cls: (
-            (cb := cls(2)),
-            cb.enqueue(1) is True and
-            cb.enqueue(2) is True and
-            cb.is_full() is True and
-            cb.enqueue(3) is False and
-            cb.dequeue() == 1 and
-            cb.enqueue(3) is True and
-            cb.dequeue() == 2 and
-            cb.dequeue() == 3 and
-            cb.is_empty() is True
-        )[-1],
+            cls.execute_steps([
+                {"method": "__init__", "args": [2]},
+                {"method": "enqueue", "args": [1]},
+                {"method": "enqueue", "args": [2]},
+                {"method": "is_full"},
+                {"method": "enqueue", "args": [3]},
+                {"method": "dequeue"},
+                {"method": "enqueue", "args": [3]},
+                {"method": "dequeue"},
+                {"method": "dequeue"},
+                {"method": "is_empty"},
+            ]) == [True, True, True, True, False, 1, True, 2, 3, True]
+            if hasattr(cls, "execute_steps")
+            else (
+                (cb := cls(2)),
+                cb.enqueue(1) is True and
+                cb.enqueue(2) is True and
+                cb.is_full() is True and
+                cb.enqueue(3) is False and
+                cb.dequeue() == 1 and
+                cb.enqueue(3) is True and
+                cb.dequeue() == 2 and
+                cb.dequeue() == 3 and
+                cb.is_empty() is True
+            )[-1]
+        ),
         lambda cls: (
-            (cb := cls(1)),
-            cb.enqueue("a") is True and
-            cb.peek() == "a" and
-            cb.size() == 1
-        )[-1],
+            cls.execute_steps([
+                {"method": "__init__", "args": [1]},
+                {"method": "enqueue", "args": ["a"]},
+                {"method": "peek"},
+                {"method": "size"},
+            ]) == [True, True, "a", 1]
+            if hasattr(cls, "execute_steps")
+            else (
+                (cb := cls(1)),
+                cb.enqueue("a") is True and
+                cb.peek() == "a" and
+                cb.size() == 1
+            )[-1]
+        ),
     ],
     "code_18": [  # deep_merge_dicts
         lambda f: f({}, {"a": 1}) == {"a": 1},
