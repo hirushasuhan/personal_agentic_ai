@@ -103,7 +103,7 @@
   },
   {
     "id": "vec_07_sticky_resident_7b",
-    "description": "Code command keeps resident 7B via hysteresis even if available RAM is tight (1500 MB)",
+    "description": "Code command keeps resident 7B via hysteresis even if available RAM is tight (1500 MB) when resources normal",
     "command": "code",
     "context": null,
     "avail_ram_mb": 1500.0,
@@ -120,7 +120,7 @@
   },
   {
     "id": "vec_08_sticky_resident_unmeasured_docs",
-    "description": "Docs command retains resident 7B to avoid cold model reload on unmeasured class",
+    "description": "Docs command retains resident 7B to avoid cold model reload on unmeasured class when resources normal",
     "command": "docs",
     "context": "Architectural documentation context...",
     "avail_ram_mb": 2500.0,
@@ -137,7 +137,7 @@
   },
   {
     "id": "vec_09_chat_high_ram",
-    "description": "Chat command with high RAM selects primary qwen3.5:4b with thinking disabled",
+    "description": "Chat command with high RAM selects primary qwen3.5:4b with unverified licence transparently labeled",
     "command": "chat",
     "context": null,
     "avail_ram_mb": 3000.0,
@@ -150,7 +150,7 @@
     "expected_data_leaves_machine": false,
     "expected_task_class": "chat",
     "expected_switches_count": 1,
-    "expected_reason_codes": ["RAM_FIT", "PRIMARY_CHAT_CANDIDATE"]
+    "expected_reason_codes": ["RAM_FIT", "PRIMARY_CHAT_CANDIDATE", "UNVERIFIED_LICENCE"]
   },
   {
     "id": "vec_10_chat_gemma_no_optin",
@@ -184,7 +184,7 @@
     "expected_data_leaves_machine": false,
     "expected_task_class": "chat",
     "expected_switches_count": 1,
-    "expected_reason_codes": ["OWNER_OPT_IN", "RAM_FIT"]
+    "expected_reason_codes": ["OWNER_OPT_IN", "RAM_FIT", "UNVERIFIED_LICENCE"]
   },
   {
     "id": "vec_12_chat_mid_ram_fallback",
@@ -253,5 +253,90 @@
     "expected_task_class": "forecast",
     "expected_switches_count": 1,
     "expected_reason_codes": ["UNMEASURED_CLASS", "RAM_FIT"]
+  },
+  {
+    "id": "vec_16_resident_7b_cpu_saturated",
+    "description": "Resident 7B on code task is evicted and downgraded to 1.5B when CPU is saturated",
+    "command": "code",
+    "context": null,
+    "avail_ram_mb": 3000.0,
+    "compute_tier": "BALANCED",
+    "budget_reasons": ["cpu-saturated"],
+    "resident_model": "qwen2.5-coder:7b",
+    "gemma4_opt_in": false,
+    "expected_selected_model": "qwen2.5-coder:1.5b",
+    "expected_kind": "local",
+    "expected_data_leaves_machine": false,
+    "expected_task_class": "code",
+    "expected_switches_count": 1,
+    "expected_reason_codes": ["CPU_THROTTLE_FALLBACK", "RAM_FIT_FALLBACK"]
+  },
+  {
+    "id": "vec_17_resident_4b_chat_low_battery",
+    "description": "Resident 4B on chat task is evicted and downgraded to 3B when battery is low",
+    "command": "chat",
+    "context": null,
+    "avail_ram_mb": 3000.0,
+    "compute_tier": "BALANCED",
+    "budget_reasons": ["low-battery"],
+    "resident_model": "qwen3.5:4b",
+    "gemma4_opt_in": false,
+    "expected_selected_model": "llama3.2:3b",
+    "expected_kind": "local",
+    "expected_data_leaves_machine": false,
+    "expected_task_class": "chat",
+    "expected_switches_count": 1,
+    "expected_reason_codes": ["POWER_CONSERVATION", "RAM_FIT_FALLBACK"]
+  },
+  {
+    "id": "vec_18_docs_cpu_saturated_with_resident",
+    "description": "Resident 7B on docs task is evicted and downgraded to 1.5B when CPU is saturated",
+    "command": "docs",
+    "context": "Context document...",
+    "avail_ram_mb": 3000.0,
+    "compute_tier": "BALANCED",
+    "budget_reasons": ["cpu-saturated"],
+    "resident_model": "qwen2.5-coder:7b",
+    "gemma4_opt_in": false,
+    "expected_selected_model": "qwen2.5-coder:1.5b",
+    "expected_kind": "local",
+    "expected_data_leaves_machine": false,
+    "expected_task_class": "docs",
+    "expected_switches_count": 1,
+    "expected_reason_codes": ["UNMEASURED_CLASS", "CPU_THROTTLE_FALLBACK", "LIGHTWEIGHT_FALLBACK"]
+  },
+  {
+    "id": "vec_19_docs_cpu_saturated_no_resident",
+    "description": "Docs task without resident avoids 7B and selects 1.5B when CPU is saturated",
+    "command": "docs",
+    "context": "Context document...",
+    "avail_ram_mb": 3000.0,
+    "compute_tier": "BALANCED",
+    "budget_reasons": ["cpu-saturated"],
+    "resident_model": null,
+    "gemma4_opt_in": false,
+    "expected_selected_model": "qwen2.5-coder:1.5b",
+    "expected_kind": "local",
+    "expected_data_leaves_machine": false,
+    "expected_task_class": "docs",
+    "expected_switches_count": 1,
+    "expected_reason_codes": ["UNMEASURED_CLASS", "CPU_THROTTLE_FALLBACK", "LIGHTWEIGHT_FALLBACK"]
+  },
+  {
+    "id": "vec_20_untrusted_resident_ignored",
+    "description": "Untrusted resident model name not in catalog is ignored and cannot spoof memory check",
+    "command": "code",
+    "context": null,
+    "avail_ram_mb": 1400.0,
+    "compute_tier": "BALANCED",
+    "budget_reasons": [],
+    "resident_model": "untrusted_fake_model:99b",
+    "gemma4_opt_in": false,
+    "expected_selected_model": "qwen2.5-coder:1.5b",
+    "expected_kind": "local",
+    "expected_data_leaves_machine": false,
+    "expected_task_class": "code",
+    "expected_switches_count": 1,
+    "expected_reason_codes": ["RAM_FIT_FALLBACK", "LIGHTWEIGHT_CODE_CANDIDATE"]
   }
 ]

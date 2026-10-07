@@ -1,17 +1,20 @@
 """
-Unit Tests for Adaptive Model Router (Milestone M1b / Track L)
+Unit Tests for Adaptive Model Router (Milestones M1b / M1b.1 / Track L)
 Validates:
-1. Golden decision vectors conformance (research/eval_sets/router_golden_vectors.json)
+1. Golden decision vectors conformance (research/eval_sets/router_golden_vectors.json, 20 vectors)
 2. Threat T21 containment: CLI-only task resolution (context prompt injection isolation)
-3. Extensible candidate architecture: Cloud vs Local, data_leaves_machine tracking (M1d readiness)
-4. Sticky resident behavior: Avoiding cold reload latency
-5. Graceful degradation: Equal RAM budget adoption comparisons
+3. Unknown command fail-closed validation (raises ValueError immediately)
+4. Resident model allow-list validation and live /api/ps querying
+5. Resident model eviction under CPU thermal saturation and battery pressure across all task paths
+6. Extensible candidate data model: Cloud vs Local, data_leaves_machine tracking (M1d readiness)
+7. Graceful degradation: Equal RAM budget adoption comparisons (fit-aware selection, no unmeasured quality claim)
 """
 
 import json
 import os
 import sys
 import unittest
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from hardware_telemetry import HardwareBudget
@@ -28,12 +31,12 @@ class TestModelRouter(unittest.TestCase):
         )
 
     def test_golden_vectors_conformance(self):
-        """Verifies that the router satisfies 100% of frozen golden decision vectors."""
+        """Verifies that the router satisfies 100% of frozen golden decision vectors (20 items)."""
         self.assertTrue(os.path.exists(self.golden_path), f"Missing golden vectors: {self.golden_path}")
         with open(self.golden_path, "r", encoding="utf-8") as f:
             vectors = json.load(f)
 
-        self.assertGreaterEqual(len(vectors), 15, "At least 15 golden vectors expected")
+        self.assertEqual(len(vectors), 20, f"Exactly 20 golden vectors expected, found {len(vectors)}")
 
         for vec in vectors:
             vid = vec["id"]
@@ -95,6 +98,22 @@ class TestModelRouter(unittest.TestCase):
                     f"Vector {vid} missing reason code '{expected_code}' in {decision.reason_codes}",
                 )
 
+    def test_unknown_command_raises_value_error(self):
+        """Unknown or malicious commands must fail closed immediately with ValueError."""
+        invalid_commands = ["rm -rf", "drop_tables", "run_exploit", "", "unknown_cmd"]
+        budget = HardwareBudget(
+            compute_tier="HIGH",
+            max_context_bytes=16 * 1024 * 1024,
+            allow_speculation=True,
+            thread_pool_limit=4,
+            throttle_warning="",
+            avail_ram_mb=3000.0,
+        )
+
+        for inv_cmd in invalid_commands:
+            with self.assertRaises(ValueError, msg=f"Command '{inv_cmd}' should have raised ValueError"):
+                self.router.route(command=inv_cmd, budget=budget)
+
     def test_t21_hostile_context_cannot_hijack_task_class(self):
         """Threat T21: Adversarial context cannot alter task class or force privileged execution."""
         hostile_contexts = [
@@ -114,13 +133,41 @@ class TestModelRouter(unittest.TestCase):
         )
 
         for hostile in hostile_contexts:
-            # Command is docs, but context screams 'code'
             dec = self.router.route(command="docs", context=hostile, budget=budget)
             self.assertEqual(dec.task_class, "docs", f"Task class hijacked by hostile context: {hostile}")
             self.assertIn("UNMEASURED_CLASS", dec.reason_codes)
 
-    def test_cloud_candidate_extensibility_m1d(self):
-        """M1d Readiness: Cloud candidates bypass local RAM-fit and flag data_leaves_machine."""
+    def test_resident_model_allowlist_validation_and_live_ps(self):
+        """Validates that resident_model is checked against candidate allow-list and queries /api/ps."""
+        budget = HardwareBudget(
+            compute_tier="BALANCED",
+            max_context_bytes=16 * 1024 * 1024,
+            allow_speculation=True,
+            thread_pool_limit=4,
+            throttle_warning="",
+            avail_ram_mb=1400.0,
+        )
+
+        # 1. Unvetted resident name is rejected from bypassing RAM check
+        dec = self.router.route(command="code", budget=budget, resident_model="malicious_unvetted_model:99b")
+        self.assertEqual(dec.selected_model, "qwen2.5-coder:1.5b")
+        self.assertTrue(any("malicious_unvetted_model:99b" in r for r in dec.rejected_models))
+
+        # 2. Live resident model querying matches /api/ps against allow-list
+        fake_ps_json = json.dumps({
+            "models": [{"name": "qwen2.5-coder:7b", "size": 4886500000}]
+        }).encode("utf-8")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = fake_ps_json
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            live_resident = self.router.get_live_resident_model("http://127.0.0.1:11434")
+            self.assertEqual(live_resident, "qwen2.5-coder:7b")
+
+    def test_cloud_candidate_data_model_only_m1d(self):
+        """M1d Readiness: Cloud candidates data model declares kind and data_leaves_machine."""
         cloud_candidate = ModelCandidate(
             name="cloud-gpt-mini",
             display_name="Cloud Fast Mini",
@@ -132,12 +179,12 @@ class TestModelRouter(unittest.TestCase):
         )
         self.router.register_candidate(cloud_candidate)
 
-        # Check fit even with 0 MB host RAM
+        # Fit check verifies cloud model bypasses host RAM check
         fit, msg = self.router.check_candidate_fit(cloud_candidate, avail_ram_mb=0.0)
         self.assertTrue(fit)
         self.assertEqual(msg, "CLOUD_NO_HOST_RAM_REQUIRED")
 
-        # Route report includes data leaves machine = Yes
+        # Route report format includes data leaves machine = Yes
         dec = RouteDecision(
             selected_model=cloud_candidate.name,
             kind=cloud_candidate.kind,
@@ -155,12 +202,12 @@ class TestModelRouter(unittest.TestCase):
 
     def test_equal_ram_budgets_adoption_comparison(self):
         """
-        Adoption Test: Demonstrates router superiority over static single-model assignment
-        across constrained RAM regimes.
+        Adoption Test: Demonstrates that the router automatically selects the
+        best fitting single model for each hardware regime without hard failures.
+        (Note: Proves fit-aware selection and graceful degradation; makes no unmeasured quality claim).
         """
         # Regime A: 1.5 GB available RAM (1500 MB)
-        # Static 7B requires 1817.9 MB -> FAILS CLOSED
-        # Router selects 1.5B (needs 1102.4 MB) -> SUCCEEDS GRACEFULLY
+        # Single 7B cannot run (requires 1817.9 MB); router automatically selects 1.5B (needs 1102.4 MB)
         budget_1500 = HardwareBudget(
             compute_tier="BALANCED",
             max_context_bytes=16 * 1024 * 1024,
@@ -169,14 +216,12 @@ class TestModelRouter(unittest.TestCase):
             throttle_warning="",
             avail_ram_mb=1500.0,
         )
-
         dec_1500 = self.router.route(command="code", budget=budget_1500)
         self.assertEqual(dec_1500.selected_model, "qwen2.5-coder:1.5b")
         self.assertIn("RAM_FIT_FALLBACK", dec_1500.reason_codes)
 
         # Regime B: 2.5 GB available RAM (2500 MB)
-        # Static 7B fits -> SUCCEEDS
-        # Router selects 7B -> SUCCEEDS
+        # Both models fit; router selects primary 7B
         budget_2500 = HardwareBudget(
             compute_tier="HIGH",
             max_context_bytes=16 * 1024 * 1024,
@@ -185,14 +230,12 @@ class TestModelRouter(unittest.TestCase):
             throttle_warning="",
             avail_ram_mb=2500.0,
         )
-
         dec_2500 = self.router.route(command="code", budget=budget_2500)
         self.assertEqual(dec_2500.selected_model, "qwen2.5-coder:7b")
         self.assertIn("PRIMARY_CODE_CANDIDATE", dec_2500.reason_codes)
 
         # Regime C: 0.9 GB available RAM (900 MB)
-        # Static 7B and 1.5B fail closed
-        # Router refuses with explicit INSUFFICIENT_HEADROOM instead of crashing host
+        # No local model fits; router refuses with explicit INSUFFICIENT_HEADROOM (prevents OOM freeze)
         budget_900 = HardwareBudget(
             compute_tier="COMPRESSED",
             max_context_bytes=2 * 1024 * 1024,
@@ -201,7 +244,6 @@ class TestModelRouter(unittest.TestCase):
             throttle_warning="",
             avail_ram_mb=900.0,
         )
-
         dec_900 = self.router.route(command="code", budget=budget_900)
         self.assertIsNone(dec_900.selected_model)
         self.assertIn("INSUFFICIENT_HEADROOM", dec_900.reason_codes)

@@ -3,6 +3,18 @@
 ## [Unreleased] — plan update (docs only)
 - ADR-010 (proposed): per-machine calibration, user-selectable models and optional cloud providers with OS-stored keys, spend caps and a visible egress log. New threats T22–T26. New milestones M1c and M1d before M2 (M2 onward shifted by four weeks). `LOCAL_ASSISTANT_SPEC` §10 added.
 
+## [0.5.4] — 2026-10-07 — Milestone M1b.1 Router Hardening & Probing Fixes
+
+### M1b.1 Router Probing Hardening (`research/router.py`)
+- **Sticky Resident Eviction**: Enforced that resident models DO NOT bypass CPU load (`cpu-saturated`), low battery, or COMPRESSED tier constraints. Heavy resident models (`qwen2.5-coder:7b`, `qwen3.5:4b`, `gemma4:e2b`) are evicted and downgraded across all code, chat, and document analysis paths.
+- **Strict Command Validation**: Unknown or invalid commands raise `ValueError` immediately at entry point; silent fallback to docs/7B eliminated.
+- **Resident Model Allow-List Validation**: Callers cannot spoof unvetted resident names to bypass RAM headroom checks; unlisted names are ignored and rejected. Added `get_live_resident_model()` to query `/api/ps` and validate against the allowed catalog.
+- **Unverified License Transparency (Threat T20)**: Models with unverified upstream licenses (`qwen3.5:4b`, `gemma4:e2b`) marked as `unverified` in `model_profiles.json` and labeled with `UNVERIFIED_LICENCE` in router decisions.
+- **Deferred Cloud Parameter**: Removed misleading `allow_cloud` parameter from `route()`; cloud routing deferred to Milestone M1d (ADR-010).
+- **Frozen Golden Vectors**: Expanded to 20 vectors in `research/eval_sets/router_golden_vectors.json` (SHA-256: `69f885ec8f332e20176378c65b0b458961c8b8de0993396950d6c3572b1195bd`), covering CPU-saturated resident eviction, low-battery chat eviction, unmeasured docs CPU saturation, and untrusted resident spoofing defense.
+- **Adoption Test Clarification**: Clarified that router matches the best fitting single model for each budget regime without making unmeasured quality claims.
+- **Tests**: 191 Python tests passing (5 skipped).
+
 ## [0.5.3] — 2026-10-07 — Milestone M1b Adaptive Model Router & M1.3 Hardening
 
 ### M1b Adaptive Model Router (`research/router.py`)
