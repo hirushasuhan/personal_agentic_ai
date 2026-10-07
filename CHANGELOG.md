@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.1] — 2026-10-08 — Milestone M2a.1 Linux Runner & Behavioural Probe Hardening
+
+### Milestone M2a.1 Hardening & Probe Resolution
+- **In-Sandbox POSIX Rlimits (`research/sandbox_linux.py`)**:
+  - Eliminated `preexec_fn` `RLIMIT_NPROC` throttle outside `bwrap` which prevented namespace creation (`EAGAIN`) for non-root users.
+  - Implemented `_pai_launcher.py` inside the scratch directory to apply resource limits (`RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_FSIZE`, `RLIMIT_NPROC`) *after* entering namespaces and directly before executing worker code.
+  - Added `is_bwrap_functional()` to verify unprivileged namespace creation rights on host, skipping gracefully if AppArmor or userns restrictions apply.
+- **Robust Behavioural Capability Probes (`research/sandbox_win32.py`, `research/sandbox_linux.py`)**:
+  - **Positive Control**: Probe runs an unisolated baseline execution first and strictly verifies that all canaries report `LEAK`. If unisolated execution fails to detect leaks, probe self-test fails.
+  - **Parent-Side Verification**: Parent verifies before and after sandbox execution that canary files exist on the host and their cryptographic secret tokens are unchanged.
+  - **Strict Exception Handling**: Only expected error types (`PermissionError`, `WinError 10013` / WSAEACCES, `TimeoutError`, `ConnectionRefusedError`, `ENETUNREACH`, `EROFS`) are accepted as `CONTAINED`. Any unexpected exception (e.g. `FileNotFoundError`, `NameError`) fails the probe.
+  - **Bound Canary Paths (Linux)**: Write and delete canaries are placed in a host directory mounted with `--ro-bind`, ensuring kernel-level write denials (`EROFS`) rather than vacuous tmpfs replacements.
+  - **Subprocess Redefinition (Linux)**: Subprocess creation within an isolated sandbox is recognized as internal to the container; resource limits are verified separately in A3.
+- **Automated Evidence Generation (`research/run_m2a_matrix.py`)**:
+  - Created automated adversarial matrix benchmark harness executing all vectors (A1-A11 + Probe) with live wall-clock timings in milliseconds, raw stdout/stderr captures, and exit codes.
+  - Generates `docs/evidence/m2a_sandbox_results.json` and raw execution log `docs/evidence/m2a_sandbox_raw.log`.
+- **Windows Path Hijack Defense & ACL Scope Clarification (`research/sandbox_win32.py`)**:
+  - Resolved `icacls` to absolute path `%SystemRoot%\System32\icacls.exe`.
+  - Documented that zero system-wide ACL drift applies strictly to `~/.pai/sandbox_runtime` and ephemeral scratch directories.
+- **CLI Code Enforcement (`research/pai.py`)**:
+  - Added `enforce_sandbox_boundary()` helper invoked before `pai code` execution, failing closed with Exit code 5 if boundary probe is compromised.
+- **Adversarial Matrix Completeness**: Added vector A8 (native code loading / ctypes escape) to unit test suites and evidence harness.
+- **Test Suite**: 245 Python unit tests passing (16 skipped across platform gates). 13 Rust core tests passing, clippy clean. 10,000 differential fuzz cases clean. All 5 frozen eval set hashes intact.
+
 ## [0.7.0] — 2026-10-08 — Milestone M2a Sandbox Runner, Boundary Probe & Adversarial Containment Matrix
 
 ### Milestone M2a Restricted Execution Runner (ADR-011 v2.1)

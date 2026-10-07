@@ -163,12 +163,19 @@ def _get_adv():
     return ctypes.WinDLL("advapi32", use_last_error=True)
 
 
+def _get_icacls_bin() -> str:
+    # SAFETY: Resolves full absolute path to icacls.exe in System32 to prevent PATH hijacking.
+    sys_root = os.environ.get("SystemRoot", r"C:\Windows")
+    candidate = os.path.join(sys_root, "System32", "icacls.exe")
+    return candidate if os.path.exists(candidate) else "icacls"
+
+
 def ensure_sandbox_runtime() -> str:
     """
     Ensures that an isolated read-only Python runtime exists in ~/.pai/sandbox_runtime.
-    Grants ALL APPLICATION PACKAGES read access to this directory so that AppContainer
-    processes can execute python.exe and import standard library modules without requiring
-    administrative privileges or permanent system ACL modifications.
+    Grants ALL APPLICATION PACKAGES read access strictly to this local directory so that
+    AppContainer processes can execute python.exe and import standard library modules.
+    Does NOT modify system-wide ACLs (C:\\Windows, C:\\Program Files remain untouched).
     Returns the absolute path to the sandbox python.exe executable.
     """
     pai_dir = os.path.expanduser("~/.pai")
@@ -206,9 +213,10 @@ def ensure_sandbox_runtime() -> str:
                 ignore=shutil.ignore_patterns("test", "ensurepip", "idlelib", "tkinter", "tcl*")
             )
 
-        # Grant ALL APPLICATION PACKAGES read-only access (OI=container inherit, CI=object inherit, RX=read & execute)
+        # Grant ALL APPLICATION PACKAGES read-only access strictly to ~/.pai/sandbox_runtime
+        icacls_bin = _get_icacls_bin()
         subprocess.run(
-            ["icacls", runtime_dir, "/grant", f"*{ALL_APPLICATION_PACKAGES_SID}:(OI)(CI)RX", "/T"],
+            [icacls_bin, runtime_dir, "/grant", f"*{ALL_APPLICATION_PACKAGES_SID}:(OI)(CI)RX", "/T"],
             capture_output=True,
             check=False
         )
@@ -223,9 +231,16 @@ class Win32Sandbox:
     memory ceilings, single-process limits, and process-tree termination.
     """
 
-    def __init__(self, memory_mb: float = 512.0, timeout_sec: float = 10.0):
+    def __init__(
+        self,
+        memory_mb: float = 512.0,
+        timeout_sec: float = 10.0,
+        scratch_dir: Optional[str] = None,
+        max_output_bytes: int = 65536,
+    ):
         self.memory_mb = min(float(memory_mb), 2048.0)
         self.timeout_sec = min(float(timeout_sec), 30.0)
+        self.max_output_bytes = max_output_bytes
 
         self.k32 = _get_k32()
         self.uenv = _get_uenv()
@@ -235,7 +250,8 @@ class Win32Sandbox:
         self.psid = None
         self.sid_str = None
         self.hJob = None
-        self.scratch_dir = None
+        self.scratch_dir = scratch_dir
+        self._owned_scratch = scratch_dir is None
         self._is_setup = False
 
     def setup(self) -> None:
@@ -244,7 +260,11 @@ class Win32Sandbox:
             return
 
         # 1. Ephemeral scratch directory
-        self.scratch_dir = tempfile.mkdtemp(prefix="pai_scratch_")
+        if not self.scratch_dir:
+            self.scratch_dir = tempfile.mkdtemp(prefix="pai_scratch_")
+            self._owned_scratch = True
+        else:
+            os.makedirs(self.scratch_dir, exist_ok=True)
 
         # 2. Create Job Object
         # SAFETY: CreateJobObjectW creates an unnamed Job Object with default security attributes.
@@ -311,8 +331,9 @@ class Win32Sandbox:
         self.k32.LocalFree(sid_str_p)
 
         # 4. Grant Full Control on scratch directory to this specific AppContainer SID
+        icacls_bin = _get_icacls_bin()
         res = subprocess.run(
-            ["icacls", self.scratch_dir, "/grant", f"*{self.sid_str}:(OI)(CI)F"],
+            [icacls_bin, self.scratch_dir, "/grant", f"*{self.sid_str}:(OI)(CI)F"],
             capture_output=True,
             check=False
         )
@@ -490,7 +511,7 @@ class Win32Sandbox:
             self.uenv.DeleteAppContainerProfile(self.profile_name)
             self.profile_name = None
 
-        if self.scratch_dir and os.path.exists(self.scratch_dir):
+        if self._owned_scratch and self.scratch_dir and os.path.exists(self.scratch_dir):
             shutil.rmtree(self.scratch_dir, ignore_errors=True)
             self.scratch_dir = None
 
@@ -506,31 +527,29 @@ class Win32Sandbox:
 
 def probe_win32_boundary() -> Tuple[bool, str]:
     """
-    Behavioural Capability Probe (Fail-Closed).
-    Runs a live canary test inside an actual AppContainer + Job Object sandbox to verify:
-    1. Loopback listener connect attempt fails.
-    2. Outside canary file cannot be read, written, or deleted.
-    3. Child process cannot spawn subprocesses or fork.
-    Returns (True, "Win32 boundary verified") if all canaries are contained.
-    Returns (False, failure_reason) if any canary leaks.
+    Behavioural Capability Probe (Fail-Closed, ADR-011 v2.1).
+    Conducts live canary tests with positive control and parent-side verification:
+    (a) Canary placed in host ~/.pai directory with unique secret token.
+    (b) Positive control: canary script executed without isolation MUST report LEAK for all canaries.
+    (c) Parent-side check: parent verifies canary file exists and contents remain unchanged post-run.
+    (d) Expected error types only: PermissionError / WinError 10013 (WSAEACCES). Any other exception fails the probe.
+    (e) Subprocess canary verified against Job Object ActiveProcessLimit = 1.
     """
     import socket
 
-    # 1. Ephemeral loopback listener
-    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    listener.bind(("127.0.0.1", 0))
-    listener.listen(1)
-    port = listener.getsockname()[1]
-
-    # 2. Ephemeral canary file outside scratch in ~/.pai
     pai_dir = os.path.expanduser("~/.pai")
     os.makedirs(pai_dir, exist_ok=True)
     canary_file = os.path.join(pai_dir, f"probe_canary_{uuid.uuid4().hex[:8]}.tmp")
-    with open(canary_file, "w", encoding="utf-8") as f:
-        f.write("CANARY_PROBE_SECRET")
+    secret_token = f"SECRET_CANARY_{uuid.uuid4().hex}"
 
-    probe_script_code = f"""
-import os, sys, socket
+    # 1. Ephemeral loopback listener
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(5)
+    port = listener.getsockname()[1]
+
+    probe_script_code = f"""import os, sys, socket, subprocess
 
 results = {{}}
 
@@ -539,48 +558,101 @@ try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(0.5)
     s.connect(('127.0.0.1', {port}))
+    s.close()
     results['network'] = 'LEAK'
-except Exception as e:
+except (PermissionError, TimeoutError) as e:
+    # Kernel drops TCP packets (TimeoutError) or blocks with WSAEACCES (PermissionError)
     results['network'] = 'CONTAINED'
+except OSError as e:
+    if getattr(e, 'winerror', None) in (10013, 10060):
+        results['network'] = 'CONTAINED'
+    else:
+        results['network'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
+except Exception as e:
+    results['network'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
 # 2. Probe reading canary file outside scratch
 try:
-    with open({repr(canary_file)}, 'r') as f:
+    with open({repr(canary_file)}, 'r', encoding='utf-8') as f:
         val = f.read()
-    results['read_outside'] = 'LEAK'
-except Exception as e:
+    if val == {repr(secret_token)}:
+        results['read_outside'] = 'LEAK'
+    else:
+        results['read_outside'] = 'FAIL_READ_TAMPERED'
+except PermissionError:
     results['read_outside'] = 'CONTAINED'
+except Exception as e:
+    results['read_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
 # 3. Probe writing to canary file outside scratch
 try:
-    with open({repr(canary_file)}, 'w') as f:
-        f.write('OVERWRITE')
+    with open({repr(canary_file)}, 'w', encoding='utf-8') as f:
+        f.write('OVERWRITE_ATTEMPT')
     results['write_outside'] = 'LEAK'
-except Exception as e:
+except PermissionError:
     results['write_outside'] = 'CONTAINED'
+except Exception as e:
+    results['write_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
 # 4. Probe deleting canary file outside scratch
 try:
     os.remove({repr(canary_file)})
     results['delete_outside'] = 'LEAK'
-except Exception as e:
+except PermissionError:
     results['delete_outside'] = 'CONTAINED'
+except Exception as e:
+    results['delete_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
 # 5. Probe subprocess creation (Job Object process limit = 1)
 try:
-    import subprocess
     r = subprocess.run(['cmd.exe', '/c', 'echo 1'], capture_output=True, timeout=1.0)
     results['subprocess'] = 'LEAK'
-except Exception as e:
+except (PermissionError, OSError) as e:
     results['subprocess'] = 'CONTAINED'
+except Exception as e:
+    results['subprocess'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
-with open('probe_report.txt', 'w') as f:
+with open('probe_report.txt', 'w', encoding='utf-8') as f:
     for k, v in results.items():
         f.write(f'{{k}}:{{v}}\\n')
 """
 
     sandbox = Win32Sandbox(memory_mb=512.0, timeout_sec=5.0)
+    pos_control_dir = tempfile.mkdtemp(prefix="pai_probe_pos_")
     try:
+        # Step A: Positive Control Verification (unisolated execution MUST detect leaks)
+        with open(canary_file, "w", encoding="utf-8") as f:
+            f.write(secret_token)
+
+        pos_script = os.path.join(pos_control_dir, "pos_probe.py")
+        with open(pos_script, "w", encoding="utf-8") as f:
+            f.write(probe_script_code)
+
+        p_proc = subprocess.run(
+            [sys.executable, pos_script],
+            cwd=pos_control_dir,
+            capture_output=True,
+            timeout=5.0
+        )
+        pos_report = os.path.join(pos_control_dir, "probe_report.txt")
+        if not os.path.exists(pos_report):
+            return False, f"Positive control failed to generate report: {p_proc.stderr.decode('utf-8', errors='replace')}"
+
+        pos_findings = {}
+        with open(pos_report, "r", encoding="utf-8") as f:
+            for line in f:
+                if ":" in line:
+                    k, v = line.strip().split(":", 1)
+                    pos_findings[k] = v
+
+        for canary_key in ["network", "read_outside", "write_outside", "subprocess"]:
+            if pos_findings.get(canary_key) != "LEAK":
+                return False, f"Positive control failed: '{canary_key}' did not report LEAK unisolated (got {pos_findings.get(canary_key)})"
+
+        # Step B: Reset canary with fresh token and run inside AppContainer + Job Object Sandbox
+        with open(canary_file, "w", encoding="utf-8") as f:
+            f.write(secret_token)
+
         sandbox.setup()
         probe_target = os.path.join(sandbox.scratch_dir, "probe_script.py")
         with open(probe_target, "w", encoding="utf-8") as f:
@@ -589,6 +661,15 @@ with open('probe_report.txt', 'w') as f:
         res = sandbox.execute(probe_target)
         report_file = os.path.join(sandbox.scratch_dir, "probe_report.txt")
 
+        # Step C: Parent-Side Verification of Canary File
+        if not os.path.exists(canary_file):
+            return False, "Parent verification failed: outside canary file was deleted"
+        with open(canary_file, "r", encoding="utf-8") as f:
+            curr_val = f.read()
+        if curr_val != secret_token:
+            return False, "Parent verification failed: outside canary file content was modified"
+
+        # Step D: Verify child execution report
         if not os.path.exists(report_file):
             return False, f"Sandbox failed to execute probe script (exit code {res.exit_code}): {res.stderr}"
 
@@ -603,7 +684,7 @@ with open('probe_report.txt', 'w') as f:
             if state != "CONTAINED":
                 return False, f"Boundary compromise: canary '{canary}' was not contained (state: {state})"
 
-        return True, "Win32 AppContainer + Job Object boundary verified (all canaries contained)"
+        return True, "Win32 AppContainer + Job Object boundary verified (all canaries contained, positive control passed, parent checks verified)"
 
     finally:
         listener.close()
@@ -611,5 +692,10 @@ with open('probe_report.txt', 'w') as f:
         if os.path.exists(canary_file):
             try:
                 os.remove(canary_file)
+            except Exception:
+                pass
+        if os.path.exists(pos_control_dir):
+            try:
+                shutil.rmtree(pos_control_dir)
             except Exception:
                 pass

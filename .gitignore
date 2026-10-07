@@ -37,6 +37,7 @@ bin/
 .pytest_cache/
 .mypy_cache/
 *.log
+!docs/evidence/*.log
 
 # Secrets - never commit signing material
 *.key

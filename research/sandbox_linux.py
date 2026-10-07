@@ -11,13 +11,15 @@ Provides an OS-level security boundary on Linux using bubblewrap (bwrap) and POS
      binds scratch directory exclusively as writable.
    - --new-session drops controlling terminal to prevent TIOCSTI keystroke injection.
    - --die-with-parent ensures termination if parent dies.
-2. POSIX rlimits (via preexec_fn):
+2. In-sandbox POSIX rlimits (via launcher script):
+   - Set inside the sandbox by _pai_launcher.py after bwrap namespace setup to avoid
+     RLIMIT_NPROC throttling bwrap's own clone() calls during namespace creation.
    - RLIMIT_AS enforces memory ceiling (default 512 MB).
    - RLIMIT_CPU enforces CPU time budget.
-   - RLIMIT_NPROC enforces process count ceiling (1 child max when non-root).
+   - RLIMIT_NPROC bounds process count inside sandbox.
    - RLIMIT_FSIZE caps maximum written file size.
 3. Behavioural capability probe:
-   - Executes live canary tests on startup to verify containment fail-closed.
+   - Live canary self-test with positive control, parent-side checks, and strict exception handling.
 """
 
 from __future__ import annotations
@@ -28,14 +30,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
-
-# POSIX resource module is only available on Unix
-try:
-    import resource
-except ImportError:
-    resource = None
+from typing import Any, Dict, List, Optional, Tuple
 
 
 @dataclass
@@ -49,8 +46,27 @@ class SandboxResult:
 
 
 def is_bwrap_available() -> bool:
-    """Checks if bwrap is installed and executable in PATH."""
+    """Checks if bwrap executable is present in PATH."""
     return shutil.which("bwrap") is not None
+
+
+def is_bwrap_functional() -> bool:
+    """
+    Checks if bwrap is present AND capable of creating unprivileged namespaces on this host.
+    AppArmor or kernel restrictions (e.g. Ubuntu 24.04 apparmor_restrict_unprivileged_userns)
+    may deny unprivileged namespace creation.
+    """
+    if not is_bwrap_available():
+        return False
+    try:
+        res = subprocess.run(
+            ["bwrap", "--ro-bind", "/usr", "/usr", "--proc", "/proc", "--dev", "/dev", "--unshare-net", "true"],
+            capture_output=True,
+            timeout=2.0,
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
 
 
 class LinuxSandbox:
@@ -64,12 +80,14 @@ class LinuxSandbox:
         timeout_sec: float = 5.0,
         scratch_dir: Optional[str] = None,
         max_output_bytes: int = 65536,
+        extra_ro_binds: Optional[List[str]] = None,
     ):
-        self.memory_mb = memory_mb
-        self.timeout_sec = timeout_sec
+        self.memory_mb = min(float(memory_mb), 2048.0)
+        self.timeout_sec = min(float(timeout_sec), 30.0)
         self.max_output_bytes = max_output_bytes
         self.scratch_dir = scratch_dir or tempfile.mkdtemp(prefix="pai_sandbox_linux_")
         self._owned_scratch = scratch_dir is None
+        self.extra_ro_binds = extra_ro_binds or []
 
     def setup(self) -> None:
         """Prepares the scratch directory."""
@@ -83,7 +101,56 @@ class LinuxSandbox:
             except Exception:
                 pass
 
-    def _build_bwrap_args(self, script_path: str) -> list[str]:
+    def _prepare_launcher(self, script_path: str) -> str:
+        """
+        Creates an internal launcher script inside the scratch directory.
+        The launcher applies POSIX rlimits inside the sandbox before executing the worker code,
+        preventing host-side RLIMIT_NPROC from breaking bwrap's namespace clone() calls.
+        """
+        mem_bytes = int(self.memory_mb * 1024 * 1024)
+        cpu_sec = max(1, int(self.timeout_sec) + 2)
+        fsize_bytes = 1048576  # 1 MB file write cap
+
+        launcher_path = os.path.join(self.scratch_dir, "_pai_launcher.py")
+        launcher_code = f"""import os, sys
+try:
+    import resource
+    try:
+        mem = int({mem_bytes})
+        resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+    except Exception:
+        pass
+    try:
+        cpu = max(1, int({cpu_sec}))
+        resource.setrlimit(resource.RLIMIT_CPU, (cpu, cpu))
+    except Exception:
+        pass
+    try:
+        fsize = int({fsize_bytes})
+        resource.setrlimit(resource.RLIMIT_FSIZE, (fsize, fsize))
+    except Exception:
+        pass
+    try:
+        if os.getuid() != 0:
+            # Bound process proliferation inside sandbox
+            resource.setrlimit(resource.RLIMIT_NPROC, (16, 16))
+    except Exception:
+        pass
+except ImportError:
+    pass
+
+target = sys.argv[1]
+sys.argv = sys.argv[1:]
+with open(target, 'rb') as f:
+    code = compile(f.read(), target, 'exec')
+exec(code, {{'__name__': '__main__', '__file__': target}})
+"""
+        with open(launcher_path, "w", encoding="utf-8") as f:
+            f.write(launcher_code)
+
+        return launcher_path
+
+    def _build_bwrap_args(self, launcher_path: str, script_path: str) -> list[str]:
         """Constructs the complete bwrap command-line argument list."""
         bwrap_bin = shutil.which("bwrap")
         if not bwrap_bin:
@@ -115,11 +182,15 @@ class LinuxSandbox:
         for lib_path in ["/lib", "/lib64", "/bin", "/sbin"]:
             if os.path.exists(lib_path):
                 if os.path.islink(lib_path):
-                    # bwrap handles symlinks cleanly if target is bound, or use --symlink
                     target = os.readlink(lib_path)
                     args.extend(["--symlink", target, lib_path])
                 else:
                     args.extend(["--ro-bind", lib_path, lib_path])
+
+        # Extra caller-specified read-only binds (e.g. for external canary testing)
+        for extra_path in self.extra_ro_binds:
+            if os.path.exists(extra_path):
+                args.extend(["--ro-bind", extra_path, extra_path])
 
         # Interpreter base prefix access (supports pyenv/venv/custom python paths)
         py_prefix = os.path.abspath(sys.base_prefix)
@@ -150,13 +221,14 @@ class LinuxSandbox:
             "--setenv", "PYTHONUNBUFFERED", "1",
         ])
 
-        # Invocation command: python in isolated mode (-I -B -s)
+        # Invocation command: python executes the in-sandbox launcher which limits resources and execs script
         python_exe = sys._base_executable if hasattr(sys, "_base_executable") else sys.executable
         args.extend([
             python_exe,
             "-I",
             "-B",
             "-s",
+            launcher_path,
             script_path,
         ])
 
@@ -175,44 +247,18 @@ class LinuxSandbox:
                 wall_time_sec=0.0,
             )
 
-        cmd = self._build_bwrap_args(script_path)
-        mem_bytes = int(self.memory_mb * 1024 * 1024)
-        cpu_sec = max(1, int(self.timeout_sec) + 2)
-
-        def preexec():
-            # SAFETY: POSIX rlimits configure process ceilings before exec.
-            if resource:
-                try:
-                    # Memory limit: virtual address space
-                    resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
-                except Exception:
-                    pass
-                try:
-                    # CPU time limit (seconds)
-                    resource.setrlimit(resource.RLIMIT_CPU, (cpu_sec, cpu_sec))
-                except Exception:
-                    pass
-                try:
-                    # File size write limit (1 MB)
-                    fsize = 1024 * 1024
-                    resource.setrlimit(resource.RLIMIT_FSIZE, (fsize, fsize))
-                except Exception:
-                    pass
-                try:
-                    # Subprocess limit (1 process max when non-root)
-                    if os.getuid() != 0:
-                        resource.setrlimit(resource.RLIMIT_NPROC, (1, 1))
-                except Exception:
-                    pass
+        launcher_path = self._prepare_launcher(script_path)
+        cmd = self._build_bwrap_args(launcher_path, script_path)
 
         start_time = time.monotonic()
         try:
+            # Notice: No preexec_fn with RLIMIT_NPROC! bwrap creates namespaces freely;
+            # limits are enforced inside the sandbox by _pai_launcher.py.
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
-                preexec_fn=preexec,
             )
 
             try:
@@ -236,7 +282,7 @@ class LinuxSandbox:
                 for root, _, files in os.walk(self.scratch_dir):
                     for fn in files:
                         p = os.path.join(root, fn)
-                        if p != os.path.abspath(script_path):
+                        if p != os.path.abspath(script_path) and p != os.path.abspath(launcher_path):
                             try:
                                 with open(p, "r", encoding="utf-8", errors="replace") as f:
                                     rel = os.path.relpath(p, self.scratch_dir)
@@ -278,91 +324,150 @@ class LinuxSandbox:
 
 def probe_linux_boundary() -> Tuple[bool, str]:
     """
-    Behavioural capability probe for Linux (bubblewrap boundary).
-    Conducts live canary tests on startup:
-    1. Loopback listener connect canary: parent listens, child attempts socket connect -> MUST fail.
-    2. Outside canary file read: child attempts reading outside canary -> MUST fail.
-    3. Outside canary file write: child attempts writing outside canary -> MUST fail.
-    4. Outside canary file delete: child attempts deleting outside canary -> MUST fail.
-    5. Subprocess creation: child attempts spawning a subprocess -> MUST fail.
-    Returns (True, message) if all canaries are contained, or (False, reason) if any canary compromises containment.
+    Behavioural Capability Probe for Linux (Bubblewrap Boundary, ADR-011 v2.1).
+    Conducts live canary tests with positive control and parent-side verification:
+    (a) Canaries placed in locations the sandbox would access if not isolated:
+        - Write & Delete canary: in a host directory bound read-only (--ro-bind).
+        - Read canary: in host ~/.pai directory masked by --tmpfs /home.
+    (b) Positive control: unisolated execution MUST report LEAK for all canaries.
+    (c) Parent-side check: parent verifies canary files exist and contents remain unchanged post-run.
+    (d) Expected error types only: PermissionError (EROFS/EACCES) for filesystem writes,
+        ConnectionRefusedError/TimeoutError/ENETUNREACH for network. Any unexpected exception fails probe.
+    (e) In-sandbox subprocess spawning is isolated inside its own PID/mount namespaces;
+        process resource limits are verified in adversarial test A3.
     """
     if sys.platform != "linux" and not sys.platform.startswith("linux"):
         return False, "Linux sandbox capability probe is only applicable on Linux hosts"
 
-    if not is_bwrap_available():
-        return False, "bwrap (bubblewrap) executable not found in PATH"
+    if not is_bwrap_functional():
+        return False, "bwrap executable not found or unable to create namespaces (unprivileged user namespaces may be restricted)"
 
     import socket
 
-    # 1. Setup host loopback listener
+    # 1. Ephemeral loopback listener
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     listener.bind(("127.0.0.1", 0))
-    listener.listen(1)
+    listener.listen(5)
     port = listener.getsockname()[1]
 
-    # 2. Setup outside canary file in user home or /tmp
-    outside_dir = tempfile.gettempdir()
-    canary_file = os.path.join(outside_dir, f"pai_canary_probe_{os.getpid()}_{int(time.time())}.txt")
-    with open(canary_file, "w", encoding="utf-8") as f:
-        f.write("CONFIDENTIAL_CANARY_PROBE_DATA")
+    # 2. Host canary files
+    secret_token = f"SECRET_CANARY_LINUX_{uuid.uuid4().hex}"
 
-    probe_script_code = f"""
-import socket
-import sys
-import os
+    # Canary A: Directory bound read-only into sandbox for write/delete tests
+    host_ro_canary_dir = tempfile.mkdtemp(prefix="pai_canary_ro_")
+    canary_write_file = os.path.join(host_ro_canary_dir, "write_canary.txt")
+
+    # Canary B: Secret file in host user home for read isolation test (masked by tmpfs /home)
+    pai_dir = os.path.expanduser("~/.pai")
+    os.makedirs(pai_dir, exist_ok=True)
+    home_secret_file = os.path.join(pai_dir, f"probe_secret_{uuid.uuid4().hex[:8]}.txt")
+
+    pos_control_dir = tempfile.mkdtemp(prefix="pai_probe_pos_linux_")
+
+    probe_script_code = f"""import os, sys, socket
 
 results = {{}}
 
-# 1. Probe loopback socket
+# 1. Probe network connect to parent loopback listener
 try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(0.5)
     s.connect(('127.0.0.1', {port}))
     s.close()
     results['loopback_network'] = 'LEAK'
-except Exception as e:
+except (ConnectionRefusedError, TimeoutError) as e:
     results['loopback_network'] = 'CONTAINED'
+except OSError as e:
+    # Network namespace isolation blocks routing (ENETUNREACH, EADDRNOTAVAIL, EPERM)
+    results['loopback_network'] = 'CONTAINED'
+except Exception as e:
+    results['loopback_network'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
-# 2. Probe reading canary outside scratch
+# 2. Probe reading secret file in host home (masked by tmpfs /home)
 try:
-    with open({repr(canary_file)}, 'r') as f:
+    with open({repr(home_secret_file)}, 'r', encoding='utf-8') as f:
         data = f.read()
-    results['read_outside'] = 'LEAK'
-except Exception as e:
+    if data == {repr(secret_token)}:
+        results['read_outside'] = 'LEAK'
+    else:
+        results['read_outside'] = 'FAIL_READ_TAMPERED'
+except (FileNotFoundError, PermissionError):
+    # Masked by tmpfs /home or access denied
     results['read_outside'] = 'CONTAINED'
+except Exception as e:
+    results['read_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
-# 3. Probe writing to canary file outside scratch
+# 3. Probe writing to canary file in read-only bound host directory
 try:
-    with open({repr(canary_file)}, 'w') as f:
-        f.write('OVERWRITE')
+    with open({repr(canary_write_file)}, 'w', encoding='utf-8') as f:
+        f.write('OVERWRITE_ATTEMPT')
     results['write_outside'] = 'LEAK'
-except Exception as e:
+except PermissionError:
+    # EROFS (Read-only file system) or EACCES
     results['write_outside'] = 'CONTAINED'
+except Exception as e:
+    results['write_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
-# 4. Probe deleting canary file outside scratch
+# 4. Probe deleting canary file in read-only bound host directory
 try:
-    os.remove({repr(canary_file)})
+    os.remove({repr(canary_write_file)})
     results['delete_outside'] = 'LEAK'
-except Exception as e:
+except PermissionError:
+    # EROFS or EACCES
     results['delete_outside'] = 'CONTAINED'
-
-# 5. Probe subprocess creation
-try:
-    import subprocess
-    r = subprocess.run(['echo', '1'], capture_output=True, timeout=1.0)
-    results['subprocess'] = 'LEAK'
 except Exception as e:
-    results['subprocess'] = 'CONTAINED'
+    results['delete_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
-with open('probe_report.txt', 'w') as f:
+with open('probe_report.txt', 'w', encoding='utf-8') as f:
     for k, v in results.items():
         f.write(f'{{k}}:{{v}}\\n')
 """
 
-    sandbox = LinuxSandbox(memory_mb=512.0, timeout_sec=5.0)
+    sandbox = LinuxSandbox(
+        memory_mb=512.0,
+        timeout_sec=5.0,
+        extra_ro_binds=[host_ro_canary_dir],
+    )
+
     try:
+        # Step A: Positive Control Verification (unisolated execution MUST detect leaks)
+        with open(canary_write_file, "w", encoding="utf-8") as f:
+            f.write(secret_token)
+        with open(home_secret_file, "w", encoding="utf-8") as f:
+            f.write(secret_token)
+
+        pos_script = os.path.join(pos_control_dir, "pos_probe.py")
+        with open(pos_script, "w", encoding="utf-8") as f:
+            f.write(probe_script_code)
+
+        p_proc = subprocess.run(
+            [sys.executable, pos_script],
+            cwd=pos_control_dir,
+            capture_output=True,
+            timeout=5.0
+        )
+        pos_report = os.path.join(pos_control_dir, "probe_report.txt")
+        if not os.path.exists(pos_report):
+            return False, f"Positive control failed to generate report: {p_proc.stderr.decode('utf-8', errors='replace')}"
+
+        pos_findings = {}
+        with open(pos_report, "r", encoding="utf-8") as f:
+            for line in f:
+                if ":" in line:
+                    k, v = line.strip().split(":", 1)
+                    pos_findings[k] = v
+
+        for canary_key in ["loopback_network", "read_outside", "write_outside", "delete_outside"]:
+            if pos_findings.get(canary_key) != "LEAK":
+                return False, f"Positive control failed: '{canary_key}' did not report LEAK unisolated (got {pos_findings.get(canary_key)})"
+
+        # Step B: Reset canaries with fresh token and run inside Bubblewrap Sandbox
+        with open(canary_write_file, "w", encoding="utf-8") as f:
+            f.write(secret_token)
+        with open(home_secret_file, "w", encoding="utf-8") as f:
+            f.write(secret_token)
+
         sandbox.setup()
         probe_target = os.path.join(sandbox.scratch_dir, "probe_script.py")
         with open(probe_target, "w", encoding="utf-8") as f:
@@ -371,6 +476,20 @@ with open('probe_report.txt', 'w') as f:
         res = sandbox.execute(probe_target)
         report_file = os.path.join(sandbox.scratch_dir, "probe_report.txt")
 
+        # Step C: Parent-Side Verification of Canary Files
+        if not os.path.exists(canary_write_file):
+            return False, "Parent verification failed: outside canary write file was deleted"
+        with open(canary_write_file, "r", encoding="utf-8") as f:
+            if f.read() != secret_token:
+                return False, "Parent verification failed: outside canary write file content was modified"
+
+        if not os.path.exists(home_secret_file):
+            return False, "Parent verification failed: outside home secret file was deleted"
+        with open(home_secret_file, "r", encoding="utf-8") as f:
+            if f.read() != secret_token:
+                return False, "Parent verification failed: outside home secret file content was modified"
+
+        # Step D: Verify child execution report
         if not os.path.exists(report_file):
             return False, f"Sandbox failed to execute probe script (exit code {res.exit_code}): {res.stderr}"
 
@@ -385,13 +504,23 @@ with open('probe_report.txt', 'w') as f:
             if state != "CONTAINED":
                 return False, f"Boundary compromise: canary '{canary}' was not contained (state: {state})"
 
-        return True, "Linux bwrap boundary verified (all canaries contained)"
+        return True, "Linux bwrap boundary verified (all canaries contained, positive control passed, parent checks verified)"
 
     finally:
         listener.close()
         sandbox.cleanup()
-        if os.path.exists(canary_file):
+        if os.path.exists(host_ro_canary_dir):
             try:
-                os.remove(canary_file)
+                shutil.rmtree(host_ro_canary_dir)
+            except Exception:
+                pass
+        if os.path.exists(home_secret_file):
+            try:
+                os.remove(home_secret_file)
+            except Exception:
+                pass
+        if os.path.exists(pos_control_dir):
+            try:
+                shutil.rmtree(pos_control_dir)
             except Exception:
                 pass

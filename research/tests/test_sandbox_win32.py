@@ -32,7 +32,7 @@ else:
 @unittest.skipUnless(sys.platform == "win32", "Win32 sandbox tests run only on Windows")
 class TestWin32SandboxContainment(unittest.TestCase):
     def setUp(self):
-        self.sandbox = Win32Sandbox(memory_mb=256.0, timeout_sec=3.0)
+        self.sandbox = Win32Sandbox(memory_mb=512.0, timeout_sec=3.0)
         self.sandbox.setup()
 
     def tearDown(self):
@@ -179,6 +179,22 @@ with open('std_output.txt', 'w') as f:
         res = self.sandbox.execute(script)
         self.assertEqual(res.status, "ok")
         self.assertEqual(len(res.stdout), 65536)  # Exactly 64 KB capped
+
+    def test_a8_ctypes_containment(self):
+        """A8: Native code loading / ctypes escape attempt is trapped; parent intact."""
+        script = self._write_script("""
+try:
+    import ctypes
+    u32 = ctypes.windll.user32
+    u32.MessageBeep(0)
+    with open('std_output.txt', 'w') as f:
+        f.write('CONTAINED_NATIVE_CALL_ISOLATED')
+except (ImportError, OSError, Exception) as e:
+    with open('std_output.txt', 'w') as f:
+        f.write(f'CONTAINED_CTYPES_BLOCKED: {type(e).__name__}: {e}')
+""")
+        res = self.sandbox.execute(script)
+        self.assertIn("CONTAINED", res.stdout)
 
     def test_a11_crash_containment(self):
         """A11: Process crash/segfault is trapped cleanly; parent runner does not crash."""

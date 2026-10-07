@@ -557,9 +557,21 @@ def cmd_route(args: argparse.Namespace) -> int:
     return 0
 
 
-# -----------------------------------------------------------------------------
-# Main CLI Entry Point
-# -----------------------------------------------------------------------------
+def enforce_sandbox_boundary() -> None:
+    """
+    Enforces that the host sandbox boundary passes the behavioural capability probe.
+    If the boundary is compromised or unavailable, fails closed and exits immediately with code 5 (ADR-011 v2.1).
+    """
+    from sandbox import is_sandbox_supported, probe_system_boundary
+    if not is_sandbox_supported():
+        print(f"FATAL: Sandbox boundary is not supported on {sys.platform} (Exit 5).")
+        sys.exit(5)
+    ok, msg = probe_system_boundary()
+    if not ok:
+        print(f"FATAL: Sandbox behavioural capability probe failed closed: {msg} (Exit 5).")
+        sys.exit(5)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pai",
@@ -589,6 +601,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_route.add_argument("--json", action="store_true", help="Output route decision in JSON format")
     p_route.add_argument("--gemma4-opt-in", action="store_true", help="Explicit owner opt-in for Gemma 4B")
 
+    # code (M2b verify loop)
+    p_code = subparsers.add_parser("code", help="Sandbox-verified code generation (M2b)")
+    p_code.add_argument("task", nargs="?", default="", help="Coding task prompt")
+    p_code.add_argument("--out", type=str, help="Output staging directory")
+
     # Deferred execution commands (M2+)
     for deferred in ("generate", "analyze", "forecast"):
         p_def = subparsers.add_parser(deferred, help=f"Direct {deferred} execution (deferred to M2+)")
@@ -608,6 +625,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.subcommand in ("generate", "analyze", "forecast"):
         print(f"Notice: Direct command execution '{args.subcommand}' is deferred to Milestone M2+.")
         print(f"        Use 'pai route {args.subcommand}' to evaluate adaptive routing decisions.")
+        return 0
+
+    if args.subcommand == "code":
+        enforce_sandbox_boundary()
+        print("Sandbox execution boundary verified fail-closed.")
+        print("Notice: Full verify loop & 'pai code' execution pipeline is scheduled for Milestone M2b.")
         return 0
 
     if args.subcommand == "doctor":
