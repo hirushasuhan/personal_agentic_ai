@@ -38,6 +38,9 @@ class TestModelRouter(unittest.TestCase):
 
         self.assertEqual(len(vectors), 20, f"Exactly 20 golden vectors expected, found {len(vectors)}")
 
+        # Golden decision vectors were frozen against reference calibrated hardware baselines
+        ref_router = ModelRouter(reference_profile_mode=True)
+
         for vec in vectors:
             vid = vec["id"]
             budget = HardwareBudget(
@@ -50,7 +53,7 @@ class TestModelRouter(unittest.TestCase):
                 avail_ram_mb=vec["avail_ram_mb"],
             )
 
-            decision = self.router.route(
+            decision = ref_router.route(
                 command=vec["command"],
                 context=vec.get("context"),
                 budget=budget,
@@ -440,6 +443,144 @@ class TestModelRouter(unittest.TestCase):
             dec_pref = router_pref.route(command="code", budget=budget_high)
             self.assertEqual(dec_pref.selected_model, "qwen2.5-coder:1.5b")
             self.assertIn("USER_PREFERRED_MODEL", dec_pref.reason_codes)
+
+    def test_probe_1_fresh_machine_no_profile_uncalibrated_rule(self):
+        """
+        Reviewer Probe 1: On fresh PC without profile, available RAM 1850 MB,
+        code task rejects 7B under 1.5x rule (requires 2470.9 MB > 1850 MB)
+        and selects 1.5B (requires 1397.6 MB <= 1850 MB) with 'UNCALIBRATED'.
+        """
+        router = ModelRouter()
+        self.assertIsNone(router.machine_profile)
+        budget = HardwareBudget(
+            compute_tier="BALANCED",
+            max_context_bytes=16 * 1024 * 1024,
+            allow_speculation=True,
+            thread_pool_limit=4,
+            throttle_warning="",
+            avail_ram_mb=1850.0,
+        )
+        dec = router.route(command="code", budget=budget)
+        self.assertEqual(dec.selected_model, "qwen2.5-coder:1.5b")
+        self.assertIn("UNCALIBRATED", dec.reason_codes)
+        # Verify 7B was rejected due to uncalibrated 1.5x rule
+        c7b_rejections = [r.get("qwen2.5-coder:7b") for r in dec.rejected_models if "qwen2.5-coder:7b" in r]
+        self.assertTrue(any("uncalibrated 1.5x" in r for r in c7b_rejections))
+
+    def test_probe_2_plausibility_floor_rejects_tiny_delta(self):
+        """
+        Reviewer Probe 2: A profile claiming host_delta_mb = 1.0 MB for 7B (< 50% card delta)
+        must trigger the plausibility floor, reject the delta, fall back to conservative 1.5x rule,
+        and record 'CALIBRATION_IMPLAUSIBLE'.
+        """
+        import tempfile
+        from config import save_machine_profile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prof_path = os.path.join(tmpdir, "machine_profile.json")
+            save_machine_profile({
+                "schema_version": 1,
+                "machine_id": "implausible_box",
+                "calibrated_on": "2026-10-07T22:00:00Z",
+                "os": "test-os",
+                "total_ram_gb": 16.0,
+                "cpu_cores": 8,
+                "calibrated_profiles": {
+                    "qwen2.5-coder:7b": {
+                        "host_delta_mb": 1.0,  # Implausibly small (card is 1305.9 MB)
+                        "runs": 5,
+                    }
+                },
+            }, prof_path)
+
+            router = ModelRouter(
+                machine_profile_path=prof_path,
+                live_total_ram_gb=16.0,
+                live_machine_id="implausible_box",
+                live_os="test-os",
+            )
+            # At 600 MB free RAM: 7B should NOT be selected!
+            budget_600 = HardwareBudget(
+                compute_tier="COMPRESSED",
+                max_context_bytes=2 * 1024 * 1024,
+                allow_speculation=False,
+                thread_pool_limit=1,
+                throttle_warning="Low RAM",
+                avail_ram_mb=600.0,
+            )
+            dec_600 = router.route(command="code", budget=budget_600)
+            self.assertNotEqual(dec_600.selected_model, "qwen2.5-coder:7b")
+            self.assertIn("CALIBRATION_IMPLAUSIBLE", dec_600.reason_codes)
+
+            # At 3000 MB free RAM: 7B fits under 1.5x fallback, but is tagged CALIBRATION_IMPLAUSIBLE
+            budget_3000 = HardwareBudget(
+                compute_tier="HIGH",
+                max_context_bytes=16 * 1024 * 1024,
+                allow_speculation=True,
+                thread_pool_limit=4,
+                throttle_warning="",
+                avail_ram_mb=3000.0,
+            )
+            dec_3000 = router.route(command="code", budget=budget_3000)
+            self.assertEqual(dec_3000.selected_model, "qwen2.5-coder:7b")
+            self.assertIn("CALIBRATION_IMPLAUSIBLE", dec_3000.reason_codes)
+            self.assertIn("UNCALIBRATED", dec_3000.reason_codes)
+
+    def test_probe_3_foreign_machine_id_fallback_to_uncalibrated(self):
+        """
+        Reviewer Probe 3: Profile from another machine (foreign machine_id)
+        is rejected/ignored, router runs in uncalibrated mode.
+        """
+        import tempfile
+        from config import save_machine_profile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prof_path = os.path.join(tmpdir, "foreign_profile.json")
+            save_machine_profile({
+                "schema_version": 1,
+                "machine_id": "other_machine_uuid_123",
+                "calibrated_on": "2026-10-07T22:00:00Z",
+                "os": "test-os",
+                "total_ram_gb": 16.0,
+                "cpu_cores": 8,
+                "calibrated_profiles": {
+                    "qwen2.5-coder:7b": {"host_delta_mb": 1100.0}
+                },
+            }, prof_path)
+
+            # Pass live_machine_id that does not match foreign profile
+            router = ModelRouter(
+                machine_profile_path=prof_path,
+                live_total_ram_gb=16.0,
+                live_machine_id="current_machine_uuid_999",
+                live_os="test-os",
+            )
+            # Profile must be rejected and set to None
+            self.assertIsNone(router.machine_profile)
+
+            # At 1850 MB, router uses uncalibrated 1.5x rule: 7B rejected, 1.5B selected
+            budget = HardwareBudget(
+                compute_tier="BALANCED",
+                max_context_bytes=16 * 1024 * 1024,
+                allow_speculation=True,
+                thread_pool_limit=4,
+                throttle_warning="",
+                avail_ram_mb=1850.0,
+            )
+            dec = router.route(command="code", budget=budget)
+            self.assertEqual(dec.selected_model, "qwen2.5-coder:1.5b")
+            self.assertIn("UNCALIBRATED", dec.reason_codes)
+
+    def test_probe_4_automatic_live_telemetry_discovery(self):
+        """
+        Reviewer Probe 4: ModelRouter automatically queries live telemetry
+        if not provided by caller.
+        """
+        router = ModelRouter()
+        self.assertIsNotNone(router.live_total_ram_gb)
+        self.assertGreater(router.live_total_ram_gb, 0.0)
+        self.assertIsNotNone(router.live_machine_id)
+        self.assertIsNotNone(router.live_os)
 
 
 if __name__ == "__main__":

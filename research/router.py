@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import sys
 import urllib.parse
 import urllib.request
@@ -39,7 +40,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from hardware_telemetry import HardwareBudget
+from hardware_telemetry import HardwareBudget, HardwareTelemetry
 from config import (
     get_machine_profile_path,
     get_user_config_path,
@@ -139,6 +140,9 @@ class ModelRouter:
         user_config_path: Optional[str] = None,
         load_system_profile: bool = False,
         live_total_ram_gb: Optional[float] = None,
+        live_machine_id: Optional[str] = None,
+        live_os: Optional[str] = None,
+        reference_profile_mode: bool = False,
     ):
         self.root_dir = os.path.dirname(os.path.abspath(__file__))
         if profiles_path is None:
@@ -149,16 +153,51 @@ class ModelRouter:
 
         self.machine_profile_path = machine_profile_path
         self.user_config_path = user_config_path
-        self.live_total_ram_gb = live_total_ram_gb
+        self.reference_profile_mode = reference_profile_mode
+
+        # Auto-query live system parameters
+        auto_ram = None
+        auto_mid = None
+        auto_os = None
+        try:
+            telem = HardwareTelemetry()
+            snap = telem.get_system_snapshot()
+            if snap.get("total_ram_gb"):
+                auto_ram = float(snap["total_ram_gb"])
+            auto_mid = f"{platform.node()}_{platform.machine()}"
+            auto_os = sys.platform
+        except Exception:
+            pass
+
+        self.live_total_ram_gb = live_total_ram_gb if live_total_ram_gb is not None else auto_ram
+        self.live_machine_id = live_machine_id if live_machine_id is not None else auto_mid
+        self.live_os = live_os if live_os is not None else auto_os
+
+        # For machine profile validation:
+        # load_system_profile enforces live machine identity
+        # custom machine_profile_path validates live identity if explicitly provided
+        val_ram = self.live_total_ram_gb if (load_system_profile or live_total_ram_gb is not None) else None
+        val_mid = self.live_machine_id if (load_system_profile or live_machine_id is not None) else None
+        val_os = self.live_os if (load_system_profile or live_os is not None) else None
 
         # Load machine profile
         self.machine_profile: Optional[Dict[str, Any]] = None
         if machine_profile_path:
-            self.machine_profile = load_machine_profile(machine_profile_path, live_total_ram_gb=live_total_ram_gb)
+            self.machine_profile = load_machine_profile(
+                machine_profile_path,
+                live_total_ram_gb=val_ram,
+                live_machine_id=val_mid,
+                live_os=val_os,
+            )
         elif load_system_profile:
             p_path = get_machine_profile_path()
             if os.path.exists(p_path):
-                self.machine_profile = load_machine_profile(p_path, live_total_ram_gb=live_total_ram_gb)
+                self.machine_profile = load_machine_profile(
+                    p_path,
+                    live_total_ram_gb=val_ram,
+                    live_machine_id=val_mid,
+                    live_os=val_os,
+                )
 
         # Load user configuration
         self.user_config: Optional[Dict[str, Any]] = None
@@ -267,7 +306,8 @@ class ModelRouter:
         Evaluates admission fit rule for a model candidate.
         Cloud models bypass local host RAM checks.
         Warm resident models bypass pre-load check via hysteresis.
-        Per ADR-010: Uses machine profile if calibrated, otherwise 1.5x conservative multiplier.
+        Per ADR-010: Uses machine profile if calibrated and plausible,
+        otherwise conservative 1.5x multiplier + 512MB headroom.
         """
         if candidate.kind == "cloud":
             return True, "CLOUD_NO_HOST_RAM_REQUIRED"
@@ -283,11 +323,21 @@ class ModelRouter:
             calibrated_profiles = self.machine_profile.get("calibrated_profiles", {})
             if candidate.name in calibrated_profiles:
                 cal_delta = float(calibrated_profiles[candidate.name].get("host_delta_mb", candidate.host_delta_mb))
-                min_req = round(cal_delta + candidate.headroom_mb, 1)
-                if avail_ram_mb >= min_req:
-                    return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB [calibrated])"
+                # Plausibility floor: calibrated delta must be >= 50% of card delta
+                plausibility_floor = 0.5 * candidate.host_delta_mb
+                if cal_delta >= plausibility_floor:
+                    min_req = round(cal_delta + candidate.headroom_mb, 1)
+                    if avail_ram_mb >= min_req:
+                        return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB [calibrated])"
+                    else:
+                        return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [calibrated], avail {avail_ram_mb:.1f} MB)"
                 else:
-                    return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [calibrated], avail {avail_ram_mb:.1f} MB)"
+                    # Implausible calibration delta (< 50% card delta); fall back to conservative 1.5x rule
+                    min_req = round(candidate.host_delta_mb * 1.5 + candidate.headroom_mb, 1)
+                    if avail_ram_mb >= min_req:
+                        return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB [CALIBRATION_IMPLAUSIBLE 1.5x fallback])"
+                    else:
+                        return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [CALIBRATION_IMPLAUSIBLE 1.5x fallback], avail {avail_ram_mb:.1f} MB)"
             else:
                 # ADR-010 conservative rule: 1.5x card delta + headroom
                 min_req = round(candidate.host_delta_mb * 1.5 + candidate.headroom_mb, 1)
@@ -296,11 +346,20 @@ class ModelRouter:
                 else:
                     return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [uncalibrated 1.5x], avail {avail_ram_mb:.1f} MB)"
 
-        min_req = candidate.min_available_ram_mb
-        if avail_ram_mb >= min_req:
-            return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB)"
+        # When no machine profile exists:
+        if self.reference_profile_mode:
+            min_req = candidate.min_available_ram_mb
+            if avail_ram_mb >= min_req:
+                return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB)"
+            else:
+                return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB, avail {avail_ram_mb:.1f} MB)"
         else:
-            return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB, avail {avail_ram_mb:.1f} MB)"
+            # Uncalibrated machine (ADR-010 conservative rule applies by default)
+            min_req = round(candidate.host_delta_mb * 1.5 + candidate.headroom_mb, 1)
+            if avail_ram_mb >= min_req:
+                return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB [uncalibrated 1.5x])"
+            else:
+                return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [uncalibrated 1.5x], avail {avail_ram_mb:.1f} MB)"
 
 
     def route(
@@ -338,14 +397,37 @@ class ModelRouter:
             explanation: str,
         ) -> RouteDecision:
             codes_copy = list(codes)
-            if selected_model and self.machine_profile:
-                cal_profiles = self.machine_profile.get("calibrated_profiles", {})
-                if selected_model in cal_profiles:
-                    if "MACHINE_PROFILE_CALIBRATED" not in codes_copy:
-                        codes_copy.append("MACHINE_PROFILE_CALIBRATED")
-                else:
+            has_implausible = any(
+                "CALIBRATION_IMPLAUSIBLE" in str(r) for r in rejected_models
+            )
+            if selected_model and selected_model in self.candidates:
+                cand = self.candidates[selected_model]
+                if self.machine_profile:
+                    cal_profiles = self.machine_profile.get("calibrated_profiles", {})
+                    if selected_model in cal_profiles:
+                        cal_delta = float(cal_profiles[selected_model].get("host_delta_mb", cand.host_delta_mb))
+                        if cal_delta < 0.5 * cand.host_delta_mb:
+                            if "CALIBRATION_IMPLAUSIBLE" not in codes_copy:
+                                codes_copy.append("CALIBRATION_IMPLAUSIBLE")
+                            if "UNCALIBRATED" not in codes_copy:
+                                codes_copy.append("UNCALIBRATED")
+                        else:
+                            if "MACHINE_PROFILE_CALIBRATED" not in codes_copy:
+                                codes_copy.append("MACHINE_PROFILE_CALIBRATED")
+                    else:
+                        if "UNCALIBRATED" not in codes_copy:
+                            codes_copy.append("UNCALIBRATED")
+                elif not self.reference_profile_mode:
                     if "UNCALIBRATED" not in codes_copy:
                         codes_copy.append("UNCALIBRATED")
+            elif selected_model is None:
+                if not self.reference_profile_mode and not self.machine_profile:
+                    if "UNCALIBRATED" not in codes_copy:
+                        codes_copy.append("UNCALIBRATED")
+
+            if has_implausible and "CALIBRATION_IMPLAUSIBLE" not in codes_copy:
+                codes_copy.append("CALIBRATION_IMPLAUSIBLE")
+
             return RouteDecision(
                 selected_model=selected_model,
                 kind=kind,
@@ -489,11 +571,12 @@ class ModelRouter:
                 can_use_7b = False
                 c7b_rejection.append("cpu load saturated / throttled")
                 reason_codes.append("CPU_THROTTLE_FALLBACK")
-
-            if c7b and can_use_7b:
+            if c7b:
                 fit_7b, msg_7b = self.check_candidate_fit(c7b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_7b:
                     can_use_7b = False
+                    c7b_rejection.append(msg_7b)
+                elif "CALIBRATION_IMPLAUSIBLE" in msg_7b:
                     c7b_rejection.append(msg_7b)
 
             if can_use_7b and c7b:
@@ -599,10 +682,12 @@ class ModelRouter:
                 c4b_rejection.append("cpu load saturated")
                 reason_codes.append("CPU_THROTTLE_FALLBACK")
 
-            if c4b and can_use_4b:
+            if c4b:
                 fit_4b, msg_4b = self.check_candidate_fit(c4b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_4b:
                     can_use_4b = False
+                    c4b_rejection.append(msg_4b)
+                elif "CALIBRATION_IMPLAUSIBLE" in msg_4b:
                     c4b_rejection.append(msg_4b)
 
             if can_use_4b and c4b:
@@ -722,10 +807,12 @@ class ModelRouter:
                 c7b_rejection.append("cpu load saturated / throttled")
                 reason_codes.append("CPU_THROTTLE_FALLBACK")
 
-            if c7b and can_use_7b:
+            if c7b:
                 fit_7b, msg_7b = self.check_candidate_fit(c7b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_7b:
                     can_use_7b = False
+                    c7b_rejection.append(msg_7b)
+                elif "CALIBRATION_IMPLAUSIBLE" in msg_7b:
                     c7b_rejection.append(msg_7b)
 
             if can_use_7b and c7b:

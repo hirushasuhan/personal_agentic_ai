@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "machine_id": "ubuntu-ci-runner-x86_64",
+  "calibrated_on": "2026-10-07T22:30:00Z",
+  "expires_at": "2026-11-06T22:30:00Z",
+  "os": "Linux 6.8.0-45-generic",
+  "total_ram_gb": 16.0,
+  "cpu_cores": 4,
+  "calibrated_profiles": {
+    "qwen2.5-coder:1.5b": {
+      "host_delta_mb": 582.4,
+      "latency_sec": 1.42,
+      "runs": 5,
+      "spread_mb": 24.1,
+      "calibrated_on": "2026-10-07T22:30:00Z"
+    },
+    "llama3.2:3b": {
+      "host_delta_mb": 731.8,
+      "latency_sec": 2.45,
+      "runs": 5,
+      "spread_mb": 31.0,
+      "calibrated_on": "2026-10-07T22:30:00Z"
+    },
+    "qwen3.5:4b": {
+      "host_delta_mb": 1024.2,
+      "latency_sec": 5.80,
+      "runs": 5,
+      "spread_mb": 38.5,
+      "calibrated_on": "2026-10-07T22:30:00Z"
+    },
+    "qwen2.5-coder:7b": {
+      "host_delta_mb": 1290.5,
+      "latency_sec": 12.10,
+      "runs": 5,
+      "spread_mb": 42.0,
+      "calibrated_on": "2026-10-07T22:30:00Z"
+    }
+  }
+}

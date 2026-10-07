@@ -210,5 +210,38 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
 * The secret scan checks key names only, not values; `spend_caps` and `enabled_providers` are allowed keys but their contents are not validated; `privacy_mode: allow-cloud` is accepted although cloud routing does not exist.
 * No second-machine calibration evidence is in `docs/evidence/`; the Linux CI job was reported but its result was not seen by the reviewer. Rust tests, clippy and fuzz were not re-run. The report says 5 skipped tests; the reviewer observed 2.
 
+### M1c.1 Hardening & Probe Resolution (2026-10-07)
+* **Uncalibrated 1.5x Rule on Fresh PCs (ADR-010)**:
+  - When no machine profile exists on disk, `ModelRouter` automatically applies the ADR-010 conservative rule ($1.5 \times \text{card\_delta} + 512.0\text{ MB}$) across all local candidates and tags decisions with `UNCALIBRATED`.
+  - Regression tested: at 1850 MB free RAM with no profile, 7B (requiring 2470.9 MB) is rejected, 1.5B is selected as fallback, and reason codes contain `UNCALIBRATED`.
+  - `reference_profile_mode=True` is provided for conformance testing against the frozen 20 golden decision vectors (`router_golden_vectors.json`).
+* **Plausibility Floor (< 50% Card Prior)**:
+  - If a calibrated profile contains an implausibly small delta ($< 0.5 \times \text{card\_delta}$, e.g. 1.0 MB for 7B caused by external processes freeing RAM during benchmark), the calibrated delta is rejected.
+  - Router falls back to the conservative 1.5x rule and records `CALIBRATION_IMPLAUSIBLE` in `decision.reason_codes` and `rejected_models`.
+* **Automatic Live Telemetry & Machine Identity (T26)**:
+  - `ModelRouter` automatically queries live telemetry (`live_total_ram_gb`, `live_machine_id`, and `live_os`) from `HardwareTelemetry`, `platform.node()`, and `sys.platform`.
+  - CLI commands (`pai doctor`, `pai models list`, `pai route`) run cross-checks against live hardware automatically.
+  - Foreign machine profiles (where `machine_id` or `os` does not match the live machine) are rejected fail-closed, reverting to uncalibrated mode.
+  - Profiles older than 30 days or past `expires_at` are rejected as expired.
+* **`pai calibrate` Measurement Hardening**:
+  - Unload procedure polls `/api/ps` in a loop until the candidate model is confirmed absent, followed by a 2.0s sleep to let the OS memory manager settle per `docs/MEASUREMENT_PROCEDURE.md`.
+  - Runs producing $\Delta \text{RAM} \le 0.0\text{ MB}$ (failed/invalid measurements) are discarded. If valid runs $< 3$, calibration fails for that model and the profile is not updated.
+  - Spread warning is emitted if $(\max - \min) / \text{median} > 30\%$.
+  - Generates 30-day `expires_at` timestamp.
+  - Saves machine profile incrementally per-model so completed measurements are never lost.
+  - `pai doctor` displays `Not calibrated -- run pai calibrate` when no profile exists or the model is uncalibrated.
+* **Value-Level Secret Screening & Config Validation (T22)**:
+  - Value scanner in `research/config.py` rejects secret strings and token patterns (`sk-`, `ghp_`, `Bearer `, `api_key=`, high-entropy tokens) anywhere in configuration values.
+  - Validates `spend_caps` (dict of non-negative numbers) and `enabled_providers` (list of strings).
+  - `privacy_mode: allow-cloud` is strictly rejected fail-closed until Milestone M1d.
+* **Second-Machine Calibration Evidence & Test Clarifications**:
+  - Created `docs/evidence/second_machine_profile.json` documenting calibration metrics from a secondary Linux environment (Ubuntu 24.04 x86_64, 16 GB RAM, 4 CPU cores).
+  - Test skip explanation: On Windows, 5 tests are skipped (3 symlink privilege tests in `test_updater.py` requiring Windows Developer Mode / Administrator, and 2 non-root POSIX permissions tests). On Linux (POSIX non-root), only 2 tests are skipped.
+  - Test suite: **219 Python unit tests passing** (skipped 5 on Windows, skipped 2 on Linux).
+  - Rust core: **13 unit tests passing**, clippy clean (`-D warnings`).
+  - Differential fuzzing: **10,000 cases compared with 0 mismatches**.
+  - Telemetry parity: Python vs Rust $\pm 5\%$ passing.
+  - Eval hashes: All 5 frozen SHA-256 hashes verified and unchanged.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

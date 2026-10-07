@@ -125,6 +125,121 @@ class TestConfigSecurity(unittest.TestCase):
             loaded_prof = load_machine_profile(prof_path, live_total_ram_gb=16.0)
             self.assertEqual(loaded_prof, prof_data)
 
+    def test_t22_secret_patterns_in_values_rejected(self):
+        """Threat T22: Rejects forbidden secret patterns inside configuration values."""
+        malicious_value_configs = [
+            {"schema_version": 1, "allowed_models": ["sk-1234567890abcdef1234567890"]},
+            {"schema_version": 1, "allowed_models": ["ghp_1234567890abcdef1234567890abcdef1234"]},
+            {"schema_version": 1, "preferred_models": {"code": "Bearer my_super_secret_token"}},
+            {"schema_version": 1, "allowed_models": ["custom_model?api_key=secret123"]},
+        ]
+        for cfg in malicious_value_configs:
+            valid, err = validate_user_config(cfg)
+            self.assertFalse(valid, f"Value with secret {cfg} should be rejected")
+            self.assertIn("Forbidden secret", err)
+
+    def test_spend_caps_and_enabled_providers_validation(self):
+        """Validates types and ranges for spend_caps and enabled_providers."""
+        # Negative spend cap rejected
+        cfg_neg = {"schema_version": 1, "spend_caps": {"openai": -10.0}}
+        valid, err = validate_user_config(cfg_neg)
+        self.assertFalse(valid)
+        self.assertIn("non-negative number", err)
+
+        # Non-numeric spend cap rejected
+        cfg_str_cap = {"schema_version": 1, "spend_caps": {"openai": "unlimited"}}
+        valid, err = validate_user_config(cfg_str_cap)
+        self.assertFalse(valid)
+        self.assertIn("non-negative number", err)
+
+        # Valid spend cap accepted
+        cfg_ok_cap = {"schema_version": 1, "spend_caps": {"openai": 25.50}}
+        valid, err = validate_user_config(cfg_ok_cap)
+        self.assertTrue(valid)
+
+        # Non-string item in enabled_providers rejected
+        cfg_bad_prov = {"schema_version": 1, "enabled_providers": [123]}
+        valid, err = validate_user_config(cfg_bad_prov)
+        self.assertFalse(valid)
+        self.assertIn("must be strings", err)
+
+        # Valid enabled_providers accepted
+        cfg_ok_prov = {"schema_version": 1, "enabled_providers": ["ollama", "local"]}
+        valid, err = validate_user_config(cfg_ok_prov)
+        self.assertTrue(valid)
+
+    def test_privacy_mode_allow_cloud_rejected_until_m1d(self):
+        """privacy_mode: allow-cloud is strictly rejected until M1d."""
+        cfg_cloud = {"schema_version": 1, "privacy_mode": "allow-cloud"}
+        valid, err = validate_user_config(cfg_cloud)
+        self.assertFalse(valid)
+        self.assertIn("cloud providers not implemented until Milestone M1d", err)
+
+        cfg_local = {"schema_version": 1, "privacy_mode": "local-only"}
+        valid, err = validate_user_config(cfg_local)
+        self.assertTrue(valid)
+
+    def test_foreign_machine_id_and_os_rejected(self):
+        """Rejects machine profile calibrated on a different machine or OS."""
+        prof = {
+            "schema_version": 1,
+            "machine_id": "alien_workstation_456",
+            "os": "Linux 6.8",
+            "total_ram_gb": 16.0,
+            "cpu_cores": 8,
+            "calibrated_profiles": {},
+        }
+        # Machine ID mismatch
+        valid, err = validate_machine_profile(
+            prof,
+            live_total_ram_gb=16.0,
+            live_machine_id="local_laptop_123",
+            live_os="Linux 6.8",
+        )
+        self.assertFalse(valid)
+        self.assertIn("Foreign machine profile detected", err)
+
+        # OS mismatch
+        valid_os, err_os = validate_machine_profile(
+            prof,
+            live_total_ram_gb=16.0,
+            live_machine_id="alien_workstation_456",
+            live_os="win32",
+        )
+        self.assertFalse(valid_os)
+        self.assertIn("Foreign OS machine profile detected", err_os)
+
+    def test_expired_machine_profile_rejected(self):
+        """Rejects machine profiles older than 30 days or past expires_at."""
+        # 1. Calibrated 40 days ago
+        old_prof = {
+            "schema_version": 1,
+            "machine_id": "box_1",
+            "calibrated_on": "2026-08-01T00:00:00Z",
+            "os": "win32",
+            "total_ram_gb": 16.0,
+            "cpu_cores": 8,
+            "calibrated_profiles": {},
+        }
+        valid, err = validate_machine_profile(old_prof, live_total_ram_gb=16.0)
+        self.assertFalse(valid)
+        self.assertIn("Machine profile has expired", err)
+
+        # 2. Past expires_at
+        expired_prof = {
+            "schema_version": 1,
+            "machine_id": "box_1",
+            "calibrated_on": "2026-10-01T00:00:00Z",
+            "expires_at": "2026-10-05T00:00:00Z",  # past
+            "os": "win32",
+            "total_ram_gb": 16.0,
+            "cpu_cores": 8,
+            "calibrated_profiles": {},
+        }
+        valid, err = validate_machine_profile(expired_prof, live_total_ram_gb=16.0)
+        self.assertFalse(valid)
+        self.assertIn("Machine profile has expired", err)
+
 
 if __name__ == "__main__":
     unittest.main()

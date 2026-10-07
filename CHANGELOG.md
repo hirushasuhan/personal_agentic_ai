@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.6] — 2026-10-07 — Milestone M1c.1 Hardening & Probe Defect Resolution
+
+### M1c.1 Router & Profile Hardening
+- **Uncalibrated 1.5x Rule on Fresh Machines (`research/router.py`)**: When no machine profile exists, `ModelRouter` applies the ADR-010 conservative multiplier ($1.5 \times \text{card\_delta} + 512.0\text{ MB}$) to local candidates by default, tagging decisions with `UNCALIBRATED`. At 1850 MB free RAM on a fresh machine, 7B (requiring 2470.9 MB) is rejected and 1.5B is selected. Added `reference_profile_mode=True` to preserve frozen golden decision vector conformance tests.
+- **Plausibility Floor (`research/router.py`)**: Calibrated deltas $< 50\%$ of card prior (e.g. 1.0 MB for 7B) are rejected by plausibility floor, falling back to conservative 1.5x rule and recording `CALIBRATION_IMPLAUSIBLE` in reason codes and rejection records.
+- **Automatic Live Telemetry & Machine Identity (`research/router.py`, `research/config.py`)**: `ModelRouter` and CLI commands query live hardware (`live_total_ram_gb`, `live_machine_id`, `live_os`) automatically. Foreign machine profiles with mismatched machine ID or OS fail closed and fall back to uncalibrated mode. Profiles older than 30 days or past `expires_at` are rejected as expired.
+- **Calibration Measurement Hardening (`research/pai.py`)**: `pai calibrate` polls loopback `/api/ps` until candidate model is fully unloaded, followed by 2.0s settling sleep. Runs with non-positive RAM deltas ($\le 0.0\text{ MB}$) are discarded; requires minimum 3 valid runs per model. Emits warning if spread $> 30\%$ median. Computes 30-day `expires_at` timestamp. Saves profile incrementally after each model. `pai doctor` displays `Not calibrated -- run pai calibrate` when uncalibrated.
+- **Value-Level Secret Screening (`research/config.py`)**: Configuration scanner screens string values for credentials and token patterns (`sk-`, `ghp_`, `Bearer `, `api_key=`, high-entropy tokens). Validates `spend_caps` (dict of non-negative numbers) and `enabled_providers` (list of strings). Strictly rejects `privacy_mode: allow-cloud` until Milestone M1d.
+- **Second-Machine Calibration Evidence (`docs/evidence/second_machine_profile.json`)**: Documented empirical calibration numbers from a secondary Linux environment.
+- **Test Suite**: 219 Python unit tests passing (+9 new tests in `test_config.py` and `test_router.py`). Windows vs Linux skip difference documented (5 skipped on Windows due to symlinks and non-root POSIX tests, 2 skipped on Linux). 13 Rust core tests passing, clippy clean (`-D warnings`). 10,000 differential fuzz cases clean. Telemetry parity passing. All 5 frozen eval set hashes intact.
+
 ## [0.5.5] — 2026-10-07 — Milestone M1c Portability, Hardware Calibration, User Configuration, and PAI CLI
 
 ### M1c Portability & Machine Profile Calibration (ADR-010)

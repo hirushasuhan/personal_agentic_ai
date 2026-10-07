@@ -29,6 +29,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -176,8 +177,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             req_ram = round(c.host_delta_mb * 1.5 + c.headroom_mb, 1)
             cal_status = "Uncalibrated (1.5x rule)"
         else:
-            req_ram = c.min_available_ram_mb
-            cal_status = "Card Prior (No local profile)"
+            req_ram = round(c.host_delta_mb * 1.5 + c.headroom_mb, 1)
+            cal_status = "Not calibrated -- run pai calibrate"
 
         candidates_status.append({
             "name": name,
@@ -247,7 +248,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     if has_profile:
         print(f"Machine Profile      : Active ({prof_path})")
     else:
-        print("Machine Profile      : None (Using default model card priors)")
+        print("Machine Profile      : Not calibrated -- run pai calibrate")
         print("  Recommendation: Run 'pai calibrate' to establish machine-specific baselines.")
 
     print("\n--- Candidate Eligibility Report ---")
@@ -317,7 +318,23 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
                 resp.read()
         except Exception:
             pass
-        time.sleep(1.5)
+
+        # Poll /api/ps until model is confirmed absent from resident memory (up to 10s)
+        t_start = time.time()
+        while time.time() - t_start < 10.0:
+            try:
+                ps_req = urllib.request.Request(f"{base_url}/api/ps")
+                with urllib.request.urlopen(ps_req, timeout=1.0) as resp:
+                    ps_data = json.loads(resp.read().decode())
+                    resident_names = [m.get("name", "") for m in ps_data.get("models", [])]
+                    if m_name not in resident_names:
+                        break
+            except Exception:
+                break
+            time.sleep(0.2)
+
+        # Allow OS memory manager to settle (MEASUREMENT_PROCEDURE.md)
+        time.sleep(2.0)
 
     for m in targets:
         print(f"\nCalibrating '{m}'...")
@@ -345,31 +362,58 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
 
             active_snap = telem.get_system_snapshot()
             active_ram = active_snap.get("avail_ram_mb", 0.0) or 0.0
-            delta = round(max(0.0, base_ram - active_ram), 1)
+            raw_delta = base_ram - active_ram
 
+            # Discard delta <= 0 runs (failed/invalid measurement)
+            if raw_delta <= 0.0:
+                print(f"  Run {r_idx}/{num_runs}: Invalid delta ({raw_delta:.1f} MB <= 0.0); discarding run.")
+                continue
+
+            delta = round(raw_delta, 1)
             runs_data.append({"run": r_idx, "delta_mb": delta, "latency_sec": latency})
             print(f"  Run {r_idx}/{num_runs}: Baseline={base_ram:.1f} MB, Active={active_ram:.1f} MB -> Delta={delta:.1f} MB, Latency={latency:.2f}s")
 
         unload(m)
 
-        if runs_data:
-            deltas = [rd["delta_mb"] for rd in runs_data]
-            latencies = [rd["latency_sec"] for rd in runs_data]
-            med_delta = round(statistics.median(deltas), 1)
-            med_lat = round(statistics.median(latencies), 2)
-            existing_prof["calibrated_profiles"][m] = {
-                "host_delta_mb": med_delta,
-                "latency_sec": med_lat,
-                "runs": len(runs_data),
-                "spread_mb": round(max(deltas) - min(deltas), 1),
-                "calibrated_on": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            }
-            print(f"  Median: {med_delta} MB delta, {med_lat}s latency.")
+        if len(runs_data) < 3:
+            print(f"  Calibration failed for '{m}': only {len(runs_data)} valid runs (minimum 3 required). Profile not updated for this model.")
+            continue
 
-    # Save machine profile
-    existing_prof["calibrated_on"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    save_machine_profile(existing_prof, prof_path)
-    print(f"\nCalibration complete. Saved validated machine profile to '{prof_path}'.")
+        deltas = [rd["delta_mb"] for rd in runs_data]
+        latencies = [rd["latency_sec"] for rd in runs_data]
+        med_delta = round(statistics.median(deltas), 1)
+        med_lat = round(statistics.median(latencies), 2)
+        spread_mb = round(max(deltas) - min(deltas), 1)
+
+        # Warn if spread > 30% of median
+        if med_delta > 0 and (spread_mb / med_delta) > 0.30:
+            print(f"  Warning: High variance across runs (spread {spread_mb:.1f} MB is > 30% of median {med_delta:.1f} MB).")
+
+        cand = router.candidates.get(m)
+        if cand and med_delta < 0.5 * cand.host_delta_mb:
+            print(f"  Warning: Calibrated median ({med_delta:.1f} MB) is below plausibility floor (< 50% of card delta {cand.host_delta_mb:.1f} MB). Will fall back to conservative rule during routing.")
+
+        now_utc = datetime.now(timezone.utc)
+        exp_utc = now_utc + timedelta(days=30)
+        now_str = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+        exp_str = exp_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        existing_prof["calibrated_on"] = now_str
+        existing_prof["expires_at"] = exp_str
+        existing_prof["calibrated_profiles"][m] = {
+            "host_delta_mb": med_delta,
+            "latency_sec": med_lat,
+            "runs": len(runs_data),
+            "spread_mb": spread_mb,
+            "calibrated_on": now_str,
+        }
+        print(f"  Median: {med_delta} MB delta, {med_lat}s latency ({len(runs_data)} valid runs).")
+
+        # Save profile incrementally per-model
+        save_machine_profile(existing_prof, prof_path)
+        print(f"  Incremental profile saved for '{m}'.")
+
+    print(f"\nCalibration complete. Validated machine profile saved to '{prof_path}'.")
     return 0
 
 
@@ -397,8 +441,8 @@ def cmd_models_list(args: argparse.Namespace) -> int:
             req_ram = round(c.host_delta_mb * 1.5 + c.headroom_mb, 1)
             cal_str = "uncalibrated (1.5x rule)"
         else:
-            req_ram = c.min_available_ram_mb
-            cal_str = "card prior"
+            req_ram = round(c.host_delta_mb * 1.5 + c.headroom_mb, 1)
+            cal_str = "not calibrated (1.5x rule)"
 
         fit, _ = router.check_candidate_fit(c, avail_ram)
 
