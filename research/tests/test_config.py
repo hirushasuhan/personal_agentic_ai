@@ -85,6 +85,7 @@ class TestConfigSecurity(unittest.TestCase):
         prof = {
             "schema_version": 1,
             "machine_id": "box_1",
+            "calibrated_on": "2026-10-07T00:00:00Z",
             "total_ram_gb": 8.0,
             "cpu_cores": 4,
             "calibrated_profiles": {
@@ -115,6 +116,7 @@ class TestConfigSecurity(unittest.TestCase):
             prof_data = {
                 "schema_version": 1,
                 "machine_id": "laptop_alpha",
+                "calibrated_on": "2026-10-07T00:00:00Z",
                 "total_ram_gb": 16.0,
                 "cpu_cores": 12,
                 "calibrated_profiles": {
@@ -209,9 +211,61 @@ class TestConfigSecurity(unittest.TestCase):
         self.assertFalse(valid_os)
         self.assertIn("Foreign OS machine profile detected", err_os)
 
+    def test_machine_profile_comment_key_allowed(self):
+        """Allows _comment key in machine_profile.json for documentation/illustrative profiles."""
+        prof = {
+            "_comment": "Illustrative example schema",
+            "schema_version": 1,
+            "machine_id": "box_1",
+            "calibrated_on": "2026-10-07T00:00:00Z",
+            "os": "Linux",
+            "total_ram_gb": 16.0,
+            "cpu_cores": 8,
+            "calibrated_profiles": {},
+        }
+        valid, err = validate_machine_profile(prof)
+        self.assertTrue(valid, f"Profile with _comment should be valid: {err}")
+
+    def test_canonical_os_matching_ignores_kernel_versions(self):
+        """Canonical OS matching normalizes kernel and build strings across updates."""
+        prof = {
+            "schema_version": 1,
+            "machine_id": "box_1",
+            "calibrated_on": "2026-10-07T00:00:00Z",
+            "os": "Linux 6.8.0-45-generic",
+            "total_ram_gb": 16.0,
+            "cpu_cores": 8,
+            "calibrated_profiles": {},
+        }
+        # Live OS reported as "linux" or "Linux" should match despite kernel version difference
+        valid, err = validate_machine_profile(prof, live_os="linux")
+        self.assertTrue(valid, f"Expected matching OS: {err}")
+
+        valid2, err2 = validate_machine_profile(prof, live_os="Linux")
+        self.assertTrue(valid2, f"Expected matching OS: {err2}")
+
+        # Windows profile matching win32
+        prof_win = dict(prof, os="Windows 11 Build 22631")
+        valid_win, err_win = validate_machine_profile(prof_win, live_os="win32")
+        self.assertTrue(valid_win, f"Expected matching Windows OS: {err_win}")
+
+    def test_missing_timestamp_rejected(self):
+        """Rejects machine profiles missing both calibrated_on and expires_at."""
+        prof = {
+            "schema_version": 1,
+            "machine_id": "box_1",
+            "os": "Linux",
+            "total_ram_gb": 16.0,
+            "cpu_cores": 8,
+            "calibrated_profiles": {},
+        }
+        valid, err = validate_machine_profile(prof)
+        self.assertFalse(valid)
+        self.assertIn("missing timestamp", err)
+
     def test_expired_machine_profile_rejected(self):
         """Rejects machine profiles older than 30 days or past expires_at."""
-        # 1. Calibrated 40 days ago
+        # 1. Calibrated 40 days ago without expires_at (strictly calculates calibrated_on + 30 days)
         old_prof = {
             "schema_version": 1,
             "machine_id": "box_1",

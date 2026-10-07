@@ -299,7 +299,7 @@ def cmd_calibrate(args: argparse.Namespace) -> int:
         "schema_version": 1,
         "machine_id": f"{platform.node()}_{platform.machine()}",
         "calibrated_on": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "os": f"{platform.system()} {platform.release()}",
+        "os": platform.system(),
         "total_ram_gb": total_ram_gb,
         "cpu_cores": cpu_cores,
         "calibrated_profiles": {},

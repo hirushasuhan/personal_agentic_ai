@@ -194,6 +194,7 @@ def save_user_config(data: Dict[str, Any], config_path: Optional[str] = None) ->
 # Machine Profile Schema & Validation (Hardware calibration)
 # -----------------------------------------------------------------------------
 ALLOWED_MACHINE_PROFILE_KEYS = {
+    "_comment",
     "schema_version",
     "machine_id",
     "calibrated_on",
@@ -203,6 +204,20 @@ ALLOWED_MACHINE_PROFILE_KEYS = {
     "cpu_cores",
     "calibrated_profiles",
 }
+
+
+def _canonical_os(s: Optional[str]) -> str:
+    """Normalizes OS string to canonical base ('windows', 'linux', 'darwin') to ignore kernel versions."""
+    if not s:
+        return ""
+    val = str(s).strip().lower()
+    if "win" in val:
+        return "windows"
+    if "linux" in val:
+        return "linux"
+    if "darwin" in val or "mac" in val:
+        return "darwin"
+    return val
 
 
 def validate_machine_profile(
@@ -240,34 +255,38 @@ def validate_machine_profile(
         if prof_mid and prof_mid != live_machine_id:
             return False, f"Foreign machine profile detected: profile calibrated on '{prof_mid}', current machine is '{live_machine_id}'"
 
-    # Verify OS identity (detect foreign profile from another operating system)
+    # Verify OS identity using canonical base OS (detect foreign profile from another operating system)
     if live_os:
-        prof_os = str(data.get("os", "")).lower()
-        curr_os = live_os.lower()
-        if prof_os and (curr_os not in prof_os and not (curr_os == "darwin" and "mac" in prof_os)):
+        prof_os = _canonical_os(data.get("os"))
+        curr_os = _canonical_os(live_os)
+        if prof_os and curr_os and prof_os != curr_os:
             return False, f"Foreign OS machine profile detected: profile calibrated for '{data.get('os')}', current OS is '{live_os}'"
 
-    # Check expiration (valid for 30 days)
+    # Check expiration (valid for 30 days; do not accept indefinitely if expires_at is missing)
     now_ts = time.time()
     calibrated_on = data.get("calibrated_on")
-    if calibrated_on:
-        try:
-            # Parse ISO date
-            dt = datetime.fromisoformat(calibrated_on.replace("Z", "+00:00"))
-            cal_ts = dt.timestamp()
-            if (now_ts - cal_ts) > (30 * 86400):  # Older than 30 days
-                return False, f"Machine profile has expired: calibrated on '{calibrated_on}' (> 30 days ago)"
-        except Exception:
-            pass
-
     expires_at = data.get("expires_at")
+
+    if not calibrated_on and not expires_at:
+        return False, "Machine profile missing timestamp: must have 'calibrated_on' or 'expires_at'"
+
     if expires_at:
         try:
-            dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-            if now_ts > dt.timestamp():
+            dt_exp = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+            if now_ts > dt_exp.timestamp():
                 return False, f"Machine profile has expired: expired at '{expires_at}'"
         except Exception:
-            pass
+            return False, f"Invalid 'expires_at' timestamp format: '{expires_at}'"
+
+    if calibrated_on:
+        try:
+            dt_cal = datetime.fromisoformat(str(calibrated_on).replace("Z", "+00:00"))
+            cal_ts = dt_cal.timestamp()
+            exp_ts = cal_ts + (30 * 86400)
+            if now_ts > exp_ts:
+                return False, f"Machine profile has expired: calibrated on '{calibrated_on}' (> 30 days ago)"
+        except Exception:
+            return False, f"Invalid 'calibrated_on' timestamp format: '{calibrated_on}'"
 
     # Check calibrated profiles
     profiles = data.get("calibrated_profiles", {})

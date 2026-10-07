@@ -1,0 +1,33 @@
+{
+  "_comment": "Illustrative example schema for ~/.pai/machine_profile.json (not an empirical measurement)",
+  "schema_version": 1,
+  "machine_id": "example-workstation-x86_64",
+  "calibrated_on": "2026-10-07T00:00:00Z",
+  "expires_at": "2026-11-06T00:00:00Z",
+  "os": "Linux",
+  "total_ram_gb": 16.0,
+  "cpu_cores": 8,
+  "calibrated_profiles": {
+    "qwen2.5-coder:1.5b": {
+      "host_delta_mb": 600.0,
+      "latency_sec": 1.5,
+      "runs": 5,
+      "spread_mb": 25.0,
+      "calibrated_on": "2026-10-07T00:00:00Z"
+    },
+    "llama3.2:3b": {
+      "host_delta_mb": 750.0,
+      "latency_sec": 2.5,
+      "runs": 5,
+      "spread_mb": 30.0,
+      "calibrated_on": "2026-10-07T00:00:00Z"
+    },
+    "qwen2.5-coder:7b": {
+      "host_delta_mb": 1300.0,
+      "latency_sec": 12.0,
+      "runs": 5,
+      "spread_mb": 40.0,
+      "calibrated_on": "2026-10-07T00:00:00Z"
+    }
+  }
+}

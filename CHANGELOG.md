@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0] — 2026-10-07 — Milestone M2 Design Phase & M1c.2 Profile Refinements
+
+### Milestone M2 Architecture & Design Specification
+- **ADR-011 Architecture Decision Record (`docs/adr/ADR-011-restricted-execution-sandbox.md`)**:
+  - Multi-tier containment: Tier-1 AST Guard, Tier-2 OS-level Restricted Sandbox Runner, Tier-3 Test Grader, and Safe Output Staging.
+  - Cross-platform OS security boundary: Windows Job Objects (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, 512 MB memory limit, 1 active process limit, Low Integrity token stripping) and Linux Namespaces (`CLONE_NEWNET`) with POSIX resource limits (`RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_NPROC`).
+  - Bounded iterative repair loop ($N \le 3$) with sanitized diagnostic extraction.
+  - Safe atomic output staging with strict refusal to overwrite existing user files without explicit `--overwrite`.
+- **Milestone M2 Verify Loop Specification (`docs/M2_VERIFY_LOOP_SPEC.md`)**:
+  - Comprehensive contract for `pai code "<task>" --out <dir>`.
+  - 11-attack adversarial containment test matrix: infinite loops, memory bombs (10 GB heap allocation), fork bombs, canary file deletion, filesystem breakouts, network socket creation, subprocesses, ctypes native loading, stdout stream floods (pipe bombs), hidden test tampering, and segfault traps.
+  - Frozen evaluation plan on `coding_benchmark_v1.json` (Pass@1 baseline vs Pass@3 verify loop).
+
+### M1c.2 Profile Normalization & Evidence Honesty
+- **Illustrative Schema Documentation (`docs/examples/example_machine_profile.json`)**: Moved unmeasured secondary profile out of `docs/evidence/` to `docs/examples/` as an explicit schema template; empirical second-machine calibration item remains open pending physical WSL2 run.
+- **Canonical Base OS Normalization (`research/config.py`, `research/pai.py`)**: `_canonical_os` compares base platform systems (`windows`, `linux`, `darwin`), preventing routine OS kernel updates from invalidating calibrated profiles. `cmd_calibrate` stores `platform.system()`.
+- **Strict Expiration Enforcement (`research/config.py`)**: Profiles without `expires_at` calculate and enforce `calibrated_on + 30 days`. Profiles lacking timestamps are rejected. `_comment` key permitted in machine profiles.
+- **Test Suite**: 222 Python unit tests passing (14 in `test_config.py`). Windows vs Linux skips documented (5 skipped on Windows, 2 on Linux).
+
 ## [0.5.6] — 2026-10-07 — Milestone M1c.1 Hardening & Probe Defect Resolution
 
 ### M1c.1 Router & Profile Hardening
