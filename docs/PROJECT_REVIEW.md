@@ -155,5 +155,17 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
 * Licence URLs for `qwen3.5:4b` and `gemma4:e2b` are the generic Apache page and the source is the Ollama library page, not an official model card; the Llama URL appears to be the Llama 3 licence page, not the 3.2 one. To be re-read before adoption.
 * The report listed 5 skipped tests; the reviewer's run shows 2. Rust tests, clippy and fuzz were not re-run in this review.
 
+### M1b / M1.3 review (commit `1d4c1e5`, 2026-10-07)
+**Verified by the reviewer:** Python suite 189 OK (2 skipped); the five frozen-set hashes (now including `router_golden_vectors.json`) match; the RAM thresholds in the router follow the cold medians (7B 1817.9 MB, 1.5B 1102.4 MB, 4B 1550.6 MB); task class is derived from the command only (hostile context did not change it in a probe).
+
+**Defects found by probing the router (not covered by the golden vectors):**
+* A resident model bypasses power and CPU rules: with `qwen2.5-coder:7b` resident and `cpu-saturated` set, the router keeps the 7B (`STICKY_RESIDENT`) while a non-resident run falls back to 1.5B; a resident `qwen3.5:4b` stays under `low-battery` while a non-resident run picks `llama3.2:3b`. The `docs/analyze/web/forecast` path ignores `cpu-saturated` altogether.
+* `allow_cloud` is accepted but never used: a registered cloud candidate is not selected even at 300 MB free RAM. The M1d "extensibility" test only checks that the fit function returns true for a cloud candidate. Cloud routing is therefore not implemented yet.
+* An unknown command silently maps to `docs` (for example a typo routes to the 7B with no reason code); it should be rejected.
+* `resident_model` is caller-supplied; it must come from the model server's loaded-model list and be on the allow-list.
+* The "adoption test" compares the router with a model that cannot run at the given RAM; it shows fail-closed behaviour, not a quality gain. At each budget the router equals the best single model that fits, so its value is automatic fit-aware selection.
+* Model cards: `qwen3.5:4b` points to the `Qwen/Qwen2.5-3B` repository and Qwen2.5 licence file while recording `Apache-2.0`; `gemma4:e2b` points to `google/gemma-2-2b` with the Gemma Terms of Use. These are different models and licences from the ones named; the licence fields for both are unreliable until re-read from the correct official cards (T20).
+* Rust tests, clippy and the report's "5 skipped" (observed: 2) were not reproduced.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
