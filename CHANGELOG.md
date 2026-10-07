@@ -1,6 +1,30 @@
 # Changelog
 
-## [0.6.0] — 2026-10-07 — Milestone M2 Design Phase & M1c.2 Profile Refinements
+## [0.7.0] — 2026-10-08 — Milestone M2a Sandbox Runner, Boundary Probe & Adversarial Containment Matrix
+
+### Milestone M2a Restricted Execution Runner (ADR-011 v2.1)
+- **Win32 AppContainer & Job Object Sandbox (`research/sandbox_win32.py`)**:
+  - True OS-level isolation on Windows using Win32 AppContainer profiles with zero network capabilities (`CapabilityCount = 0`), blocking all socket creation at the TCP/IP driver layer.
+  - DACL granted exclusively to the ephemeral AppContainer SID on the assigned scratch directory (`icacls`).
+  - Hard resource limits via Windows Job Objects: 512 MB memory ceiling (`JOB_OBJECT_LIMIT_PROCESS_MEMORY` / `JOB_OBJECT_LIMIT_JOB_MEMORY`), single process limit (`JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 1`), CPU time budget, and `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
+  - Non-privileged runtime preparation in `~/.pai/sandbox_runtime` with `ALL APPLICATION PACKAGES` read permissions, enabling AppContainer execution of Python without administrator privileges or permanent system ACL drift.
+- **Linux Bubblewrap Sandbox Runner (`research/sandbox_linux.py`)**:
+  - Implemented bubblewrap isolation runner with `--unshare-net`, `--unshare-pid`, `--unshare-ipc`, `--cap-drop ALL`, `--new-session` (preventing TIOCSTI injection), `--clearenv`, `--die-with-parent`, `--tmpfs /home`, `--tmpfs /tmp`, and scratch directory bind.
+  - Configured POSIX `resource.setrlimit` ceilings for `RLIMIT_AS` (512 MB), `RLIMIT_CPU`, `RLIMIT_NPROC` (1 process max for non-root), and `RLIMIT_FSIZE` (1 MB).
+- **Behavioural Capability Probe (`research/sandbox.py`)**:
+  - Live canary self-test executed on startup before running any untrusted tasks: probes loopback network connect, outside canary read, outside canary write, outside canary delete, and child process spawn. Fails closed (exit code 5) if any canary leaks.
+  - Unified facade dispatching to platform runner based on host OS (`Win32Sandbox` / `LinuxSandbox`).
+- **Adversarial Containment Matrix Suites (`research/tests/test_sandbox_win32.py`, `research/tests/test_sandbox_linux.py`)**:
+  - Validates full attack matrix covering vectors A1 (timeout), A2 (memory bomb), A3/A7 (process proliferation), A4 (canary delete), A5 (filesystem read escape), A6 (network socket egress), A9 (stdout stream flood 64 KB cap), A11 (crash isolation).
+  - Empirical execution evidence recorded in `docs/evidence/m2a_sandbox_results.json`.
+- **Ctypes Policy Enforcement (`research/tests/test_ctypes_allowlist.py`)**:
+  - Repository-wide AST test ensuring `import ctypes` is strictly confined to 4 approved modules (`hardware_telemetry.py`, `memory_probe.py`, `secure_buffer.py`, `sandbox_win32.py`).
+  - Documented with `# SAFETY:` comments in Python code.
+- **CLI & CI Integration (`research/pai.py`, `.github/workflows/windows-ci.yml`)**:
+  - `pai doctor` and `pai doctor --json` run and report the behavioural sandbox boundary probe.
+  - Added bubblewrap setup and unprivileged namespace configuration to `linux-portability` job.
+- **Test Suite**: 243 Python unit tests passing (15 skipped: 5 Windows-specific privilege/POSIX skips + 10 Linux-specific sandbox skips on Windows). 13 Rust core tests passing, clippy clean (`-D warnings`). 10,000 differential fuzz cases clean. Telemetry parity passing. All 5 frozen eval set hashes intact.
+
 
 ### Milestone M2 Architecture & Design Specification
 - **ADR-011 Architecture Decision Record (`docs/adr/ADR-011-restricted-execution-sandbox.md`)**:

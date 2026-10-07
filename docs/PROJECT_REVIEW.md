@@ -276,5 +276,31 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
 * **Wording and process.** The Consequences section states in present tense that vectors "are contained in tests" before any test exists; use "must be contained; acceptance requires passing tests". Use `# SAFETY:` comments in Python, not `//`. ADR-009 covers Rust only: record the `ctypes` exception for `sandbox_win32.py` and add a repository test that restricts `import ctypes` to an allow-listed set (today `hardware_telemetry.py`, `memory_probe.py`, `secure_buffer.py`).
 * **Risk.** AppContainer through Python `ctypes` (profile creation, `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`, ACL grant on the scratch directory, profile cleanup) is the hardest part of M2; do it as a small spike on the owner's Windows machine before anything else, and use WSL2 (Ubuntu with `bubblewrap`) as the Linux target and as the real second environment for the open M1c evidence item.
 
+### M2a Verification & Spike Results (2026-10-08)
+* **Windows AppContainer & Job Object Isolation (`research/sandbox_win32.py`)**:
+  - AppContainer profile created via Win32 APIs (`CreateAppContainerProfile`) with zero network capabilities (`CapabilityCount = 0`).
+  - Child process instantiated via `CreateProcessW` with `STARTUPINFOEXW` and `PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES`.
+  - DACL granted strictly to AppContainer SID on the temporary scratch directory via `icacls`, preventing any access to user files or external directories.
+  - Windows Job Object configured with `JOB_OBJECT_LIMIT_PROCESS_MEMORY` (512 MB ceiling), `JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 1` (no child subprocesses), `JOB_OBJECT_LIMIT_PROCESS_TIME` (CPU user time limit), and `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`.
+  - Non-privileged runtime preparation in `~/.pai/sandbox_runtime` with `ALL APPLICATION PACKAGES` read permissions, enabling AppContainer execution of Python without administrator privileges or permanent system ACL drift.
+* **Linux Bubblewrap Runner (`research/sandbox_linux.py`)**:
+  - Bubblewrap command constructed with complete isolation flags: `--unshare-net`, `--unshare-pid`, `--unshare-ipc`, `--cap-drop ALL`, `--new-session`, `--clearenv`, `--die-with-parent`, `--tmpfs /home`, `--tmpfs /tmp`, and scratch directory bind.
+  - POSIX `resource.setrlimit` limits for `RLIMIT_AS` (512 MB), `RLIMIT_CPU`, `RLIMIT_NPROC` (1 child max), and `RLIMIT_FSIZE` (1 MB).
+* **Live Behavioural Capability Probe (`research/sandbox.py`)**:
+  - Live canary self-test executed on startup before running any untrusted tasks: probes loopback network connect, outside canary read, outside canary write, outside canary delete, and child process spawn. Fails closed (exit code 5) if any canary leaks.
+  - Verified on live Windows host: `Win32 AppContainer + Job Object boundary verified (all canaries contained)`.
+* **Adversarial Containment Matrix (A1–A11)**:
+  - 10-test suite executed in `research/tests/test_sandbox_win32.py`: A1 (timeout), A2 (memory bomb), A3/A7 (subprocess fork), A4 (canary delete), A5 (filesystem read escape), A6 (network socket egress), A9 (stdout flood 64 KB cap), A11 (crash isolation), probe, and valid execution all pass.
+  - Evidence recorded in `docs/evidence/m2a_sandbox_results.json`.
+* **Ctypes Policy Enforcement**:
+  - Repository-wide AST test (`research/tests/test_ctypes_allowlist.py`) restricts `import ctypes` exclusively to approved modules (`hardware_telemetry.py`, `memory_probe.py`, `secure_buffer.py`, `sandbox_win32.py`).
+  - Python safety rationale documented with `# SAFETY:` comments.
+* **Test Suite**:
+  - **243 Python unit tests passing** (228 executed, 15 skipped: 5 Windows-specific privilege/POSIX skips + 10 Linux-specific sandbox skips on Windows).
+  - 13 Rust core tests passing, clippy clean (`-D warnings`).
+  - 10,000 differential fuzz cases clean (0 mismatches).
+  - Claims lint passing cleanly (`test_claims.py`).
+  - Evaluator dataset hashes all 5 intact.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

@@ -209,6 +209,29 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         "candidates": candidates_status,
     }
 
+    # 7. Sandbox Execution Boundary Probe (ADR-011 / M2a)
+    try:
+        from sandbox import is_sandbox_supported, probe_system_boundary
+        if is_sandbox_supported():
+            s_ok, s_msg = probe_system_boundary()
+            doc_data["sandbox"] = {
+                "supported": True,
+                "verified": s_ok,
+                "message": s_msg,
+            }
+        else:
+            doc_data["sandbox"] = {
+                "supported": False,
+                "verified": False,
+                "message": f"Sandbox boundary not supported on {sys.platform}",
+            }
+    except Exception as e:
+        doc_data["sandbox"] = {
+            "supported": False,
+            "verified": False,
+            "message": f"Sandbox capability probe error: {e}",
+        }
+
     if getattr(args, "json", False):
         print(json.dumps(doc_data, indent=2))
         return 0
@@ -250,6 +273,15 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     else:
         print("Machine Profile      : Not calibrated -- run pai calibrate")
         print("  Recommendation: Run 'pai calibrate' to establish machine-specific baselines.")
+
+    print("\n--- Sandbox Execution Boundary (Milestone M2a) ---")
+    sb_info = doc_data.get("sandbox", {})
+    if sb_info.get("verified"):
+        print(f"Sandbox Boundary     : [VERIFIED FAIL-CLOSED] {sb_info.get('message')}")
+    elif sb_info.get("supported"):
+        print(f"Sandbox Boundary     : [FAILED] {sb_info.get('message')}")
+    else:
+        print(f"Sandbox Boundary     : [UNSUPPORTED] {sb_info.get('message')}")
 
     print("\n--- Candidate Eligibility Report ---")
     print(f"{'Model Name':<22} {'Req RAM':<12} {'Calibration':<24} {'License':<12} {'Fit Status'}")

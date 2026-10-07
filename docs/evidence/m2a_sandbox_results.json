@@ -1,0 +1,81 @@
+{
+  "milestone": "M2a",
+  "generated_at": "2026-10-08T00:37:30+05:30",
+  "platform": {
+    "system": "Windows",
+    "release": "11",
+    "architecture": "AMD64",
+    "python_version": "3.14.0",
+    "compiler": "MSC v.1944 64 bit (AMD64)"
+  },
+  "sandbox_type": "Win32 AppContainer + Job Object",
+  "behavioural_capability_probe": {
+    "verified": true,
+    "message": "Win32 AppContainer + Job Object boundary verified (all canaries contained)",
+    "canaries": {
+      "loopback_network": "CONTAINED",
+      "read_outside": "CONTAINED",
+      "write_outside": "CONTAINED",
+      "delete_outside": "CONTAINED",
+      "subprocess": "CONTAINED"
+    }
+  },
+  "adversarial_containment_matrix": {
+    "A1_cpu_timeout": {
+      "vector": "Infinite loop / CPU time exhaustion",
+      "result": "CONTAINED",
+      "detail": "Wall-clock deadline terminated process cleanly; status=timeout"
+    },
+    "A2_memory_bomb": {
+      "vector": "Heap exhaustion / allocation bomb",
+      "result": "CONTAINED",
+      "detail": "Job Object memory ceiling enforced; child terminated cleanly with non-zero exit code"
+    },
+    "A3_A7_subprocess_spawn": {
+      "vector": "Process proliferation / subprocess fork",
+      "result": "CONTAINED",
+      "detail": "Job Object ActiveProcessLimit=1 prevented child process creation (PermissionError / WinError 5)"
+    },
+    "A4_canary_deletion": {
+      "vector": "Canary file deletion outside scratch",
+      "result": "CONTAINED",
+      "detail": "AppContainer zero capabilities DACL blocked os.remove with PermissionError"
+    },
+    "A5_filesystem_read_escape": {
+      "vector": "Filesystem read escape outside scratch",
+      "result": "CONTAINED",
+      "detail": "AppContainer blocked open(..., 'r') with PermissionError"
+    },
+    "A6_network_egress": {
+      "vector": "Inbound / outbound socket connect",
+      "result": "CONTAINED",
+      "detail": "Kernel TCP/IP driver layer blocked socket connect with WinError 10013"
+    },
+    "A9_stdout_flood": {
+      "vector": "Stdout stream flooding / buffer exhaustion",
+      "result": "CONTAINED",
+      "detail": "Pipe stream safely capped at 64 KB without parent hang or deadlock"
+    },
+    "A11_crash_containment": {
+      "vector": "Uncaught fault / crash in child",
+      "result": "CONTAINED",
+      "detail": "Child crash isolated cleanly; parent runner intact; JobObjectLimitDieOnUnhandledException suppressed crash UI"
+    }
+  },
+  "ctypes_allowlist_enforcement": {
+    "verified": true,
+    "restricted_to": [
+      "hardware_telemetry.py",
+      "memory_probe.py",
+      "secure_buffer.py",
+      "sandbox_win32.py"
+    ]
+  },
+  "test_suite_summary": {
+    "total_tests": 243,
+    "passed": 228,
+    "skipped": 15,
+    "failed": 0,
+    "platform_skips": "5 Windows-specific privilege/POSIX skips + 10 Linux-specific sandbox tests"
+  }
+}
