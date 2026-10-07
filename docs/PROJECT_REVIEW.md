@@ -116,5 +116,18 @@ D6 (ADR-008): open-weights models allowed as the replaceable "code brain"; own m
 ### Verified by the reviewer on 2026-10-07
 Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.97 on Linux); 25 hostile URL cases on both implementations behave as specified (NAT64, 6to4, Teredo, IPv4-compatible, SIIT, site-local, `192.88.99.0/24`, leading-zero ports rejected; real public addresses accepted).
 
+### M1.1 review (commit `7795e7b`, 2026-10-07)
+**Verified by the reviewer:** Python suite 184 OK (2 skipped); the four SHA-256 values in `docs/evidence/eval_sets_hashes.json` match the files on disk; no stale lock file in `.git`; `model_profiles.json` carries `licence_checked_on` for every profile; `safe_code_runner.py` no longer runs model code in the evaluator process (child process, `-I -B`, scrubbed environment, temp working directory, kill on timeout, hidden tests stay in the evaluator).
+
+**Findings that limit what M1.1 proves:**
+* The runner is best-effort containment for evaluation, not a security boundary. Network denial is a `socket.socket` replacement inside the child, which model code can bypass (for example through other modules or by starting a process). The temp directory is only the working directory: absolute paths remain readable and writable, child processes can be spawned, and there is no memory or output-size limit. T16 therefore stays open for M2.
+* `docs/evidence/m1_bakeoff_results.json` holds 10 document results per model, so the 10 new hard tasks (`doc_11`-`doc_20`) have not been scored yet; the "10/10" figures are the old easy set.
+* The evidence file does not record the eval-set hashes, runner version, Ollama version or `think` setting used for each run.
+* RAM figures disagree between sources: for `gemma4:e2b` the bake-off shows 1245.7 MB, `model_profiles.json` 2386.0 MB, and the Ollama footprint 214.4 MB (probably the CPU-side part only, with the rest on the iGPU); for `qwen3.5:4b` 1852.2 MB versus 1029.1 MB. The router must use only the cold-start delta measured under one documented procedure.
+* `truncation_detected` is still true for `qwen3.5:4b` and `gemma4:e2b` with thinking off, so some of their answers are cut off and the scores are lower bounds.
+* Singlish score is keyword matching (0-2 per prompt) on 10 prompts; differences of a few points are noise.
+* Licence dates were recorded, but the profiles do not store the source URL or the licence text used.
+* Rust tests (13), clippy and fuzz results were reported by the owner and were not re-run in this review.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

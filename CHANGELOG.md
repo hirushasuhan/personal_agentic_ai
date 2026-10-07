@@ -23,6 +23,10 @@
 - `docs/evidence/eval_sets_hashes.json`: SHA-256 hashes of all 4 evaluation sets recorded and frozen.
 - `research/model_profiles.json`: Corrected cold-start host RAM deltas for `qwen3.5:4b` (1029.1 MB) and `gemma4:e2b` (2386.0 MB); added `licence_checked_on: "2026-10-07"` to all profiles.
 
+### Reviewer notes (not part of the original entry)
+- The runner is best-effort containment for evaluation, not an OS-level boundary (T16 stays open for M2): the `socket.socket` replacement can be bypassed, absolute paths and child processes are not restricted, and there is no memory limit.
+- `doc_11`-`doc_20` are frozen but not yet scored in `m1_bakeoff_results.json`; RAM figures differ between the bake-off file and `model_profiles.json`.
+
 ### Tests
 - Python 184 tests passing (14.8s). Rust 13 unit tests passing. Differential fuzz 10,000 cases passing. Clippy clean.
 
