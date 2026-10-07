@@ -199,5 +199,16 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
   - Telemetry parity check (Python vs Rust ±5% per ADR-009) passing.
   - All 5 frozen eval set hashes verified.
 
+### M1c review (commit `2310986`, 2026-10-07)
+**Verified by the reviewer:** Python suite 210 OK (2 skipped); the five frozen-set hashes match; `get_live_resident_model` is loopback-only and exact-match; unknown commands raise; user-config schema rejects unknown and secret-named keys.
+
+**Defects found by probing (not covered by the tests):**
+* With no machine profile (the case on a new PC), the router uses the owner-laptop card values unchanged and adds no `UNCALIBRATED` code; the conservative 1.5x rule of ADR-010 applies only when a profile file already exists. Probe: no profile, 1850 MB free, code task -> 7B selected.
+* A calibrated delta is trusted without a plausibility floor. A profile with `host_delta_mb: 1.0` for the 7B model is accepted and the 7B is selected at 600 MB free. A noisy `pai calibrate` run (memory freed by another program during the run) can produce the same result by accident.
+* The live-RAM cross-check (T26) never runs in the CLI: `pai doctor`, `pai models list` and `pai route` build `ModelRouter(load_system_profile=True)` without `live_total_ram_gb`; the check is only exercised by tests that pass it by hand. The check also compares total RAM only; it does not detect a profile copied from a different machine with similar RAM (`machine_id` and OS are stored but not compared).
+* `pai calibrate`: a run with delta 0 (failed measurement) is kept; a zero median makes `save_machine_profile` raise after all runs are done and the results are lost. Unload waits a fixed 1.5 s instead of polling `/api/ps` and waiting 2.0 s as in `MEASUREMENT_PROCEDURE.md`. Calibration never expires.
+* The secret scan checks key names only, not values; `spend_caps` and `enabled_providers` are allowed keys but their contents are not validated; `privacy_mode: allow-cloud` is accepted although cloud routing does not exist.
+* No second-machine calibration evidence is in `docs/evidence/`; the Linux CI job was reported but its result was not seen by the reviewer. Rust tests, clippy and fuzz were not re-run. The report says 5 skipped tests; the reviewer observed 2.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
