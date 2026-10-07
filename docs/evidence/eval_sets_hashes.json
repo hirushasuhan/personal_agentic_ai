@@ -5,6 +5,7 @@
     "research/eval_sets/coding_tasks.json": "df026a8b472c3eb2af8103c21e6f3b53db7baddca54df8b85826e7b274c9a56e",
     "research/eval_sets/hidden_tests/test_coding_tasks.py": "63e1e839ca4715e7bee944f1e3e3f528a3bef4a38c0d654a147599474369f1b1",
     "research/eval_sets/singlish_prompts.json": "b502c1ef8930402c76a2b5a148079630120f7e13171111942aea35559139afb4",
-    "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd"
+    "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd",
+    "research/eval_sets/router_golden_vectors.json": "6ae73de56125f208b21cd5ffb278ed5b03373682872ae105336775c39bad4d97"
   }
 }

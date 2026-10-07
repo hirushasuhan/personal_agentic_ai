@@ -19,6 +19,7 @@ Out of scope for this spec: voice, desktop control (Phase 5), automatic weight u
 
 ## 2. Statelessness rules
 * No history file, no cache of prompts or file contents. Each run: ingest → reason → output → verified purge (`SecureBuffer`).
+* Cloud runs (§10) are not stateless: the provider receives the data, and the output says so.
 * Output is written only where the user says (`--out`); existing files are never overwritten (new names, diff shown).
 * Model server: requests set `keep_alive: 0` for sensitive runs so the prompt is not left resident in the model process (threat T13). To be verified in M1 by observing `ollama ps`; residual risk stays documented until in-process inference exists.
 
@@ -111,13 +112,41 @@ Tests: request with a foreign `Origin` rejected; request without token rejected;
 ### M7 — Singlish front-end
 Normalizer plus a small intent/tool-call router for Singlish commands. Data: text the owner explicitly provides (consent required); evaluation set frozen separately. Starts rule-based; a small trained classifier only if it beats the rules on the frozen set.
 
+## 10. Portability, model selection and optional cloud providers (ADR-010, proposed)
+Goal: the same `pai` works on a stronger or weaker PC, the user chooses which models it may use, and the user may add the API of a main AI provider.
+
+| Command | Purpose |
+|---------|---------|
+| `pai setup` | First run: detect OS, RAM, CPU, GPU/iGPU, battery; recommend models that fit; write the user configuration; download a model only after explicit consent and SHA-256 check |
+| `pai doctor` | Report what was detected, what is missing (model server, models), and why a model is or is not eligible |
+| `pai calibrate [--model <name>]` | 5-run cold-start measurement on this machine; writes the local machine profile |
+| `pai models list|pull|remove` | Manage the local allow-list; unmeasured models are labelled until `pai bench` |
+| `pai providers list|enable|disable|test` | Manage cloud providers (all disabled by default); `test` sends a fixed harmless prompt, never user data |
+| `pai keys set|clear <provider>` | Hidden-prompt entry into the OS credential store; never echoes the key |
+
+Run flags: `--offline` (no cloud), `--allow-cloud` (consent for this run), `--prefer local|cloud`, `--budget <amount>`, `--explain-route`.
+
+User configuration (non-secret, schema-validated, unknown keys rejected): model allow-list, enabled providers, preferred model per task class, spend caps, privacy mode (`local-only` default). Secrets never live here.
+
+Router additions: machine-profile numbers replace card numbers when present; `uncalibrated` decisions use the conservative rule of ADR-010; cloud candidates follow decision 7 of ADR-010; every route report includes "data leaves machine: yes/no".
+
+Statelessness: local runs are stateless as in §2; cloud runs are not described as stateless (the provider receives the data).
+
+### M1c — Portability, calibration and model selection
+Deliverables: `pai setup`, `pai doctor`, `pai calibrate`, `pai models`, user configuration schema, machine profile, Linux CI job.
+Acceptance: calibration on a second machine (or a VM with limited RAM) produces a profile and different router decisions than on the owner laptop; synthetic RAM budgets (1.5, 2.5, 4, 8 GB) give the expected model; uncalibrated models use the conservative rule; a tampered profile or configuration is rejected or re-validated (T26); downloads need consent and a matching SHA-256; hostile content cannot change the selection (T21).
+
+### M1d — Optional cloud providers
+Deliverables: provider cards, cloud backend behind `Reasoner`, credential-store wrapper, spend counter, consent flow, outbound-log entries.
+Acceptance (all against a local mock provider server, no real key in CI): cloud off by default; key never appears in logs, outputs, evidence files or process arguments (grep test); only card hosts are contacted, cross-host redirect refused, TLS verification on; per-run and per-day caps stop a runaway loop; `--offline` removes cloud candidates; content cannot enable cloud or choose a provider; consent text lists files and byte counts; skipped secret files are never sent.
+
 ## 5. Evaluation discipline
 * Frozen, versioned evaluation sets (coding tasks, document questions, safety/injection cases, Singlish prompts and intents, forecast series). Training and tuning data never overlap them.
 * Every claim in docs or UI about quality cites a measured number from these sets (claims policy, THREAT_MODEL §5).
 * Record machine, model, quantization and date with each result.
 
 ## 6. Security requirements (cross-cutting)
-Deny-by-default capabilities (ADR-006); untrusted data fenced; outbound traffic only through `outbound_policy` with the allow-list (arbitrary domains need an explicit `--allow-domain`); loopback-only model endpoint; every new input channel gets a threat-register entry (T15–T20) and tests before merge.
+Deny-by-default capabilities (ADR-006); untrusted data fenced; outbound traffic only through `outbound_policy` with the allow-list (arbitrary domains need an explicit `--allow-domain`); loopback-only endpoint for local models (cloud providers only under §10 and ADR-010); every new input channel gets a threat-register entry (T15–T20) and tests before merge.
 
 ## 7. Dependencies
 Standard library first. Any added package (for example a PDF parser or a statistics library) needs: pinned version and hash, licence check, an ADR line, and a note in THREAT_MODEL T10.

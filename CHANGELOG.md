@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased] — plan update (docs only)
+- ADR-010 (proposed): per-machine calibration, user-selectable models and optional cloud providers with OS-stored keys, spend caps and a visible egress log. New threats T22–T26. New milestones M1c and M1d before M2 (M2 onward shifted by four weeks). `LOCAL_ASSISTANT_SPEC` §10 added.
+
+## [0.5.3] — 2026-10-07 — Milestone M1b Adaptive Model Router & M1.3 Hardening
+
+### M1b Adaptive Model Router (`research/router.py`)
+- **Graceful Degradation Priority**: Adapts model selection based on host RAM, compute tier, power/battery state, and CPU throttle conditions. Quality ranking is only favored when difference exceeds empirical noise margin (e.g. 7B coding 60% vs 40%).
+- **Strict Task Class Isolation (Threat T21)**: Task class derived strictly from CLI command argument (`code`, `analyze`, `docs`, `forecast`, `web`, `chat`); file and web context is never parsed for task routing.
+- **Extensible Candidate Architecture (M1d Readiness)**: Candidates declare `kind` (`local` | `cloud`) and `data_leaves_machine` (`bool`). Host RAM-fit check applies exclusively to local models. Route reports include `Data leaves machine: Yes / No`.
+- **Hysteresis & Sticky Resident Preservation**: Resident models in memory bypass pre-load checks and are preserved for compatible task classes to avoid cold reload latency (8.7s–18.25s).
+- **Owner Opt-In Enforcement**: High-RAM `gemma4:e2b` (2.93 GB host RAM) requires explicit `gemma4_opt_in=True` and $\ge 3500$ MB free RAM; otherwise rejected with `OPT_IN_REQUIRED`.
+- **Unmeasured Class Handling**: `docs`, `analyze`, `web`, and `forecast` route to code/general models tagged with `UNMEASURED_CLASS`.
+- **Golden Decision Vectors**: Frozen suite of 15 vectors in `research/eval_sets/router_golden_vectors.json` (hash recorded in `eval_sets_hashes.json`).
+- **Comprehensive Unit Tests**: `research/tests/test_router.py` (5 tests) covering golden vector conformance, T21 context isolation, cloud candidate extensibility, and equal RAM budget adoption comparisons.
+
+### M1.3 Evaluation & Profiles Hardening
+- `research/model_profiles.json`: Reconciled official Hugging Face source repository URLs and license URLs for all profiles. Labeled `model_footprint_mb` and live deltas as informational only (not used by router).
+- `research/reasoner.py`: Added `temperature` and `seed` parameters to `LocalLLMReasoner` across both Ollama native and OpenAI endpoints for deterministic evaluations.
+- `docs/evidence/eval_sets_hashes.json`: SHA-256 hash for `router_golden_vectors.json` frozen.
+
 ## [0.5.2] — 2026-10-07 — Milestone M1.2 Hardening, Standardized RAM Measurements & Full 20-Doc Bake-Off
 
 ### M1.2 Standardized Cold-Start RAM Procedure & Empirical Measurements

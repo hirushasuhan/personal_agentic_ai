@@ -23,10 +23,12 @@ gantt
     section Track L: Local assistant (ADR-008)
     M1 model bake-off + pai code (generate)           :2026-10-08, 2026-10-29
     M1b adaptive model router                         :2026-10-29, 2026-11-12
-    M2 verify loop (restricted runner)                :2026-11-12, 2026-12-03
-    M3 pai analyze (folders)                          :2026-12-03, 2026-12-17
-    M4 docs, M5 forecast                              :2026-12-17, 2027-01-21
-    M6 local web interface, M7 Singlish front-end     :2027-01-21, 2027-03-04
+    M1c portability, calibration, model selection     :2026-11-12, 2026-11-26
+    M1d optional cloud providers (ADR-010)            :2026-11-26, 2026-12-10
+    M2 verify loop (restricted runner)                :2026-12-10, 2026-12-31
+    M3 pai analyze (folders)                          :2026-12-31, 2027-01-14
+    M4 docs, M5 forecast                              :2027-01-14, 2027-02-18
+    M6 local web interface, M7 Singlish front-end     :2027-02-18, 2027-04-01
     section Track M: Own model (gated research)
     Stage 0 tokenizer + tiny model (laptop)           :2026-11-15, 2027-01-15
     Self-play data engine + LoRA experiments          :2027-01-15, 2027-03-15
@@ -164,7 +166,9 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 | M1.1 | Bake-off hardening (subprocess runner, thinking control, frozen sets, re-measured RAM) | Done in `7795e7b` |
 | M1.2 | Standardized RAM measurements & full 20-doc batch evaluation | Done (5-run cold median in `MEASUREMENT_PROCEDURE.md`, all 20 doc tasks scored, run metadata recorded, profiles reconciled with SPDX/HF cards) |
 | M1.2 | Bake-off re-run with metadata, standard cold-RAM procedure, 20 document tasks | Done in `bcade6e`; open (M1.3): repeat runs with fixed seed for pass@1 variance, stricter document scoring, licence re-read on official cards |
-| M1b | Adaptive model router (task class + machine condition → model, explained) | Properties and golden decision vectors pass; router beats the best single model under equal RAM budgets, otherwise shelved |
+| M1b | Adaptive model router (task class + machine condition → model, explained) | Done (research/router.py, 15 golden vectors pass, graceful degradation across equal RAM budgets, T21 defense, M1d cloud extensibility) |
+| M1c | Portability: `pai setup/doctor/calibrate/models`, machine profile, user model allow-list | Calibration on a second machine; synthetic RAM budgets route correctly; tampered profile/config rejected; consent + SHA-256 for downloads |
+| M1d | Optional cloud providers (ADR-010, proposed) | Mock-server tests: off by default, key never leaks, card hosts only, spend caps, `--offline`, content cannot enable cloud |
 | M2 | Verify loop with restricted runner | infinite loop, file-delete, network and fork-bomb tests all contained |
 | M3 | `pai analyze <folder>` | path-escape, injection-in-file, secret-file and size-cap tests pass |
 | M4 | `pai docs` (txt/md/csv; PDF after an ADR) | injection and oversize tests pass |

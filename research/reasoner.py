@@ -150,13 +150,16 @@ class LocalLLMReasoner:
     """
 
     def __init__(self, base_url: str = "http://127.0.0.1:11434/v1", model: str = "local",
-                 timeout: float = 120.0, max_response_chars: int = 16000, think: Optional[bool] = None):
+                 timeout: float = 120.0, max_response_chars: int = 16000, think: Optional[bool] = None,
+                 temperature: float = 0.2, seed: Optional[int] = None):
         self.base_url = base_url.rstrip("/")
         self._check_loopback(self.base_url)
         self.model = model
         self.timeout = timeout
         self.max_response_chars = max_response_chars
         self.think = think
+        self.temperature = temperature
+        self.seed = seed
         self.last_thinking_detected = False
         self.last_truncated = False
         self.name = f"LocalLLMReasoner({model} @ {urllib.parse.urlsplit(self.base_url).netloc})"
@@ -267,15 +270,18 @@ class LocalLLMReasoner:
 
         if use_ollama_native:
             chat_url = f"{parts.scheme}://{parts.netloc}/api/chat"
+            options_dict = {
+                "num_predict": max_tokens,
+                "temperature": self.temperature,
+            }
+            if self.seed is not None:
+                options_dict["seed"] = self.seed
             body = {
                 "model": self.model,
                 "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
                 "stream": False,
                 "think": self.think,
-                "options": {
-                    "num_predict": max_tokens,
-                    "temperature": 0.2,
-                },
+                "options": options_dict,
             }
             req = urllib.request.Request(chat_url, data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
@@ -308,9 +314,11 @@ class LocalLLMReasoner:
                 "model": self.model,
                 "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
                 "max_tokens": max_tokens,
-                "temperature": 0.2,
+                "temperature": self.temperature,
                 "stream": False,
             }
+            if self.seed is not None:
+                body["seed"] = self.seed
             req = urllib.request.Request(self.base_url + "/chat/completions", data=json.dumps(body).encode("utf-8"),
                                          headers={"Content-Type": "application/json"}, method="POST")
             try:
