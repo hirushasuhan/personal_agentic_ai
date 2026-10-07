@@ -34,11 +34,18 @@ import json
 import os
 import sys
 import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from hardware_telemetry import HardwareBudget
+from config import (
+    get_machine_profile_path,
+    get_user_config_path,
+    load_machine_profile,
+    load_user_config,
+)
 
 
 @dataclass
@@ -125,13 +132,42 @@ class ModelRouter:
     Adapts model selection to hardware resources, power constraints, and task class.
     """
 
-    def __init__(self, profiles_path: Optional[str] = None):
+    def __init__(
+        self,
+        profiles_path: Optional[str] = None,
+        machine_profile_path: Optional[str] = None,
+        user_config_path: Optional[str] = None,
+        load_system_profile: bool = False,
+        live_total_ram_gb: Optional[float] = None,
+    ):
         self.root_dir = os.path.dirname(os.path.abspath(__file__))
         if profiles_path is None:
             profiles_path = os.path.join(self.root_dir, "model_profiles.json")
         self.profiles_path = profiles_path
         self.candidates: Dict[str, ModelCandidate] = {}
         self._load_candidates()
+
+        self.machine_profile_path = machine_profile_path
+        self.user_config_path = user_config_path
+        self.live_total_ram_gb = live_total_ram_gb
+
+        # Load machine profile
+        self.machine_profile: Optional[Dict[str, Any]] = None
+        if machine_profile_path:
+            self.machine_profile = load_machine_profile(machine_profile_path, live_total_ram_gb=live_total_ram_gb)
+        elif load_system_profile:
+            p_path = get_machine_profile_path()
+            if os.path.exists(p_path):
+                self.machine_profile = load_machine_profile(p_path, live_total_ram_gb=live_total_ram_gb)
+
+        # Load user configuration
+        self.user_config: Optional[Dict[str, Any]] = None
+        if user_config_path:
+            self.user_config = load_user_config(user_config_path)
+        elif load_system_profile:
+            c_path = get_user_config_path()
+            if os.path.exists(c_path):
+                self.user_config = load_user_config(c_path)
 
     def _load_candidates(self) -> None:
         """Loads candidate models from model_profiles.json."""
@@ -185,23 +221,38 @@ class ModelRouter:
         """
         Queries the model server (/api/ps) and returns the verified resident model
         matching the allowed candidate catalog.
+        Enforces local loopback check on base_url to prevent SSRF / probing.
+        Uses exact name matching and priority resolution for multiple loaded models.
         """
+        parts = urllib.parse.urlsplit(base_url)
+        hostname = (parts.hostname or "").lower()
+        if hostname not in ("127.0.0.1", "localhost", "::1", "[::1]"):
+            raise ValueError(f"base_url must be local loopback, got '{base_url}'")
+
         try:
-            import urllib.request
-            parts = urllib.parse.urlsplit(base_url)
             ps_url = f"{parts.scheme}://{parts.netloc}/api/ps"
             req = urllib.request.Request(ps_url)
             with urllib.request.urlopen(req, timeout=1.0) as resp:
                 data = json.loads(resp.read().decode())
                 models = data.get("models", [])
-                for m in models:
-                    m_name = m.get("name", "")
-                    # Exact match against candidate allow-list
-                    if m_name in self.candidates:
-                        return m_name
-                    for candidate_name in self.candidates:
-                        if candidate_name == m_name or m_name.startswith(candidate_name):
-                            return candidate_name
+                matching = [
+                    m.get("name", "") for m in models
+                    if m.get("name", "") in self.candidates
+                ]
+                if not matching:
+                    return None
+
+                priority_order = [
+                    "qwen2.5-coder:7b",
+                    "qwen3.5:4b",
+                    "llama3.2:3b",
+                    "qwen2.5-coder:1.5b",
+                    "gemma4:e2b",
+                ]
+                for p in priority_order:
+                    if p in matching:
+                        return p
+                return matching[0]
         except Exception:
             pass
         return None
@@ -216,6 +267,7 @@ class ModelRouter:
         Evaluates admission fit rule for a model candidate.
         Cloud models bypass local host RAM checks.
         Warm resident models bypass pre-load check via hysteresis.
+        Per ADR-010: Uses machine profile if calibrated, otherwise 1.5x conservative multiplier.
         """
         if candidate.kind == "cloud":
             return True, "CLOUD_NO_HOST_RAM_REQUIRED"
@@ -227,11 +279,29 @@ class ModelRouter:
         if avail_ram_mb is None:
             return False, "RAM_TELEMETRY_UNAVAILABLE"
 
+        if self.machine_profile:
+            calibrated_profiles = self.machine_profile.get("calibrated_profiles", {})
+            if candidate.name in calibrated_profiles:
+                cal_delta = float(calibrated_profiles[candidate.name].get("host_delta_mb", candidate.host_delta_mb))
+                min_req = round(cal_delta + candidate.headroom_mb, 1)
+                if avail_ram_mb >= min_req:
+                    return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB [calibrated])"
+                else:
+                    return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [calibrated], avail {avail_ram_mb:.1f} MB)"
+            else:
+                # ADR-010 conservative rule: 1.5x card delta + headroom
+                min_req = round(candidate.host_delta_mb * 1.5 + candidate.headroom_mb, 1)
+                if avail_ram_mb >= min_req:
+                    return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB [uncalibrated 1.5x])"
+                else:
+                    return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB [uncalibrated 1.5x], avail {avail_ram_mb:.1f} MB)"
+
         min_req = candidate.min_available_ram_mb
         if avail_ram_mb >= min_req:
             return True, f"RAM_FIT (avail {avail_ram_mb:.1f} MB >= req {min_req:.1f} MB)"
         else:
             return False, f"INSUFFICIENT_RAM (need {min_req:.1f} MB, avail {avail_ram_mb:.1f} MB)"
+
 
     def route(
         self,
@@ -258,6 +328,52 @@ class ModelRouter:
         reason_codes: List[str] = []
         rejected_models: List[Dict[str, str]] = []
 
+        def make_decision(
+            selected_model: Optional[str],
+            kind: str,
+            data_leaves_machine: bool,
+            codes: List[str],
+            switches: int,
+            thinking: bool,
+            explanation: str,
+        ) -> RouteDecision:
+            codes_copy = list(codes)
+            if selected_model and self.machine_profile:
+                cal_profiles = self.machine_profile.get("calibrated_profiles", {})
+                if selected_model in cal_profiles:
+                    if "MACHINE_PROFILE_CALIBRATED" not in codes_copy:
+                        codes_copy.append("MACHINE_PROFILE_CALIBRATED")
+                else:
+                    if "UNCALIBRATED" not in codes_copy:
+                        codes_copy.append("UNCALIBRATED")
+            return RouteDecision(
+                selected_model=selected_model,
+                kind=kind,
+                data_leaves_machine=data_leaves_machine,
+                task_class=task_class,
+                reason_codes=codes_copy,
+                rejected_models=rejected_models,
+                switches_count=switches,
+                thinking_mode=thinking,
+                explanation=explanation,
+            )
+
+        # Check user config allow-list (T21)
+        user_allowed = self.user_config.get("allowed_models") if self.user_config else None
+        has_user_allowlist = bool(user_allowed and isinstance(user_allowed, list) and len(user_allowed) > 0)
+
+        def is_allowed(m_name: str) -> bool:
+            if not has_user_allowlist:
+                return True
+            return m_name in user_allowed  # type: ignore[operator]
+
+        # Check user preferred model for task class
+        user_pref = None
+        if self.user_config and "preferred_models" in self.user_config:
+            candidate_pref = self.user_config["preferred_models"].get(task_class)
+            if candidate_pref and candidate_pref in self.candidates and is_allowed(candidate_pref):
+                user_pref = candidate_pref
+
         # Define candidate preference lists by task class
         if task_class == "code":
             preferred_candidates = ["qwen2.5-coder:7b", "qwen2.5-coder:1.5b"]
@@ -271,7 +387,10 @@ class ModelRouter:
         valid_resident: Optional[str] = None
         if resident_model:
             if resident_model in self.candidates:
-                valid_resident = resident_model
+                if is_allowed(resident_model):
+                    valid_resident = resident_model
+                else:
+                    rejected_models.append({resident_model: "resident model not in user allowed_models"})
             else:
                 rejected_models.append({resident_model: "resident model not in allowed candidate catalog; ignored"})
 
@@ -283,7 +402,35 @@ class ModelRouter:
         )
 
         # -------------------------------------------------------------
-        # 1. Sticky Resident Check (Avoiding 8-18s Cold Switching Cost)
+        # 1. User Preferred Model Check
+        # -------------------------------------------------------------
+        if user_pref and user_pref in self.candidates:
+            pref_cand = self.candidates[user_pref]
+            if user_pref in HEAVY_MODELS and has_resource_pressure:
+                rejected_models.append({user_pref: "preferred model blocked by resource pressure"})
+            else:
+                fit_pref, msg_pref = self.check_candidate_fit(pref_cand, avail_ram_mb, resident_model=valid_resident)
+                if fit_pref:
+                    switches = 1 if valid_resident != pref_cand.name else 0
+                    p_codes = ["RAM_FIT", "USER_PREFERRED_MODEL"]
+                    if pref_cand.license_id == "unverified":
+                        p_codes.append("UNVERIFIED_LICENCE")
+                    if task_class in ("docs", "analyze", "web", "forecast"):
+                        p_codes.append("UNMEASURED_CLASS")
+                    return make_decision(
+                        selected_model=pref_cand.name,
+                        kind=pref_cand.kind,
+                        data_leaves_machine=pref_cand.data_leaves_machine,
+                        codes=p_codes,
+                        switches=switches,
+                        thinking=pref_cand.thinking_default,
+                        explanation=f"Selected user preferred model '{pref_cand.name}' for task class '{task_class}'.",
+                    )
+                else:
+                    rejected_models.append({user_pref: f"user preferred model does not fit: {msg_pref}"})
+
+        # -------------------------------------------------------------
+        # 2. Sticky Resident Check (Avoiding 8-18s Cold Switching Cost)
         # -------------------------------------------------------------
         if valid_resident and valid_resident in self.candidates:
             res_cand = self.candidates[valid_resident]
@@ -307,20 +454,18 @@ class ModelRouter:
                     if res_cand.license_id == "unverified":
                         reason_codes.append("UNVERIFIED_LICENCE")
                     reason_codes.append(fit_msg)
-                    return RouteDecision(
+                    return make_decision(
                         selected_model=res_cand.name,
                         kind=res_cand.kind,
                         data_leaves_machine=res_cand.data_leaves_machine,
-                        task_class=task_class,
-                        reason_codes=reason_codes,
-                        rejected_models=rejected_models,
-                        switches_count=0,
-                        thinking_mode=res_cand.thinking_default,
+                        codes=reason_codes,
+                        switches=0,
+                        thinking=res_cand.thinking_default,
                         explanation=f"Retained resident model '{res_cand.name}' to avoid cold loading latency.",
                     )
 
         # -------------------------------------------------------------
-        # 2. Routing Policy: Code Tasks
+        # 3. Routing Policy: Code Tasks
         # -------------------------------------------------------------
         if task_class == "code":
             c7b = self.candidates.get("qwen2.5-coder:7b")
@@ -329,6 +474,9 @@ class ModelRouter:
             can_use_7b = True
             c7b_rejection = []
 
+            if c7b and not is_allowed(c7b.name):
+                can_use_7b = False
+                c7b_rejection.append("NOT_IN_USER_ALLOWED_MODELS")
             if tier == "COMPRESSED":
                 can_use_7b = False
                 c7b_rejection.append("tier is COMPRESSED (fallback to 1.5B)")
@@ -342,7 +490,7 @@ class ModelRouter:
                 c7b_rejection.append("cpu load saturated / throttled")
                 reason_codes.append("CPU_THROTTLE_FALLBACK")
 
-            if c7b:
+            if c7b and can_use_7b:
                 fit_7b, msg_7b = self.check_candidate_fit(c7b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_7b:
                     can_use_7b = False
@@ -351,15 +499,13 @@ class ModelRouter:
             if can_use_7b and c7b:
                 switches_count = 1 if valid_resident != c7b.name else 0
                 reason_codes.extend(["RAM_FIT", "PRIMARY_CODE_CANDIDATE"])
-                return RouteDecision(
+                return make_decision(
                     selected_model=c7b.name,
                     kind=c7b.kind,
                     data_leaves_machine=c7b.data_leaves_machine,
-                    task_class=task_class,
-                    reason_codes=reason_codes,
-                    rejected_models=rejected_models,
-                    switches_count=switches_count,
-                    thinking_mode=False,
+                    codes=reason_codes,
+                    switches=switches_count,
+                    thinking=False,
                     explanation=f"Selected primary coding model '{c7b.name}' (sufficient headroom and normal operating conditions).",
                 )
 
@@ -369,46 +515,47 @@ class ModelRouter:
 
             # Fallback to 1.5B coding model
             if c1b:
-                fit_1b, msg_1b = self.check_candidate_fit(c1b, avail_ram_mb, resident_model=valid_resident)
-                if fit_1b:
-                    switches_count = 1 if valid_resident != c1b.name else 0
-                    reason_codes.extend(["RAM_FIT_FALLBACK", "LIGHTWEIGHT_CODE_CANDIDATE"])
-                    return RouteDecision(
-                        selected_model=c1b.name,
-                        kind=c1b.kind,
-                        data_leaves_machine=c1b.data_leaves_machine,
-                        task_class=task_class,
-                        reason_codes=reason_codes,
-                        rejected_models=rejected_models,
-                        switches_count=switches_count,
-                        thinking_mode=False,
-                        explanation=f"Graceful degradation to '{c1b.name}' due to hardware/power/thermal constraints.",
-                    )
+                if not is_allowed(c1b.name):
+                    rejected_models.append({c1b.name: "NOT_IN_USER_ALLOWED_MODELS"})
                 else:
-                    rejected_models.append({c1b.name: msg_1b})
+                    fit_1b, msg_1b = self.check_candidate_fit(c1b, avail_ram_mb, resident_model=valid_resident)
+                    if fit_1b:
+                        switches_count = 1 if valid_resident != c1b.name else 0
+                        reason_codes.extend(["RAM_FIT_FALLBACK", "LIGHTWEIGHT_CODE_CANDIDATE"])
+                        return make_decision(
+                            selected_model=c1b.name,
+                            kind=c1b.kind,
+                            data_leaves_machine=c1b.data_leaves_machine,
+                            codes=reason_codes,
+                            switches=switches_count,
+                            thinking=False,
+                            explanation=f"Graceful degradation to '{c1b.name}' due to hardware/power/thermal constraints.",
+                        )
+                    else:
+                        rejected_models.append({c1b.name: msg_1b})
 
             # Refusal: No candidate fits
             reason_codes.append("INSUFFICIENT_HEADROOM")
-            return RouteDecision(
+            return make_decision(
                 selected_model=None,
                 kind="none",
                 data_leaves_machine=False,
-                task_class=task_class,
-                reason_codes=reason_codes,
-                rejected_models=rejected_models,
-                switches_count=0,
-                thinking_mode=False,
+                codes=reason_codes,
+                switches=0,
+                thinking=False,
                 explanation="Refused: Available RAM is insufficient for all local coding models.",
             )
 
         # -------------------------------------------------------------
-        # 3. Routing Policy: Chat / Singlish / Explain Tasks
+        # 4. Routing Policy: Chat / Singlish / Explain Tasks
         # -------------------------------------------------------------
         elif task_class == "chat":
             # Check gemma4 opt-in
             cgemma = self.candidates.get("gemma4:e2b")
             if cgemma:
-                if not gemma4_opt_in:
+                if not is_allowed(cgemma.name):
+                    rejected_models.append({cgemma.name: "NOT_IN_USER_ALLOWED_MODELS"})
+                elif not gemma4_opt_in:
                     rejected_models.append({
                         cgemma.name: "OPT_IN_REQUIRED (Gemma consumes 2.93 GB host RAM, requires explicit owner opt-in)"
                     })
@@ -419,15 +566,13 @@ class ModelRouter:
                         reason_codes.extend(["OWNER_OPT_IN", "RAM_FIT"])
                         if cgemma.license_id == "unverified":
                             reason_codes.append("UNVERIFIED_LICENCE")
-                        return RouteDecision(
+                        return make_decision(
                             selected_model=cgemma.name,
                             kind=cgemma.kind,
                             data_leaves_machine=cgemma.data_leaves_machine,
-                            task_class=task_class,
-                            reason_codes=reason_codes,
-                            rejected_models=rejected_models,
-                            switches_count=switches_count,
-                            thinking_mode=False,
+                            codes=reason_codes,
+                            switches=switches_count,
+                            thinking=False,
                             explanation=f"Selected '{cgemma.name}' under explicit owner opt-in and high RAM.",
                         )
                     else:
@@ -438,6 +583,9 @@ class ModelRouter:
             can_use_4b = True
             c4b_rejection = []
 
+            if c4b and not is_allowed(c4b.name):
+                can_use_4b = False
+                c4b_rejection.append("NOT_IN_USER_ALLOWED_MODELS")
             if tier == "COMPRESSED":
                 can_use_4b = False
                 c4b_rejection.append("tier is COMPRESSED")
@@ -451,7 +599,7 @@ class ModelRouter:
                 c4b_rejection.append("cpu load saturated")
                 reason_codes.append("CPU_THROTTLE_FALLBACK")
 
-            if c4b:
+            if c4b and can_use_4b:
                 fit_4b, msg_4b = self.check_candidate_fit(c4b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_4b:
                     can_use_4b = False
@@ -462,15 +610,13 @@ class ModelRouter:
                 reason_codes.extend(["RAM_FIT", "PRIMARY_CHAT_CANDIDATE"])
                 if c4b.license_id == "unverified":
                     reason_codes.append("UNVERIFIED_LICENCE")
-                return RouteDecision(
+                return make_decision(
                     selected_model=c4b.name,
                     kind=c4b.kind,
                     data_leaves_machine=c4b.data_leaves_machine,
-                    task_class=task_class,
-                    reason_codes=reason_codes,
-                    rejected_models=rejected_models,
-                    switches_count=switches_count,
-                    thinking_mode=False,
+                    codes=reason_codes,
+                    switches=switches_count,
+                    thinking=False,
                     explanation=f"Selected primary chat model '{c4b.name}' with thinking mode disabled.",
                 )
 
@@ -482,6 +628,9 @@ class ModelRouter:
             can_use_3b = True
             c3b_rejection = []
 
+            if c3b and not is_allowed(c3b.name):
+                can_use_3b = False
+                c3b_rejection.append("NOT_IN_USER_ALLOWED_MODELS")
             if tier == "COMPRESSED":
                 can_use_3b = False
                 c3b_rejection.append("tier is COMPRESSED")
@@ -489,7 +638,7 @@ class ModelRouter:
                 can_use_3b = False
                 c3b_rejection.append("cpu load saturated")
 
-            if c3b:
+            if c3b and can_use_3b:
                 fit_3b, msg_3b = self.check_candidate_fit(c3b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_3b:
                     can_use_3b = False
@@ -498,15 +647,13 @@ class ModelRouter:
             if can_use_3b and c3b:
                 switches_count = 1 if valid_resident != c3b.name else 0
                 reason_codes.extend(["RAM_FIT_FALLBACK", "INTERMEDIATE_CHAT_FALLBACK"])
-                return RouteDecision(
+                return make_decision(
                     selected_model=c3b.name,
                     kind=c3b.kind,
                     data_leaves_machine=c3b.data_leaves_machine,
-                    task_class=task_class,
-                    reason_codes=reason_codes,
-                    rejected_models=rejected_models,
-                    switches_count=switches_count,
-                    thinking_mode=False,
+                    codes=reason_codes,
+                    switches=switches_count,
+                    thinking=False,
                     explanation=f"Fallback to '{c3b.name}' due to RAM or power constraints on 4B.",
                 )
 
@@ -516,40 +663,39 @@ class ModelRouter:
             # Fallback 2: qwen2.5-coder:1.5b
             c1b = self.candidates.get("qwen2.5-coder:1.5b")
             if c1b:
-                fit_1b, msg_1b = self.check_candidate_fit(c1b, avail_ram_mb, resident_model=valid_resident)
-                if fit_1b:
-                    switches_count = 1 if valid_resident != c1b.name else 0
-                    reason_codes.extend(["LIGHTWEIGHT_FALLBACK"])
-                    return RouteDecision(
-                        selected_model=c1b.name,
-                        kind=c1b.kind,
-                        data_leaves_machine=c1b.data_leaves_machine,
-                        task_class=task_class,
-                        reason_codes=reason_codes,
-                        rejected_models=rejected_models,
-                        switches_count=switches_count,
-                        thinking_mode=False,
-                        explanation=f"Lightweight fallback to '{c1b.name}' under heavy memory/power pressure.",
-                    )
+                if not is_allowed(c1b.name):
+                    rejected_models.append({c1b.name: "NOT_IN_USER_ALLOWED_MODELS"})
                 else:
-                    rejected_models.append({c1b.name: msg_1b})
+                    fit_1b, msg_1b = self.check_candidate_fit(c1b, avail_ram_mb, resident_model=valid_resident)
+                    if fit_1b:
+                        switches_count = 1 if valid_resident != c1b.name else 0
+                        reason_codes.extend(["LIGHTWEIGHT_FALLBACK"])
+                        return make_decision(
+                            selected_model=c1b.name,
+                            kind=c1b.kind,
+                            data_leaves_machine=c1b.data_leaves_machine,
+                            codes=reason_codes,
+                            switches=switches_count,
+                            thinking=False,
+                            explanation=f"Lightweight fallback to '{c1b.name}' under heavy memory/power pressure.",
+                        )
+                    else:
+                        rejected_models.append({c1b.name: msg_1b})
 
             # Refusal
             reason_codes.append("INSUFFICIENT_HEADROOM")
-            return RouteDecision(
+            return make_decision(
                 selected_model=None,
                 kind="none",
                 data_leaves_machine=False,
-                task_class=task_class,
-                reason_codes=reason_codes,
-                rejected_models=rejected_models,
-                switches_count=0,
-                thinking_mode=False,
+                codes=reason_codes,
+                switches=0,
+                thinking=False,
                 explanation="Refused: Available RAM is insufficient for all chat candidates.",
             )
 
         # -------------------------------------------------------------
-        # 4. Routing Policy: Docs / Analyze / Web / Forecast Tasks
+        # 5. Routing Policy: Docs / Analyze / Web / Forecast Tasks
         # -------------------------------------------------------------
         else:
             # Unmeasured class: doc scores do not discriminate models.
@@ -560,6 +706,9 @@ class ModelRouter:
             can_use_7b = True
             c7b_rejection = []
 
+            if c7b and not is_allowed(c7b.name):
+                can_use_7b = False
+                c7b_rejection.append("NOT_IN_USER_ALLOWED_MODELS")
             if tier == "COMPRESSED":
                 can_use_7b = False
                 c7b_rejection.append("tier is COMPRESSED")
@@ -573,7 +722,7 @@ class ModelRouter:
                 c7b_rejection.append("cpu load saturated / throttled")
                 reason_codes.append("CPU_THROTTLE_FALLBACK")
 
-            if c7b:
+            if c7b and can_use_7b:
                 fit_7b, msg_7b = self.check_candidate_fit(c7b, avail_ram_mb, resident_model=valid_resident)
                 if not fit_7b:
                     can_use_7b = False
@@ -582,15 +731,13 @@ class ModelRouter:
             if can_use_7b and c7b:
                 switches_count = 1 if valid_resident != c7b.name else 0
                 reason_codes.append("RAM_FIT")
-                return RouteDecision(
+                return make_decision(
                     selected_model=c7b.name,
                     kind=c7b.kind,
                     data_leaves_machine=c7b.data_leaves_machine,
-                    task_class=task_class,
-                    reason_codes=reason_codes,
-                    rejected_models=rejected_models,
-                    switches_count=switches_count,
-                    thinking_mode=False,
+                    codes=reason_codes,
+                    switches=switches_count,
+                    thinking=False,
                     explanation=f"Selected '{c7b.name}' for unmeasured class '{task_class}'.",
                 )
 
@@ -599,34 +746,34 @@ class ModelRouter:
 
             # Fallback to 1.5B
             if c1b:
-                fit_1b, msg_1b = self.check_candidate_fit(c1b, avail_ram_mb, resident_model=valid_resident)
-                if fit_1b:
-                    switches_count = 1 if valid_resident != c1b.name else 0
-                    reason_codes.append("LIGHTWEIGHT_FALLBACK")
-                    return RouteDecision(
-                        selected_model=c1b.name,
-                        kind=c1b.kind,
-                        data_leaves_machine=c1b.data_leaves_machine,
-                        task_class=task_class,
-                        reason_codes=reason_codes,
-                        rejected_models=rejected_models,
-                        switches_count=switches_count,
-                        thinking_mode=False,
-                        explanation=f"Selected lightweight '{c1b.name}' for unmeasured class '{task_class}'.",
-                    )
+                if not is_allowed(c1b.name):
+                    rejected_models.append({c1b.name: "NOT_IN_USER_ALLOWED_MODELS"})
                 else:
-                    rejected_models.append({c1b.name: msg_1b})
+                    fit_1b, msg_1b = self.check_candidate_fit(c1b, avail_ram_mb, resident_model=valid_resident)
+                    if fit_1b:
+                        switches_count = 1 if valid_resident != c1b.name else 0
+                        reason_codes.append("LIGHTWEIGHT_FALLBACK")
+                        return make_decision(
+                            selected_model=c1b.name,
+                            kind=c1b.kind,
+                            data_leaves_machine=c1b.data_leaves_machine,
+                            codes=reason_codes,
+                            switches=switches_count,
+                            thinking=False,
+                            explanation=f"Selected lightweight '{c1b.name}' for unmeasured class '{task_class}'.",
+                        )
+                    else:
+                        rejected_models.append({c1b.name: msg_1b})
 
             # Refusal
             reason_codes.append("INSUFFICIENT_HEADROOM")
-            return RouteDecision(
+            return make_decision(
                 selected_model=None,
                 kind="none",
                 data_leaves_machine=False,
-                task_class=task_class,
-                reason_codes=reason_codes,
-                rejected_models=rejected_models,
-                switches_count=0,
-                thinking_mode=False,
+                codes=reason_codes,
+                switches=0,
+                thinking=False,
                 explanation=f"Refused: Available RAM is insufficient for '{task_class}'.",
             )
+

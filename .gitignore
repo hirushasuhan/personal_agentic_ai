@@ -42,3 +42,7 @@ bin/
 *.key
 *.pem
 release.key
+
+# User config & machine calibration profiles (ADR-010)
+.pai/
+machine_profile.json

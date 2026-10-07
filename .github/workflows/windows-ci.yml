@@ -122,3 +122,45 @@ jobs:
         working-directory: research
         run: |
           python -m unittest tests/test_m1_code.py
+
+  linux-portability:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: research
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install cryptography
+
+      - name: Run Test Suite on Linux (Procfs Telemetry)
+        working-directory: research
+        run: |
+          python -m unittest discover -s tests -v
+
+      - name: Test PAI CLI Doctor on Linux
+        working-directory: research
+        run: |
+          python pai.py doctor
+          python pai.py doctor --json
+
+      - name: Test PAI CLI Models Catalog on Linux
+        working-directory: research
+        run: |
+          python pai.py models list
+          python pai.py models list --json
+
+      - name: Test PAI CLI Route on Linux
+        working-directory: research
+        run: |
+          python pai.py route code --explain-route
+          python pai.py route chat --explain-route
+

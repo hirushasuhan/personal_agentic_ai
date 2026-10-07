@@ -1,7 +1,26 @@
 # Changelog
 
-## [Unreleased] — plan update (docs only)
-- ADR-010 (proposed): per-machine calibration, user-selectable models and optional cloud providers with OS-stored keys, spend caps and a visible egress log. New threats T22–T26. New milestones M1c and M1d before M2 (M2 onward shifted by four weeks). `LOCAL_ASSISTANT_SPEC` §10 added.
+## [0.5.5] — 2026-10-07 — Milestone M1c Portability, Hardware Calibration, User Configuration, and PAI CLI
+
+### M1c Portability & Machine Profile Calibration (ADR-010)
+- **Empirical Hardware Calibration (`research/config.py`)**: Support for non-committed machine profiles (`~/.pai/machine_profile.json`). Calibrated models use empirical 5-run cold deltas (`MACHINE_PROFILE_CALIBRATED`); uncalibrated models apply ADR-010 conservative rule: `required_ram = card_delta * 1.5 + 512.0 MB` with `"UNCALIBRATED"` decision code.
+- **Tampering Detection (Threat T26)**: Profiles are validated against live hardware; claimed total RAM deviating >35% from physical RAM is rejected fail-closed.
+- **User Configuration & Allow-Lists (Threats T21, T22)**: Schema-validated `~/.pai/config.json` supports non-secret user settings (`allowed_models`, `preferred_models`, `privacy_mode`). Credential scanner immediately rejects forbidden keys/tokens (`key`, `secret`, `token`, `password`, `auth`).
+- **Live Resident Probe Hardening**:
+  - `get_live_resident_model()` strictly checks `base_url` is local loopback (`127.0.0.1`, `localhost`, `::1`), raising `ValueError` on external hosts to prevent SSRF.
+  - Replaced prefix matching with exact name matching (`candidate_name == m_name`) to eliminate tag pollution or spoofing.
+  - Multi-model resident list from `/api/ps` resolved deterministically using candidate priority ordering.
+
+### PAI Unified Command Line Interface (`research/pai.py`)
+- **`pai doctor [--json]`**: Cross-platform system diagnostics (OS, CPU cores/load, RAM total/avail/pressure, GPU/iGPU probe, battery state, loopback Ollama `/api/ps` probe, candidate eligibility matrix).
+- **`pai calibrate [--model, --runs]`**: Automated 5-run cold RAM & latency profiling per `MEASUREMENT_PROCEDURE.md` saving validated machine profile to `~/.pai/machine_profile.json`.
+- **`pai models list [--json]`**: Candidate model catalog with display names, licenses, calibration state, min RAM, and live hardware fit.
+- **`pai route <command> [--explain-route, --json]`**: Wires `ModelRouter` to CLI.
+- **Deferred Execution Commands**: Subcommands `generate`, `analyze`, and `forecast` print explicit guidance that execution is deferred to Milestone M2+, pointing users to `pai route <command>`.
+
+### CI & Verification
+- **Linux Portability CI Job**: Added `linux-portability` job to `.github/workflows/windows-ci.yml` running on `ubuntu-latest`.
+- **Tests**: 210 Python unit tests passing (up from 191, +19 tests in `test_config.py`, `test_pai_cli.py`, and `test_router.py`). 13 Rust tests passing, clippy clean. 10,000 differential fuzz cases clean.
 
 ## [0.5.4] — 2026-10-07 — Milestone M1b.1 Router Hardening & Probing Fixes
 

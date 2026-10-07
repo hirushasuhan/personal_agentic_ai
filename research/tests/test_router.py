@@ -268,6 +268,180 @@ class TestModelRouter(unittest.TestCase):
         self.assertIn("Rejected Candidates:", rep)
         self.assertIn("qwen2.5-coder:7b", rep)
 
+    def test_get_live_resident_model_loopback_enforcement(self):
+        """Enforces loopback-only base_url for model server probe (SSRF prevention)."""
+        forbidden_urls = [
+            "http://192.168.1.1:11434",
+            "http://10.0.0.1:11434",
+            "http://example.com/api",
+            "http://attacker.internal:11434",
+        ]
+        for url in forbidden_urls:
+            with self.assertRaises(ValueError, msg=f"URL '{url}' should raise ValueError"):
+                self.router.get_live_resident_model(url)
+
+    def test_get_live_resident_model_exact_matching(self):
+        """Validates exact name matching prevents prefix spoofing (e.g. tag pollution)."""
+        # Prefix match like 'qwen2.5-coder:1.5b-evil' must NOT match 'qwen2.5-coder:1.5b'
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "models": [{"name": "qwen2.5-coder:1.5b-evil", "size": 1000}]
+        }).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            live = self.router.get_live_resident_model("http://127.0.0.1:11434")
+            self.assertIsNone(live)
+
+    def test_get_live_resident_model_multiple_loaded(self):
+        """Validates that when multiple models are resident, priority resolution selects highest capability."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "models": [
+                {"name": "qwen2.5-coder:1.5b", "size": 1000},
+                {"name": "qwen2.5-coder:7b", "size": 4800},
+            ]
+        }).encode("utf-8")
+        mock_resp.__enter__.return_value = mock_resp
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            live = self.router.get_live_resident_model("http://127.0.0.1:11434")
+            self.assertEqual(live, "qwen2.5-coder:7b")
+
+    def test_machine_profile_calibration_priority(self):
+        """ADR-010: Router prioritizes empirical machine profile calibration over card priors."""
+        import tempfile
+        from config import save_machine_profile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prof_path = os.path.join(tmpdir, "machine_profile.json")
+            profile_data = {
+                "schema_version": 1,
+                "machine_id": "test_box",
+                "calibrated_on": "2026-10-07T22:00:00Z",
+                "os": "test-os",
+                "total_ram_gb": 16.0,
+                "cpu_cores": 8,
+                "calibrated_profiles": {
+                    "qwen2.5-coder:7b": {
+                        "host_delta_mb": 1100.0,
+                        "runs": 5,
+                    }
+                },
+            }
+            save_machine_profile(profile_data, prof_path)
+
+            router = ModelRouter(machine_profile_path=prof_path)
+            # 1650 MB RAM:
+            # Card delta (1305.9) + 512 = 1817.9 MB (would NOT fit under priors)
+            # Calibrated delta (1100.0) + 512 = 1612.0 MB (FITS under calibration!)
+            budget = HardwareBudget(
+                compute_tier="BALANCED",
+                max_context_bytes=16 * 1024 * 1024,
+                allow_speculation=True,
+                thread_pool_limit=4,
+                throttle_warning="",
+                avail_ram_mb=1650.0,
+            )
+            dec = router.route(command="code", budget=budget)
+            self.assertEqual(dec.selected_model, "qwen2.5-coder:7b")
+            self.assertIn("MACHINE_PROFILE_CALIBRATED", dec.reason_codes)
+
+    def test_machine_profile_uncalibrated_conservative_multiplier(self):
+        """ADR-010: Uncalibrated models apply 1.5x multiplier + 512MB headroom."""
+        import tempfile
+        from config import save_machine_profile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            prof_path = os.path.join(tmpdir, "machine_profile.json")
+            profile_data = {
+                "schema_version": 1,
+                "machine_id": "test_box",
+                "calibrated_on": "2026-10-07T22:00:00Z",
+                "os": "test-os",
+                "total_ram_gb": 16.0,
+                "cpu_cores": 8,
+                "calibrated_profiles": {
+                    "qwen2.5-coder:1.5b": {
+                        "host_delta_mb": 600.0,
+                        "runs": 5,
+                    }
+                },
+            }
+            save_machine_profile(profile_data, prof_path)
+
+            router = ModelRouter(machine_profile_path=prof_path)
+
+            # 7B is uncalibrated! Card delta is ~1305.9 MB.
+            # Conservative requirement: 1305.9 * 1.5 + 512 = 2470.85 MB.
+            # At 2000 MB available RAM:
+            # Under card prior (1817.9 MB), 7B would normally fit.
+            # But under uncalibrated 1.5x rule, 7B does NOT fit, downgrading to 1.5B!
+            budget_mid = HardwareBudget(
+                compute_tier="BALANCED",
+                max_context_bytes=16 * 1024 * 1024,
+                allow_speculation=True,
+                thread_pool_limit=4,
+                throttle_warning="",
+                avail_ram_mb=2000.0,
+            )
+            dec_mid = router.route(command="code", budget=budget_mid)
+            self.assertEqual(dec_mid.selected_model, "qwen2.5-coder:1.5b")
+            self.assertIn("MACHINE_PROFILE_CALIBRATED", dec_mid.reason_codes)
+
+            # At 3000 MB available RAM:
+            # 7B fits under 1.5x rule and is labeled UNCALIBRATED!
+            budget_high = HardwareBudget(
+                compute_tier="HIGH",
+                max_context_bytes=16 * 1024 * 1024,
+                allow_speculation=True,
+                thread_pool_limit=4,
+                throttle_warning="",
+                avail_ram_mb=3000.0,
+            )
+            dec_high = router.route(command="code", budget=budget_high)
+            self.assertEqual(dec_high.selected_model, "qwen2.5-coder:7b")
+            self.assertIn("UNCALIBRATED", dec_high.reason_codes)
+
+    def test_user_config_allow_list_and_preference(self):
+        """User configuration allow_models filter and preferred_models priority."""
+        import tempfile
+        from config import save_user_config
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cfg_path = os.path.join(tmpdir, "config.json")
+            # Only allow 1.5B
+            save_user_config({
+                "schema_version": 1,
+                "allowed_models": ["qwen2.5-coder:1.5b"],
+                "preferred_models": {},
+            }, cfg_path)
+
+            router = ModelRouter(user_config_path=cfg_path)
+            budget_high = HardwareBudget(
+                compute_tier="HIGH",
+                max_context_bytes=16 * 1024 * 1024,
+                allow_speculation=True,
+                thread_pool_limit=4,
+                throttle_warning="",
+                avail_ram_mb=4000.0,
+            )
+            dec = router.route(command="code", budget=budget_high)
+            # Even with 4000 MB RAM, 7B is blocked by user allow-list!
+            self.assertEqual(dec.selected_model, "qwen2.5-coder:1.5b")
+
+            # Now test preferred_models: prefer 1.5B even if 7B is allowed
+            save_user_config({
+                "schema_version": 1,
+                "allowed_models": ["qwen2.5-coder:7b", "qwen2.5-coder:1.5b"],
+                "preferred_models": {"code": "qwen2.5-coder:1.5b"},
+            }, cfg_path)
+            router_pref = ModelRouter(user_config_path=cfg_path)
+            dec_pref = router_pref.route(command="code", budget=budget_high)
+            self.assertEqual(dec_pref.selected_model, "qwen2.5-coder:1.5b")
+            self.assertIn("USER_PREFERRED_MODEL", dec_pref.reason_codes)
+
 
 if __name__ == "__main__":
     unittest.main()
+

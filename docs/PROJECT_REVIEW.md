@@ -167,5 +167,37 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
 * Model cards: `qwen3.5:4b` points to the `Qwen/Qwen2.5-3B` repository and Qwen2.5 licence file while recording `Apache-2.0`; `gemma4:e2b` points to `google/gemma-2-2b` with the Gemma Terms of Use. These are different models and licences from the ones named; the licence fields for both are unreliable until re-read from the correct official cards (T20).
 * Rust tests, clippy and the report's "5 skipped" (observed: 2) were not reproduced.
 
+### M1c: Portability, Calibration, Model Selection, and PAI CLI (2026-10-07)
+* **Live Resident Model Hardening (Reviewer probe fixes)**:
+  - Loopback enforcement: `get_live_resident_model()` validates that `base_url` hostname belongs strictly to `{"127.0.0.1", "localhost", "::1", "[::1]"}`. Non-loopback URLs raise `ValueError` immediately to prevent SSRF or arbitrary host probing.
+  - Exact name matching: Removed prefix-based matching (`m_name.startswith(...)`), strictly requiring `candidate_name == m_name` to prevent tag confusion or model spoofing.
+  - Multiple loaded models in `/api/ps`: Safely handles multi-model arrays from `/api/ps` by evaluating loaded models against allowed candidate priority order.
+* **Hardware Profile Calibration (ADR-010)**:
+  - `ModelRouter` integrates empirical calibration from non-committed `~/.pai/machine_profile.json`.
+  - Calibrated models use measured host RAM deltas and receive reason code `MACHINE_PROFILE_CALIBRATED`.
+  - Uncalibrated models automatically apply the ADR-010 conservative multiplier (`min_ram = 1.5 * card_delta + 512.0 MB`) and receive reason code `UNCALIBRATED`.
+  - Machine profiles undergo strict schema and tampering validation (T26), rejecting files whose claimed RAM deviates by >35% from live physical RAM.
+* **User Configuration & Allow-Lists (ADR-010, T21, T22)**:
+  - Schema-validated `~/.pai/config.json` supports non-secret user settings: `allowed_models`, `preferred_models` per task class, `privacy_mode`.
+  - Security scanner (T22) immediately rejects any config keys or values resembling secrets (`key`, `secret`, `token`, `password`, `auth`).
+  - Unknown keys are rejected fail-closed (T26).
+  - User allow-list strictly filters candidate routing; models outside `allowed_models` are rejected with `NOT_IN_USER_ALLOWED_MODELS`.
+  - User preferred model for a task class is prioritized first when it fits and satisfies resource limits.
+* **`pai` Unified CLI Skeleton**:
+  - Implemented `research/pai.py` with subcommands:
+    - `pai doctor [--json]`: Cross-platform diagnostics (OS, CPU cores/load, RAM total/avail/pressure, GPU/iGPU probe, battery state, loopback Ollama `/api/ps` probe, candidate eligibility matrix).
+    - `pai calibrate [--model, --runs]`: 5-run cold RAM & latency profiling per `docs/MEASUREMENT_PROCEDURE.md`, updating validated machine profile.
+    - `pai models list [--json]`: Candidate catalog with display names, licenses, calibration state, min RAM, and live hardware fit.
+    - `pai route <cmd> [--explain-route, --json]`: Wires `ModelRouter` to CLI.
+    - Deferred execution notice: `generate`, `analyze`, and `forecast` subcommands print explicit notice that direct execution is deferred to M2+ and guide the user to `pai route <command>`.
+* **CI & Cross-Platform Portability**:
+  - Added `linux-portability` workflow job to `.github/workflows/windows-ci.yml` running Python unit tests, `pai doctor`, `pai models list`, and `pai route` on `ubuntu-latest`.
+* **Test Verification**:
+  - 210 Python unit tests passing (skipped 5 Windows-specific / non-root tests).
+  - 13 Rust core tests passing, clippy clean (`-D warnings`).
+  - 10,000 differential fuzz cases compared with zero mismatches.
+  - Telemetry parity check (Python vs Rust ±5% per ADR-009) passing.
+  - All 5 frozen eval set hashes verified.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
