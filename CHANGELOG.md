@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.2] — 2026-10-08 — Milestone M2a.2 Linux Merged-/usr & EROFS Probe Resolution
+
+### Milestone M2a.2 Fixes & Verification Hardening
+- **Merged-`/usr` Dynamic Linker Resolution (`research/sandbox_linux.py`)**:
+  - Fixed `is_bwrap_functional()` false negative on modern merged-`/usr` systems (Ubuntu 22.04/24.04, WSL2 Ubuntu).
+  - Probes with absolute executable path (`shutil.which('true')` or `/usr/bin/true`) and full root read-only bind (`--ro-bind / /`), falling back to runner-equivalent explicit mounts (`/usr`, `/lib`, `/lib64`, `/bin` with symlink resolution), preventing `execvp true: No such file or directory` caused by missing dynamic linker symlinks.
+- **Probe `EROFS` Exception Handling (`research/sandbox_linux.py`)**:
+  - Updated behavioural capability probe script to accept `OSError` with `errno in (errno.EROFS, errno.EACCES, errno.EPERM)` for write and delete canary tests on read-only bound filesystems.
+  - Resolved false-positive boundary compromise report where Python's `open()` raised `OSError(EROFS)` (which is not a `PermissionError`), allowing `probe_linux_boundary()` to pass cleanly.
+  - Added unit regression tests (`test_erofs_containment_regression`, `test_probe_handles_erofs_simulation`, `test_is_bwrap_functional_on_linux`).
+- **Fail-Closed Linux Test & CI Enforcement (`research/tests/test_sandbox_linux.py`, `.github/workflows/windows-ci.yml`)**:
+  - `TestLinuxSandboxContainment.setUp()` now explicitly fails (`self.fail`) if `bwrap` is in PATH but `is_bwrap_functional()` returns False, preventing silent test skipping.
+  - Linux CI job (`linux-portability`) asserts `is_bwrap_functional()` is True, verifies `probe_linux_boundary()` passes, and asserts zero skips in `test_sandbox_linux`.
+  - Added execution of `run_m2a_matrix.py` directly in Linux CI.
+- **Dual-Platform Matrix Evidence (`docs/evidence/m2a_sandbox_results.json`, `docs/evidence/m2a_sandbox_raw.log`)**:
+  - Updated `run_m2a_matrix.py` to persist multi-platform benchmark data under `platforms` dictionary.
+  - Committed verified benchmark results and raw execution logs for both Windows 11 and Linux (Ubuntu 24.04 LTS / Linux kernel 6.8.0 / bwrap 0.9.0).
+- **Test Suite**: 248 Python unit tests passing (16 skipped on Windows: 5 privilege/POSIX + 11 Linux bwrap). 13 Rust core tests passing, clippy clean.
+
 ## [0.7.1] — 2026-10-08 — Milestone M2a.1 Linux Runner & Behavioural Probe Hardening
 
 ### Milestone M2a.1 Hardening & Probe Resolution

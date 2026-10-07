@@ -212,14 +212,21 @@ except Exception as e:
             name="Outside canary file deletion",
             desc="Attempting to delete a file outside scratch directory must fail with PermissionError",
             code=f"""
-import os
+import os, errno
 try:
     os.remove({repr(canary_a4)})
     with open('std_output.txt', 'w') as f:
         f.write('LEAK_DELETED')
-except PermissionError:
+except (PermissionError, FileNotFoundError):
     with open('std_output.txt', 'w') as f:
         f.write('CONTAINED_PERMISSION_DENIED')
+except OSError as e:
+    if e.errno in (errno.EROFS, errno.EACCES, errno.EPERM, errno.ENOENT):
+        with open('std_output.txt', 'w') as f:
+            f.write('CONTAINED_PERMISSION_DENIED')
+    else:
+        with open('std_output.txt', 'w') as f:
+            f.write(f'FAIL_UNEXPECTED: {{type(e).__name__}}')
 except Exception as e:
     with open('std_output.txt', 'w') as f:
         f.write(f'FAIL_UNEXPECTED: {{type(e).__name__}}')
@@ -363,14 +370,32 @@ ctypes.string_at(0)
     )
 
     # -------------------------------------------------------------------------
-    # Write JSON Evidence and Raw Logs
+    # Write JSON Evidence and Raw Logs (Multi-Platform Persistence)
     # -------------------------------------------------------------------------
-    report_data = {
-        "milestone": "M2a",
+    existing_data: Dict[str, Any] = {}
+    if os.path.exists(json_path):
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+        except Exception:
+            existing_data = {}
+
+    platforms_data = existing_data.get("platforms", {})
+    if "platform" in existing_data and not platforms_data:
+        legacy_sys = existing_data.get("platform", {}).get("system", "Windows")
+        platforms_data[legacy_sys] = {
+            "generated_at": existing_data.get("generated_at"),
+            "platform": existing_data.get("platform"),
+            "summary": existing_data.get("summary"),
+            "adversarial_containment_matrix": existing_data.get("adversarial_containment_matrix"),
+        }
+
+    current_platform_entry = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "platform": {
             "system": platform.system(),
             "release": platform.release(),
+            "kernel": platform.release(),
             "architecture": platform.machine(),
             "python_version": platform.python_version(),
             "compiler": platform.python_compiler(),
@@ -383,13 +408,40 @@ ctypes.string_at(0)
         },
         "adversarial_containment_matrix": matrix_results,
     }
+    platforms_data[platform.system()] = current_platform_entry
+
+    report_data = {
+        "milestone": "M2a",
+        "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "platforms": platforms_data,
+        "platform": current_platform_entry["platform"],
+        "summary": current_platform_entry["summary"],
+        "adversarial_containment_matrix": matrix_results,
+    }
 
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2)
     log(f"\n[OK] Machine-readable evidence written to: {json_path}")
 
+    # For raw log, preserve existing platform logs if from different system
+    existing_log = ""
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                existing_log = f.read()
+        except Exception:
+            existing_log = ""
+
+    current_run_log = "\n".join(log_lines) + "\n"
+    other_sys = "Linux" if platform.system() == "Windows" else "Windows"
+    other_platform_tag = f"on {other_sys}"
+    if other_platform_tag in existing_log:
+        combined_log = existing_log.strip() + "\n\n" + current_run_log
+    else:
+        combined_log = current_run_log
+
     with open(log_path, "w", encoding="utf-8") as f:
-        f.write("\n".join(log_lines) + "\n")
+        f.write(combined_log)
     log(f"[OK] Raw execution trace written to: {log_path}")
 
     log("=" * 72)

@@ -55,18 +55,69 @@ def is_bwrap_functional() -> bool:
     Checks if bwrap is present AND capable of creating unprivileged namespaces on this host.
     AppArmor or kernel restrictions (e.g. Ubuntu 24.04 apparmor_restrict_unprivileged_userns)
     may deny unprivileged namespace creation.
+
+    Uses absolute path to 'true' and full root ro-bind (or runner-equivalent mounts)
+    to avoid ENOENT on merged-/usr hosts where /lib64 and /lib symlinks are required
+    for the dynamic linker (ld-linux-*.so).
     """
-    if not is_bwrap_available():
+    bwrap_bin = shutil.which("bwrap")
+    if not bwrap_bin:
         return False
-    try:
-        res = subprocess.run(
-            ["bwrap", "--ro-bind", "/usr", "/usr", "--proc", "/proc", "--dev", "/dev", "--unshare-net", "true"],
-            capture_output=True,
-            timeout=2.0,
-        )
-        return res.returncode == 0
-    except Exception:
-        return False
+
+    true_bin = shutil.which("true")
+    if not true_bin:
+        for candidate in ["/usr/bin/true", "/bin/true"]:
+            if os.path.exists(candidate):
+                true_bin = candidate
+                break
+    if not true_bin:
+        true_bin = "true"
+
+    # Probe command candidate 1: full root ro-bind (most resilient across all distros)
+    cmd_root = [
+        bwrap_bin,
+        "--ro-bind", "/", "/",
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--unshare-net",
+        true_bin,
+    ]
+
+    # Probe command candidate 2: runner-equivalent explicit mounts
+    cmd_explicit = [
+        bwrap_bin,
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--unshare-net",
+    ]
+    for ro_path in ["/usr", "/etc"]:
+        if os.path.exists(ro_path):
+            cmd_explicit.extend(["--ro-bind", ro_path, ro_path])
+    for lib_path in ["/lib", "/lib64", "/bin", "/sbin"]:
+        if os.path.exists(lib_path):
+            if os.path.islink(lib_path):
+                try:
+                    cmd_explicit.extend(["--symlink", os.readlink(lib_path), lib_path])
+                except Exception:
+                    pass
+            else:
+                cmd_explicit.extend(["--ro-bind", lib_path, lib_path])
+    cmd_explicit.append(true_bin)
+
+    for probe_cmd in [cmd_root, cmd_explicit]:
+        try:
+            res = subprocess.run(
+                probe_cmd,
+                capture_output=True,
+                timeout=2.0,
+            )
+            if res.returncode == 0:
+                return True
+        except Exception:
+            continue
+
+    return False
+
 
 
 class LinuxSandbox:
@@ -365,7 +416,7 @@ def probe_linux_boundary() -> Tuple[bool, str]:
 
     pos_control_dir = tempfile.mkdtemp(prefix="pai_probe_pos_linux_")
 
-    probe_script_code = f"""import os, sys, socket
+    probe_script_code = f"""import os, sys, socket, errno
 
 results = {{}}
 
@@ -380,7 +431,10 @@ except (ConnectionRefusedError, TimeoutError) as e:
     results['loopback_network'] = 'CONTAINED'
 except OSError as e:
     # Network namespace isolation blocks routing (ENETUNREACH, EADDRNOTAVAIL, EPERM)
-    results['loopback_network'] = 'CONTAINED'
+    if e.errno in (errno.ENETUNREACH, errno.EADDRNOTAVAIL, errno.EPERM, errno.ECONNREFUSED, errno.ETIMEDOUT):
+        results['loopback_network'] = 'CONTAINED'
+    else:
+        results['loopback_network'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 except Exception as e:
     results['loopback_network'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
@@ -395,6 +449,11 @@ try:
 except (FileNotFoundError, PermissionError):
     # Masked by tmpfs /home or access denied
     results['read_outside'] = 'CONTAINED'
+except OSError as e:
+    if e.errno in (errno.ENOENT, errno.EACCES, errno.EPERM):
+        results['read_outside'] = 'CONTAINED'
+    else:
+        results['read_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 except Exception as e:
     results['read_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
@@ -404,8 +463,14 @@ try:
         f.write('OVERWRITE_ATTEMPT')
     results['write_outside'] = 'LEAK'
 except PermissionError:
-    # EROFS (Read-only file system) or EACCES
+    # EACCES or EPERM
     results['write_outside'] = 'CONTAINED'
+except OSError as e:
+    # EROFS (Read-only file system, errno 30) is raised by kernel when writing to ro-bind mount
+    if e.errno in (errno.EROFS, errno.EACCES, errno.EPERM):
+        results['write_outside'] = 'CONTAINED'
+    else:
+        results['write_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 except Exception as e:
     results['write_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 
@@ -414,8 +479,14 @@ try:
     os.remove({repr(canary_write_file)})
     results['delete_outside'] = 'LEAK'
 except PermissionError:
-    # EROFS or EACCES
+    # EACCES or EPERM
     results['delete_outside'] = 'CONTAINED'
+except OSError as e:
+    # EROFS is raised by kernel when deleting from ro-bind mount
+    if e.errno in (errno.EROFS, errno.EACCES, errno.EPERM):
+        results['delete_outside'] = 'CONTAINED'
+    else:
+        results['delete_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 except Exception as e:
     results['delete_outside'] = f'FAIL_UNEXPECTED_ERR: {{type(e).__name__}}: {{e}}'
 

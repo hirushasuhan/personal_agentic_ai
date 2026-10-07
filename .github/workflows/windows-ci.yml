@@ -148,7 +148,46 @@ jobs:
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           fi
 
-      - name: Run Test Suite on Linux (Procfs Telemetry & Bubblewrap Sandbox)
+      - name: Verify Bubblewrap Functional Check on Linux (Fail-closed gate)
+        working-directory: research
+        run: |
+          python -c "
+          import shutil, sys
+          from sandbox_linux import is_bwrap_available, is_bwrap_functional, probe_linux_boundary
+          if not is_bwrap_available():
+              sys.exit('FATAL: bwrap executable not found in PATH on Linux CI')
+          if not is_bwrap_functional():
+              sys.exit('FATAL: is_bwrap_functional() returned False on Linux CI (unprivileged namespaces restricted or mount resolution failed)')
+          ok, msg = probe_linux_boundary()
+          if not ok:
+              sys.exit(f'FATAL: probe_linux_boundary() failed on Linux CI: {msg}')
+          print('Bubblewrap sandbox and behavioural probe verified successfully on Linux CI:', msg)
+          "
+
+      - name: Run Linux Sandbox Adversarial Test Suite (Assert Zero Skips)
+        working-directory: research
+        run: |
+          python -c "
+          import unittest, sys
+          loader = unittest.TestLoader()
+          suite = loader.loadTestsFromName('tests.test_sandbox_linux')
+          runner = unittest.TextTestRunner(verbosity=2)
+          result = runner.run(suite)
+          if not result.wasSuccessful():
+              sys.exit(f'FATAL: Linux sandbox tests failed (failures={len(result.failures)}, errors={len(result.errors)})')
+          if result.testsRun == 0:
+              sys.exit('FATAL: Zero Linux sandbox tests were executed!')
+          if len(result.skipped) > 0:
+              sys.exit(f'FATAL: {len(result.skipped)} Linux sandbox tests were skipped on Linux CI! Zero skips allowed on Linux host.')
+          print(f'All {result.testsRun} Linux sandbox tests ran and passed with ZERO skips.')
+          "
+
+      - name: Execute M2a Adversarial Containment Matrix on Linux CI
+        working-directory: research
+        run: |
+          python run_m2a_matrix.py
+
+      - name: Run Full Test Suite on Linux (Procfs Telemetry & Bubblewrap Sandbox)
         working-directory: research
         run: |
           python -m unittest discover -s tests -v
