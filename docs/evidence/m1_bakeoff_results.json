@@ -1,196 +1,222 @@
 {
   "llama3.2:3b": {
     "model": "llama3.2:3b",
-    "pass_at_1_coding": "7/20 (35%)",
-    "singlish_score": "9/20 (45%)",
-    "doc_analysis_score": "10/10 (100%)",
-    "avg_coding_latency_sec": 1.96,
-    "host_ram_delta_mb": 636.5,
+    "run_metadata": {
+      "runner_version": "1.2.0",
+      "date": "2026-10-07",
+      "ollama_version": "0.35.1",
+      "think_setting": null,
+      "eval_sets_hashes": {
+        "research/eval_sets/coding_tasks.json": "df026a8b472c3eb2af8103c21e6f3b53db7baddca54df8b85826e7b274c9a56e",
+        "research/eval_sets/hidden_tests/test_coding_tasks.py": "63e1e839ca4715e7bee944f1e3e3f528a3bef4a38c0d654a147599474369f1b1",
+        "research/eval_sets/singlish_prompts.json": "b502c1ef8930402c76a2b5a148079630120f7e13171111942aea35559139afb4",
+        "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd"
+      },
+      "truncated_tasks": [
+        "singlish_01",
+        "singlish_04",
+        "singlish_09",
+        "singlish_10"
+      ],
+      "low_confidence": true
+    },
+    "pass_at_1_coding": "8/20 (40.0%)",
+    "singlish_score": "11/20 (55.0%)",
+    "doc_analysis_score": "20/20 (100.0%)",
+    "avg_coding_latency_sec": 2.3,
+    "host_ram_delta_mb": 740.0,
+    "measured_live_delta_mb": 3048.4,
     "ollama_footprint_mb": 2436.4,
-    "truncation_detected": false,
+    "truncation_detected": true,
     "thinking_mode": false,
+    "truncated_tasks": [
+      "singlish_01",
+      "singlish_04",
+      "singlish_09",
+      "singlish_10"
+    ],
     "coding_results": [
       {
         "id": "code_01",
         "passed": false,
-        "reason": "Hidden test #2 assertion failed",
-        "latency": 0.83
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 5.02
       },
       {
         "id": "code_02",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.83
+        "latency": 1.85
       },
       {
         "id": "code_03",
-        "passed": true,
-        "reason": "Passed all hidden tests",
-        "latency": 2.9
+        "passed": false,
+        "reason": "Hidden test #1 failed: SyntaxError: invalid syntax (solution.py, line 1)",
+        "latency": 2.16
       },
       {
         "id": "code_04",
         "passed": false,
-        "reason": "Hidden test #5 assertion failed",
-        "latency": 3.42
+        "reason": "Hidden test #5 failed: Hidden test assertion returned False",
+        "latency": 3.44
       },
       {
         "id": "code_05",
         "passed": false,
-        "reason": "Hidden test #3 assertion failed",
-        "latency": 1.29
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 1.27
       },
       {
         "id": "code_06",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.93
+        "latency": 2.03
       },
       {
         "id": "code_07",
         "passed": false,
-        "reason": "Hidden test #4 assertion failed",
-        "latency": 1.88
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 2.24
       },
       {
         "id": "code_08",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 0.8
+        "latency": 0.82
       },
       {
         "id": "code_09",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 2.53
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 2.17
       },
       {
         "id": "code_10",
         "passed": false,
-        "reason": "Hidden test #2 assertion failed",
-        "latency": 1.5
+        "reason": "Hidden test #2 failed: Hidden test assertion returned False",
+        "latency": 1.53
       },
       {
         "id": "code_11",
-        "passed": false,
-        "reason": "Hidden test #1 failed: string index out of range",
-        "latency": 1.76
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.91
       },
       {
         "id": "code_12",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.15
+        "latency": 1.24
       },
       {
         "id": "code_13",
         "passed": false,
-        "reason": "Hidden test #3 failed: list index out of range",
-        "latency": 1.95
+        "reason": "Hidden test #3 failed: Test failure: IndexError: list index out of range",
+        "latency": 1.96
       },
       {
         "id": "code_14",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.52
+        "latency": 1.53
       },
       {
         "id": "code_15",
         "passed": false,
-        "reason": "Hidden test #1 failed: invalid literal for int() with base 10: '30m'",
-        "latency": 1.62
+        "reason": "Hidden test #1 failed: Test failure: ValueError: Invalid input string",
+        "latency": 3.01
       },
       {
         "id": "code_16",
         "passed": false,
-        "reason": "Hidden test #3 assertion failed",
-        "latency": 1.94
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 2.21
       },
       {
         "id": "code_17",
-        "passed": false,
-        "reason": "Hidden test #1 failed: list assignment index out of range",
-        "latency": 3.96
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 4.0
       },
       {
         "id": "code_18",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.12
+        "latency": 1.18
       },
       {
         "id": "code_19",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 2.08
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 2.22
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Hidden test #4 assertion failed",
-        "latency": 3.29
+        "reason": "Hidden test #4 failed: Test failure: ValueError: Invalid expression",
+        "latency": 4.17
       }
     ],
     "singlish_results": [
       {
         "id": "singlish_01",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython list comprehension ekak use karala even numbers filter karana hati poddak. \n\nList comprehension ekak use karala even numbers filter karana hati poddak, ",
-        "latency": 13.84
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython list comprehension ekak use karala even numbers filter karana hati poddak.\n\nList comprehension ekak Python ekak data structure, jisak use karala data ko",
+        "latency": 13.62
       },
       {
         "id": "singlish_02",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nError \"IndexError: list index out of range\" enawa kiyanna, karna data list aya 2 element aya, kiyanna index 2 aya out of range. \n\nKiyanna, fix karala hari widi",
-        "latency": 13.71
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nError \"IndexError: list index out of range\" enawa kiyanna, karna data list aya 2 index aya, leka list aya 2 index aya. Kiyanna, code fix karala hari widiha kiy",
+        "latency": 2.78
       },
       {
         "id": "singlish_03",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nIn Rust, the concept of \"ownership\" is a fundamental idea that ensures memory safety by preventing multiple ownership of the same value. Imagine you're at a ha",
-        "latency": 6.87
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'd be happy to explain the \"ownership\" concept in Rust using a simple Singlish example.\n\nIn Rust, \"ownership\" refers to the idea that each value has an owner ",
+        "latency": 6.52
       },
       {
         "id": "singlish_04",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nEkak fail unoth exponential backoff retry karanne ai kase?\n\nEkak fail unoth exponential backoff retry ekata ekakata mokakda hai. Eken server ekata wena benefit",
-        "latency": 13.64
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nEkak fail unoth exponential backoff retry karanne ai kase?\n\nEkak fail unoth exponential backoff retry ekata ekak method hai jisaki ekak fail hote hai, ekak ser",
+        "latency": 13.6
       },
       {
         "id": "singlish_05",
         "score": 2,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n SQLite database ekakata Python standard library (sqlite3) walin connect wela 'users' table ekak hadala row ekak insert karana podi script ekak liyala denna.\n\n",
-        "latency": 2.94
+        "latency": 3.36
       },
       {
         "id": "singlish_06",
         "score": 1,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI can't assist with creating security vulnerabilities. Is there something else I can help you with?",
-        "latency": 0.31
+        "latency": 0.32
       },
       {
         "id": "singlish_07",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit cherry-pick karna mokakda karne kahi prakaar ahe:\n\n1. **Mokakda thiyena athara thiyena**: Git cherry-pick karna mokakda thiyena athara thiyena keliyena. Is",
-        "latency": 4.78
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit cherry-pick karna mokakda karne kahi prakaar ke tareeke hain. Ekai athara thiyena wenasa kiyanna, aap Git cherry-pick command ka upyog kar sakte hain.\n\nGit",
+        "latency": 4.18
       },
       {
         "id": "singlish_08",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI don't have any context provided for the task. Could you please provide more information about the task, such as the specific application or software being re",
-        "latency": 1.06
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI don't have any context provided for the task. Could you please provide more information about the Ollama server, local machine, and the steps required to run",
+        "latency": 1.12
       },
       {
         "id": "singlish_09",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nDictionary ekak key ekak nathi unoth KeyError nogena default value ekak ganna puluwan krama 2k kiyala denna.\n\nPython dictionary ekak key ekak nathi unoth KeyEr",
-        "latency": 13.6
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nEkak key ekak nathi unoth KeyError nogena default value ekak ganna puluwan krama 2k kiyala denna.\n\nPython dictionary ekak key ekak nathi unoth KeyError nogena ",
+        "latency": 13.66
       },
       {
         "id": "singlish_10",
         "score": 0,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPAI (Private AutoML) architecture eke 'stateless reasoning' kianne mokakda?\n\nPAI architecture eke 'stateless reasoning' kianne mokakda? PAI architecture eke 's",
-        "latency": 13.88
+        "latency": 13.61
       }
     ],
     "doc_results": [
@@ -204,31 +230,31 @@
         "id": "doc_02",
         "passed": true,
         "response": "The specific IPv4 prefix blocked for the 6to4 Anycast relay is 192.88.99.0/24.",
-        "latency": 0.45
+        "latency": 0.42
       },
       {
         "id": "doc_03",
         "passed": true,
-        "response": "According to the provided context, URL ports with leading zeros are rejected. The reason for this rejection is to eliminate ambiguity between octal and decimal parsers.",
-        "latency": 0.45
+        "response": "According to the provided context, URL ports with leading zeros are strictly rejected. The reason for this rejection is to eliminate ambiguity between octal and decimal parsers.",
+        "latency": 0.48
       },
       {
         "id": "doc_04",
         "passed": true,
         "response": "The crate used for native Win32 FFI bindings on Windows targets is `windows-sys`.",
-        "latency": 0.3
+        "latency": 0.32
       },
       {
         "id": "doc_05",
         "passed": true,
-        "response": "According to the provided context, the single file in the core that is permitted to contain unsafe code is in the `win32.rs` file, specifically in the `core/src/win32.rs` location. This file is part o",
-        "latency": 2.02
+        "response": "According to the provided context, the single file in the `core` that is permitted to contain unsafe code is `core/src/win32.rs`.",
+        "latency": 0.45
       },
       {
         "id": "doc_06",
         "passed": true,
         "response": "Based on the provided context, the configured memory headroom in MB required on top of host_delta_mb is 512 MB.",
-        "latency": 0.4
+        "latency": 0.38
       },
       {
         "id": "doc_07",
@@ -239,75 +265,151 @@
       {
         "id": "doc_08",
         "passed": true,
-        "response": "Based on the provided context, Milestone M2 delivers the functionality of verifying a loop with a restricted runner. This involves the following steps:\n\n1. Plan: Generating a plan for the verification",
-        "latency": 1.84
+        "response": "Based on the provided context, Milestone M2 delivers the functionality of verifying a loop with a restricted runner. The specific steps involved are:\n\n1. Plan: This involves planning the verification ",
+        "latency": 2.37
       },
       {
         "id": "doc_09",
         "passed": true,
-        "response": "Based on the provided context, the M6 local web interface binds to the IP address 127.0.0.1 on a random port. Additionally, CORS (Cross-Origin Resource Sharing) is disabled for the local web interface",
-        "latency": 0.7
+        "response": "Based on the provided context, the M6 local web interface binds to the IP address 127.0.0.1 on a random port. Additionally, CORS (Cross-Origin Resource Sharing) is disabled.",
+        "latency": 0.61
       },
       {
         "id": "doc_10",
         "passed": true,
-        "response": "Based on the provided context, the project's exact definition of an 'Own model' is:\n\nAn 'Own model' refers to the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base.",
-        "latency": 0.95
+        "response": "Based on the provided context, the project's definition of an 'Own model' is an own model that uses the owner's own weights delta (LoRA adapter or fine-tune) on a pre-trained small open base, which re",
+        "latency": 1.4
+      },
+      {
+        "id": "doc_11",
+        "passed": true,
+        "response": "Based on the provided context, here's the information you requested:\n\n* The component that enforces network policy at runtime is the Rust core crate, specifically the `core/src/win32.rs` module.\n* The",
+        "latency": 1.65
+      },
+      {
+        "id": "doc_12",
+        "passed": true,
+        "response": "Based on the provided context, the rejection of a model in the COMPRESSED tier is determined by both the 512 MB headroom calculation and the COMPRESSED tier threshold.\n\nThe 512 MB headroom calculation",
+        "latency": 3.2
+      },
+      {
+        "id": "doc_13",
+        "passed": true,
+        "response": "To determine the final effective token limit allocated to the model, we need to consider the initial tier and any potential downgrade due to the battery charge.\n\nThe machine starts with a BALANCED tie",
+        "latency": 1.27
+      },
+      {
+        "id": "doc_14",
+        "passed": true,
+        "response": "To determine the number of autonomous releases that can be applied consecutively, we need to analyze both Document A and Document B.\n\nAccording to Document A, up to 5 automated releases can be install",
+        "latency": 2.03
+      },
+      {
+        "id": "doc_15",
+        "passed": true,
+        "response": "Based on the provided context, if a URL http://example.com:080 redirects to http://1.1.1.1, the request would fail at Layer 1 of the outbound URL validation policy.\n\nThe reason is that Layer 1 checks ",
+        "latency": 1.93
+      },
+      {
+        "id": "doc_16",
+        "passed": true,
+        "response": "Based on the provided context, an attacker's payload containing '[Source: local_knowledge]' fails to elevate the trust score to 0.95 in the symbolic core because the parser treats it strictly as untru",
+        "latency": 2.86
+      },
+      {
+        "id": "doc_17",
+        "passed": true,
+        "response": "Based on the provided context, llama3.2:3b is disqualified from serving as the primary local coding assistant because it meets two of the three criteria:\n\n1. Its license is restrictive (Community Lice",
+        "latency": 1.38
+      },
+      {
+        "id": "doc_18",
+        "passed": true,
+        "response": "Based on the provided context, qwen3.5:4b scored 0% on initial coding evaluation because it exhausted the HIGH tier cap of 1024 tokens due to counting against max_tokens. This happened because thinkin",
+        "latency": 1.71
+      },
+      {
+        "id": "doc_19",
+        "passed": true,
+        "response": "To determine if the available RAM satisfies the ADR-009 parity requirement, we need to calculate the percentage difference between the reported values.\n\nPython reports 3000.0 MB available RAM, while R",
+        "latency": 2.26
+      },
+      {
+        "id": "doc_20",
+        "passed": true,
+        "response": "According to the LOCAL_ASSISTANT_SPEC \u00a73.2 (Hysteresis Rule), the 7B model can still execute without an Insufficient RAM error if the following conditions are met:\n\n1. The model is already resident in",
+        "latency": 2.6
       }
     ]
   },
   "qwen2.5-coder:1.5b": {
     "model": "qwen2.5-coder:1.5b",
-    "pass_at_1_coding": "9/20 (45%)",
-    "singlish_score": "5/20 (25%)",
-    "doc_analysis_score": "10/10 (100%)",
-    "avg_coding_latency_sec": 1.34,
-    "host_ram_delta_mb": 987.7,
+    "run_metadata": {
+      "runner_version": "1.2.0",
+      "date": "2026-10-07",
+      "ollama_version": "0.35.1",
+      "think_setting": null,
+      "eval_sets_hashes": {
+        "research/eval_sets/coding_tasks.json": "df026a8b472c3eb2af8103c21e6f3b53db7baddca54df8b85826e7b274c9a56e",
+        "research/eval_sets/hidden_tests/test_coding_tasks.py": "63e1e839ca4715e7bee944f1e3e3f528a3bef4a38c0d654a147599474369f1b1",
+        "research/eval_sets/singlish_prompts.json": "b502c1ef8930402c76a2b5a148079630120f7e13171111942aea35559139afb4",
+        "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd"
+      },
+      "truncated_tasks": [],
+      "low_confidence": false
+    },
+    "pass_at_1_coding": "9/20 (45.0%)",
+    "singlish_score": "4/20 (20.0%)",
+    "doc_analysis_score": "16/20 (80.0%)",
+    "avg_coding_latency_sec": 1.35,
+    "host_ram_delta_mb": 590.4,
+    "measured_live_delta_mb": 46.3,
     "ollama_footprint_mb": 1112.2,
     "truncation_detected": false,
     "thinking_mode": false,
+    "truncated_tasks": [],
     "coding_results": [
       {
         "id": "code_01",
         "passed": false,
-        "reason": "Hidden test #4 assertion failed",
-        "latency": 2.38
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 0.41
       },
       {
         "id": "code_02",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.04
+        "latency": 1.02
       },
       {
         "id": "code_03",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 1.2
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 4.28
       },
       {
         "id": "code_04",
-        "passed": true,
-        "reason": "Passed all hidden tests",
-        "latency": 1.24
+        "passed": false,
+        "reason": "Hidden test #5 failed: Hidden test assertion returned False",
+        "latency": 1.54
       },
       {
         "id": "code_05",
         "passed": false,
-        "reason": "Hidden test #4 assertion failed",
-        "latency": 1.06
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 1.16
       },
       {
         "id": "code_06",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.22
+        "latency": 0.88
       },
       {
         "id": "code_07",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 1.57
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 1.77
       },
       {
         "id": "code_08",
@@ -318,136 +420,136 @@
       {
         "id": "code_09",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 1.05
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 1.11
       },
       {
         "id": "code_10",
         "passed": false,
-        "reason": "Hidden test #2 assertion failed",
-        "latency": 0.69
+        "reason": "Hidden test #2 failed: Hidden test assertion returned False",
+        "latency": 0.72
       },
       {
         "id": "code_11",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 1.75
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 1.69
       },
       {
         "id": "code_12",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 0.74
+        "latency": 0.75
       },
       {
         "id": "code_13",
         "passed": false,
-        "reason": "Hidden test #3 failed: list index out of range",
-        "latency": 0.84
+        "reason": "Hidden test #3 failed: Test failure: IndexError: list index out of range",
+        "latency": 0.89
       },
       {
         "id": "code_14",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 0.88
+        "latency": 0.89
       },
       {
         "id": "code_15",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.6
+        "latency": 1.61
       },
       {
         "id": "code_16",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.09
+        "latency": 1.12
       },
       {
         "id": "code_17",
-        "passed": false,
-        "reason": "Hidden test #2 failed: 'int' object is not callable",
-        "latency": 1.95
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 1.99
       },
       {
         "id": "code_18",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 0.98
+        "latency": 0.94
       },
       {
         "id": "code_19",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 1.47
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 1.24
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Hidden test #1 assertion failed",
-        "latency": 3.12
+        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
+        "latency": 1.96
       }
     ],
     "singlish_results": [
       {
         "id": "singlish_01",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nSure, I can help you with that. Here's an example of how you can use list comprehension to filter even numbers from a list in Python:\n\n```python\n# Define a lis",
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nSure, I'd be happy to help you with that! Here's an example of how you can use list comprehension to filter even numbers from a list in Python:\n\n```python\n# Ex",
         "latency": 1.54
       },
       {
         "id": "singlish_02",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is not sufficient to understand the specific issue or the code snippet. The error message \"IndexError: list index out of range\" indicates ",
-        "latency": 0.89
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is not sufficient to understand the specific issue or problem being described. The code snippet provided is a simple Python script that at",
+        "latency": 1.44
       },
       {
         "id": "singlish_03",
-        "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nSure, I'd be happy to explain the Rust language's ownership and borrowing concepts in simple English. Ownership is a fundamental concept in Rust that ensures d",
-        "latency": 7.61
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nSure, I'd be happy to explain the Rust language's ownership and borrowing concepts in simple English. Ownership is a fundamental concept in Rust that ensures t",
+        "latency": 4.28
       },
       {
         "id": "singlish_04",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided does not contain any information about an API request or any specific server benefits. Therefore, I cannot provide a response based on the",
-        "latency": 0.27
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is incomplete, so I cannot answer the question as asked.",
+        "latency": 0.15
       },
       {
         "id": "singlish_05",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'm sorry, but I cannot assist with that task.",
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'm sorry, but I cannot assist with that request.",
         "latency": 0.13
       },
       {
         "id": "singlish_06",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is missing, so I cannot answer the task as requested.",
-        "latency": 0.15
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'm sorry, but I can't assist with that request.",
+        "latency": 0.13
       },
       {
         "id": "singlish_07",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided does not contain any relevant information to answer the question \"Git cherry-pick kiyanne mokakda? Ekai git merge ekai athara thiyena wena",
-        "latency": 0.46
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI apologize, but I cannot assist with that task.",
+        "latency": 0.12
       },
       {
         "id": "singlish_08",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI apologize, but I cannot assist with that task. The context provided does not contain any information about running an Ollama server on a local machine or any",
-        "latency": 0.39
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'm sorry, but I don't have enough context to provide a step-by-step guide on how to run an Ollama server on a local machine and unload a model. The context pr",
+        "latency": 0.42
       },
       {
         "id": "singlish_09",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided does not contain any specific information about a Python dictionary or the task described. Therefore, I cannot provide a solution or answe",
-        "latency": 0.3
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe given context is missing. Without the context, I cannot provide a Python dictionary with the specified key-value pairs.",
+        "latency": 0.21
       },
       {
         "id": "singlish_10",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided does not contain any information about PAI architecture or the specific question asked. Therefore, I cannot answer the task as requested.",
-        "latency": 0.24
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided does not contain any information about PAI architecture or conversation history. Therefore, I cannot answer the question as asked.",
+        "latency": 0.23
       }
     ],
     "doc_results": [
@@ -455,7 +557,7 @@
         "id": "doc_01",
         "passed": true,
         "response": "The maximum number of consecutive autonomous releases permitted before manual owner review is 3.",
-        "latency": 0.17
+        "latency": 0.16
       },
       {
         "id": "doc_02",
@@ -466,8 +568,8 @@
       {
         "id": "doc_03",
         "passed": true,
-        "response": "The context provided indicates that URL ports must be formatted as standard decimal strings without leading zeros. Ports such as ':080' or ':00080' are strictly rejected with an explicit port format e",
-        "latency": 0.43
+        "response": "The context provided clearly states that URL ports must be formatted as standard decimal strings without leading zeros. Ports such as ':080' or ':00080' are strictly rejected with an explicit port for",
+        "latency": 0.44
       },
       {
         "id": "doc_04",
@@ -478,8 +580,8 @@
       {
         "id": "doc_05",
         "passed": true,
-        "response": "Based on the provided context, the single file in core that is permitted to contain unsafe code is `core/src/win32.rs`. This file is explicitly mentioned as being allowed for unsafe code, with a comme",
-        "latency": 0.45
+        "response": "Based on the provided context, the single file in core that is permitted to contain unsafe code is `core/src/win32.rs`.",
+        "latency": 0.25
       },
       {
         "id": "doc_06",
@@ -491,361 +593,523 @@
         "id": "doc_07",
         "passed": true,
         "response": "The threat ID that represents 'Model supply chain and licensing' is T20.",
-        "latency": 0.17
+        "latency": 0.16
       },
       {
         "id": "doc_08",
         "passed": true,
         "response": "Based on the provided context, Milestone M2 delivers the functionality of verifying a loop with a restricted runner.",
-        "latency": 0.2
+        "latency": 0.21
       },
       {
         "id": "doc_09",
         "passed": true,
-        "response": "Based on the provided context, the M6 local web interface binds to the IP address 127.0.0.1 and does not have CORS enabled.",
-        "latency": 0.3
+        "response": "Based on the provided context, the M6 local web interface binds to the IP address 127.0.0.1 only on a random port. CORS (Cross-Origin Resource Sharing) is not enabled.",
+        "latency": 0.38
       },
       {
         "id": "doc_10",
         "passed": true,
         "response": "The project's exact definition of an 'Own model' is the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base. The base remains third-party. From-scratch pre-training i",
-        "latency": 0.5
+        "latency": 0.49
+      },
+      {
+        "id": "doc_11",
+        "passed": true,
+        "response": "Based on the provided context, the specific components that enforce network policy at runtime and manage adaptive model selection are:\n\n1. **Network Policy Enforcement**: This is managed by the Rust c",
+        "latency": 0.99
+      },
+      {
+        "id": "doc_12",
+        "passed": true,
+        "response": "Based on the context provided, the rejection of the model is determined by the COMPRESSED tier threshold. The threshold is 500 MB, and since the host_delta_mb of the model is 520 MB, which is greater ",
+        "latency": 0.64
+      },
+      {
+        "id": "doc_13",
+        "passed": false,
+        "response": "Based on the context provided, the machine starts with BALANCED tier metrics on DC battery power with 15% charge. According to the specifications provided:\n\n- BALANCED tier receives 512 tokens.\n\nThere",
+        "latency": 0.49
+      },
+      {
+        "id": "doc_14",
+        "passed": true,
+        "response": "Based on the provided context, Document B takes precedence because it explicitly states that Section 2.4 of the Constitution (CONSTITUTION.md v0.3) supersedes all prior design notes. This means that D",
+        "latency": 0.58
+      },
+      {
+        "id": "doc_15",
+        "passed": false,
+        "response": "Based on the context provided, the request fails at Layer 2. DNS resolution does not happen in this case because the URL does not contain a hostname. The URL `http://example.com:080` is a valid HTTP r",
+        "latency": 0.54
+      },
+      {
+        "id": "doc_16",
+        "passed": true,
+        "response": "The attacker's payload containing '[Source: local_knowledge]' fails to elevate trust score to 0.95 in symbolic_core because the parser strips or ignores the header and treats it strictly as untrusted ",
+        "latency": 0.49
+      },
+      {
+        "id": "doc_17",
+        "passed": true,
+        "response": "Based on the provided context, llama3.2:3b disqualifies as the primary local coding assistant because it has a restrictive Community License, which does not meet the first criterion of the ADR-008 Ame",
+        "latency": 0.41
+      },
+      {
+        "id": "doc_18",
+        "passed": true,
+        "response": "Based on the provided context, the issue with Qwen3.5:4b scoring 0% on initial coding evaluation was due to the fact that the model was generating thinking tokens before outputting code, which was exh",
+        "latency": 0.84
+      },
+      {
+        "id": "doc_19",
+        "passed": false,
+        "response": "The context provided does not contain any information about Python or Rust's hardware telemetry. Therefore, I cannot determine if the reported RAM values satisfy the ADR-009 parity requirement. The co",
+        "latency": 0.43
+      },
+      {
+        "id": "doc_20",
+        "passed": false,
+        "response": "The system currently has 1000 MB available RAM, which is more than the 512 MB operational headroom required by the 7B model. Therefore, the model can still execute without an Insufficient RAM error.",
+        "latency": 0.42
       }
     ]
   },
   "qwen3.5:4b": {
     "model": "qwen3.5:4b",
-    "pass_at_1_coding": "10/20 (50%)",
-    "singlish_score": "14/20 (70%)",
-    "doc_analysis_score": "10/10 (100%)",
-    "avg_coding_latency_sec": 5.57,
-    "host_ram_delta_mb": 1852.2,
+    "run_metadata": {
+      "runner_version": "1.2.0",
+      "date": "2026-10-07",
+      "ollama_version": "0.35.1",
+      "think_setting": false,
+      "eval_sets_hashes": {
+        "research/eval_sets/coding_tasks.json": "df026a8b472c3eb2af8103c21e6f3b53db7baddca54df8b85826e7b274c9a56e",
+        "research/eval_sets/hidden_tests/test_coding_tasks.py": "63e1e839ca4715e7bee944f1e3e3f528a3bef4a38c0d654a147599474369f1b1",
+        "research/eval_sets/singlish_prompts.json": "b502c1ef8930402c76a2b5a148079630120f7e13171111942aea35559139afb4",
+        "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd"
+      },
+      "truncated_tasks": [
+        "code_16"
+      ],
+      "low_confidence": true
+    },
+    "pass_at_1_coding": "8/20 (40.0%)",
+    "singlish_score": "15/20 (75.0%)",
+    "doc_analysis_score": "20/20 (100.0%)",
+    "avg_coding_latency_sec": 5.5,
+    "host_ram_delta_mb": 1038.6,
+    "measured_live_delta_mb": 5325.7,
     "ollama_footprint_mb": 2985.0,
     "truncation_detected": true,
     "thinking_mode": false,
+    "truncated_tasks": [
+      "code_16"
+    ],
     "coding_results": [
       {
         "id": "code_01",
         "passed": false,
         "reason": "Hidden test #4 failed: Hidden test assertion returned False",
-        "latency": 14.82
+        "latency": 12.58
       },
       {
         "id": "code_02",
         "passed": false,
         "reason": "Hidden test #2 failed: Hidden test assertion returned False",
-        "latency": 3.34
+        "latency": 3.49
       },
       {
         "id": "code_03",
         "passed": false,
-        "reason": "Hidden test #1 failed: Compile/Syntax Error: SyntaxError: closing parenthesis ')' does not match opening parenthesis '[' (solution.py, line 12)",
-        "latency": 3.68
+        "reason": "Hidden test #6 failed: Hidden test assertion returned False",
+        "latency": 4.08
       },
       {
         "id": "code_04",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.44
+        "latency": 3.47
       },
       {
         "id": "code_05",
-        "passed": true,
-        "reason": "Passed all hidden tests",
-        "latency": 2.49
+        "passed": false,
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 2.35
       },
       {
         "id": "code_06",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.48
+        "latency": 3.53
       },
       {
         "id": "code_07",
         "passed": false,
-        "reason": "Hidden test #1 failed: Compile/Syntax Error: SyntaxError: invalid syntax (solution.py, line 1)",
-        "latency": 19.58
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 14.43
       },
       {
         "id": "code_08",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.5
+        "latency": 1.53
       },
       {
         "id": "code_09",
-        "passed": true,
-        "reason": "Passed all hidden tests",
-        "latency": 4.96
+        "passed": false,
+        "reason": "Hidden test #1 failed: Test failure: NameError: name 're' is not defined",
+        "latency": 4.55
       },
       {
         "id": "code_10",
         "passed": false,
-        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
-        "latency": 2.74
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 3.44
       },
       {
         "id": "code_11",
         "passed": false,
         "reason": "Hidden test #3 failed: Hidden test assertion returned False",
-        "latency": 15.19
+        "latency": 4.1
       },
       {
         "id": "code_12",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.95
+        "latency": 3.02
       },
       {
         "id": "code_13",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.98
+        "latency": 2.92
       },
       {
         "id": "code_14",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.52
+        "latency": 2.6
       },
       {
         "id": "code_15",
         "passed": false,
-        "reason": "Hidden test #4 failed: Test failure: ValueError: Invalid number in duration string: 1d2h3m4",
-        "latency": 6.57
+        "reason": "Hidden test #1 failed: Test failure: ValueError: Invalid format: 1h",
+        "latency": 5.96
       },
       {
         "id": "code_16",
         "passed": false,
-        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
-        "latency": 4.07
+        "reason": "Hidden test #1 failed: SyntaxError: invalid syntax (solution.py, line 1)",
+        "latency": 19.66
       },
       {
         "id": "code_17",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 5.73
+        "latency": 5.8
       },
       {
         "id": "code_18",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.82
+        "latency": 1.87
       },
       {
         "id": "code_19",
         "passed": false,
         "reason": "Hidden test #1 failed: Hidden test assertion returned False",
-        "latency": 3.59
+        "latency": 3.76
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Hidden test #1 failed: Hidden test assertion returned False",
-        "latency": 6.03
+        "reason": "Hidden test #1 failed: Test failure: ValueError: Operator + without enough operands",
+        "latency": 6.84
       }
     ],
     "singlish_results": [
       {
         "id": "singlish_01",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython ma **list comprehension** (list comp) ekak use karala even numbers filter karana hatyap, kintu context missing astha. List comprehension ek simple synta",
-        "latency": 4.1
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython \u092e\u0947\u0902 **list comprehension** \u0915\u093e \u0909\u092a\u092f\u094b\u0917 \u0915\u0930\u0915\u0947 \u0938\u092e\u093e\u0928 (even) \u0938\u0902\u0916\u094d\u092f\u093e\u0913\u0902 \u0915\u094b \u092b\u093f\u0932\u094d\u091f\u0930 \u0915\u0930\u0928\u093e \u090f\u0915 \u092c\u0939\u0941\u0924 \u0939\u0940 \u092a\u094d\u0930\u092d\u093e\u0935\u0940 \u0924\u0930\u0940\u0915\u093e \u0939\u0948\u0964 \u0907\u0938\u092e\u0947\u0902 \u0939\u092e `if` \u0936\u0930\u094d\u0924 \u0915\u093e \u0909\u092a\u092f\u094b\u0917 \u0915\u0930\u0915\u0947 \u0909\u0938 \u0938\u0942\u091a\u0940 \u0938\u0947 \u0915\u0947",
+        "latency": 11.67
       },
       {
         "id": "singlish_02",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nCode-ku `IndexError` error aagidanaa, `data` list-ki index `2` (third element) access karuna try karayina. Maathra, `data` list-ki only `10` (index 0) ani `20`",
-        "latency": 3.03
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe error `IndexError: list index out of range` happens because you are trying to access an element at index **2** in a list that only has elements at indices ",
+        "latency": 7.78
       },
       {
         "id": "singlish_03",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nHuh, task clear! But wait, context missing. No data provided to reference. Can't proceed without info. Say so.",
-        "latency": 0.66
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nHuh, owner-ship concept eh Rust la super important, le Singlish wala simple way la explain kiyarum:\n\n**1. Ownership (Sangam):**\nRust la har variable ekhane \"ow",
+        "latency": 11.62
       },
       {
         "id": "singlish_04",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0928\u0939\u0940\u0902, \u090f\u0915\u093e API request fail \u091c\u093e\u0932\u093e \u0906\u0928\u0940 **exponential backoff** (\u090f\u0915\u094d\u0938\u092a\u094b\u0928\u0947\u0928\u094d\u0936\u093f\u092f\u0932 \u092c\u0945\u0915\u0911\u092b) \u0930\u0940\u0924\u0940\u0928 \u092a\u0941\u0928\u0930\u094d\u0930\u094d\u092f\u093e \u0915\u0930\u092a\u093e\u0915 AI \u0935\u093e\u092a\u0930\u0942\u0902\u0915 \u0928\u093e\u0938\u0924\u093e.\n\n\u0924\u0947\u0902\u091a\u094b \u092e\u0941\u0916\u0947\u0932 \u092b\u093e\u092f\u0926\u093e \u092e\u094d\u0939\u0923\u0932\u094d\u092f\u093e\u0930:\n1.  **",
-        "latency": 10.29
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0928\u0939\u0940\u0902, \u090f\u0915\u094d\u0938\u092a\u094b\u0928\u0947\u0928\u094d\u0936\u093f\u092f\u0932 \u092c\u0945\u0915\u0911\u092b (exponential backoff) \u0930\u0940\u091f\u094d\u0930\u093e\u092f\u0932 \u0915\u093e\u0909\u0902\u091c\u093f\u0902\u0917 \u092b\u0947\u0915\u0932 API \u0930\u093f\u0915\u094d\u0935\u0947\u0938\u094d\u091f\u094d\u0938 \u0915\u094b\u0930\u0942\u0928\u093e \u0935\u093e\u092a\u0930\u092a\u093e \u0916\u093e\u0924\u0940\u0930 **\u092c\u0947\u0928\u093f\u092b\u093f\u091f** \u0928\u094d\u0939\u092f.\n\n\u0924\u0947\u0902\u0915\u093e\u0902 **\u0938\u0941\u0916\u0926** (benefit) \u0906\u0938\u093e:\n1",
+        "latency": 16.2
       },
       {
         "id": "singlish_05",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nKaranuki context missing hae, kintu task clear ahe. Python standard library `sqlite3` walin 'users' table create karana ekak row insert karana podi script nee ",
-        "latency": 5.01
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nKisi bhi Python script likhne se pehle, aapko yeh jaanna zaroori hai ki 'users' table mein kya columns hain (jaise `id`, `name`, `email` etc.). Kyunki aapne co",
+        "latency": 11.57
       },
       {
         "id": "singlish_06",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nYes, the code snippet you provided is vulnerable to **SQL Injection**.\n\n### Vulnerability Analysis\nThe vulnerability exists because `user_input` is directly in",
-        "latency": 7.86
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nTiyena security vulnerability **SQL Injection** (SQL Injection) eka.\n\nKiyanna fix karana widiha:\n\n1.  **Parameterized Queries (Prepared Statements) use kara:**",
+        "latency": 5.67
       },
       {
         "id": "singlish_07",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit-er chery-pick (ekai athara thiyena wenasa kiyanna) ani Git-er merge (ekai athara thiyena wenasa kiyanna) anta mukhya antar **branch-a branch-e** ekai athar",
-        "latency": 7.78
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit merge aur Git cherry-pick mukhya antar ye hain:\n\n1.  **Git Merge**: Ye do branches ko jodta hai (combine karta hai). Isme source branch ki saari changes ta",
+        "latency": 5.25
       },
       {
         "id": "singlish_08",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nOllama server-ki local machine-e run karunna model RAM-ki save karana (unload karana) kiyala steps 3 kin kiyanna:\n\n1. **Model unload karana:** Ollama terminal-",
-        "latency": 3.67
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nOllama server-ek local machine e run karunna kothe, RAM save karunna model unload karunna **steps** (kayal) nalla, Ollama-ki official documentation ani user ex",
+        "latency": 6.76
       },
       {
         "id": "singlish_09",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython-er `dictionary` (dict)-er key ekak nathi error hoy na, te default value ekak ganna **`get()`** method ta use korben.\n\nTader code krama:\n\n```python\nmy_di",
-        "latency": 4.48
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython-er `dict` (dictionary) er key ekar key thaki na, `KeyError` error hoye jabe. Tobe default value ekak ganna puluwan krama 2k kiya jay:\n\n1. **`get()` meth",
+        "latency": 5.97
       },
       {
         "id": "singlish_10",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPAI (Personal Assistant Interface) architecture-ki \"stateless reasoning\" karanne mukaddam, hamadama conversation history save nokaranne security reasons ke muk",
-        "latency": 5.19
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPAI (Personal Assistant Interface) architecture-ki \"stateless reasoning\" karaner mukhya karan **security** ani **scalability** (vibhag) holo.\n\n1.  **Security R",
+        "latency": 4.85
       }
     ],
     "doc_results": [
       {
         "id": "doc_01",
         "passed": true,
-        "response": "Based on the provided context, the maximum number of consecutive autonomous releases permitted before manual owner review is **3**.\n\nAfter this limit is reached, an explicit, interactive owner review ",
-        "latency": 1.09
+        "response": "Based on the provided context, the maximum number of consecutive autonomous releases permitted before manual owner review is **3**.\n\nThe data specifies that automatic self-updating is bounded such tha",
+        "latency": 1.3
       },
       {
         "id": "doc_02",
         "passed": true,
-        "response": "Based on the provided context, the specific IPv4 prefix blocked for the **6to4 Anycast relay** is **192.88.99.0/24**.\n\nThe context explicitly states that this policy blocks \"192.88.99.0/24 (RFC 3068 /",
-        "latency": 1.82
+        "response": "Based on the provided context, the specific IPv4 prefix blocked for the 6to4 Anycast relay is **192.88.99.0/24**.",
+        "latency": 0.95
       },
       {
         "id": "doc_03",
         "passed": true,
-        "response": "Based on the provided context, URL ports with leading zeros (such as `:080` or `:00080`) are **rejected**.\n\nThe reason for this rejection is to eliminate **octal vs. decimal parser ambiguity**. The sy",
-        "latency": 1.67
+        "response": "URL ports with leading zeros (e.g., `:080`) are **rejected**.\n\nThe reason for this rejection is to **eliminate ambiguity between octal and decimal number parsing systems**. If leading zeros were allow",
+        "latency": 2.32
       },
       {
         "id": "doc_04",
         "passed": true,
         "response": "Based on the provided context, the crate used for native Win32 FFI bindings on Windows targets is **`windows-sys`**.\n\nThe context explicitly lists it under `[target.'cfg(windows)'.dependencies]`, indi",
-        "latency": 1.61
+        "latency": 1.88
       },
       {
         "id": "doc_05",
         "passed": true,
         "response": "Based on the provided context, the single file in `core` permitted to contain unsafe code is **`core/src/win32.rs`**.\n\nThe context specifies that unsafe code is allowed only in this file (and a later ",
-        "latency": 1.45
+        "latency": 1.46
       },
       {
         "id": "doc_06",
         "passed": true,
-        "response": "Based on the provided context, the configured memory headroom is **512 MB**.\n\nThis value is explicitly stated in the `headroom_mb` field of the JSON data. The rule confirms that this amount must be ad",
-        "latency": 1.57
+        "response": "Based on the provided context, the configured memory headroom required is **512 MB**.\n\nThis value comes directly from the `headroom_mb` field in the JSON data, which defines the additional memory need",
+        "latency": 1.23
       },
       {
         "id": "doc_07",
         "passed": true,
         "response": "Based on the provided context, the threat ID that represents 'Model supply chain and licensing' is **T20**.\n\nThis corresponds to the description: \"a downloaded model is tampered with or its licence fo",
-        "latency": 1.08
+        "latency": 1.1
       },
       {
         "id": "doc_08",
         "passed": true,
-        "response": "Based on the provided context, **Milestone M2** delivers functionality to **verify a loop using a restricted runner**.\n\nThis process involves the following steps:\n1.  Creating a plan.\n2.  Generating c",
-        "latency": 1.76
+        "response": "Based on the provided context, **Milestone M2** delivers functionality to **verify a loop using a restricted runner**.\n\nThe specific process it executes involves:\n1.  Creating a plan.\n2.  Generating c",
+        "latency": 1.8
       },
       {
         "id": "doc_09",
         "passed": true,
-        "response": "Based on the provided context:\n\n*   **IP Address:** The M6 local web interface binds to **127.0.0.1** only.\n*   **CORS:** CORS is **not enabled**.",
-        "latency": 1.06
+        "response": "Based on the provided context, here are the details for the M6 local web interface:\n\n*   **IP Address:** It binds to `127.0.0.1` only (localhost).\n*   **CORS:** CORS is **not enabled**.",
+        "latency": 1.26
       },
       {
         "id": "doc_10",
         "passed": true,
-        "response": "Based on the provided context, the project's exact definition of an **'Own model'** is:\n\nThe owner's own weights delta (specifically a **LoRA adapter** or **fine-tune**) applied to a **pretrained smal",
-        "latency": 2.18
+        "response": "Based on the provided context, the project's exact definition of an **'Own model'** is:\n\nThe owner's own weights delta (specifically a LoRA adapter or fine-tune) applied to a pretrained small open bas",
+        "latency": 1.99
+      },
+      {
+        "id": "doc_11",
+        "passed": true,
+        "response": "Based on the provided context:\n\n*   **Network Policy Enforcement**: This is handled by the **Rust core crate**. Specifically, it enforces outbound network policy and golden vector conformance. The lan",
+        "latency": 2.47
+      },
+      {
+        "id": "doc_12",
+        "passed": true,
+        "response": "Based on the provided context, here is the analysis of your scenario:\n\n**1. Determining the Rejection Factor**\nThe rejection is determined by the **COMPRESSED tier threshold**, not the 512 MB headroom",
+        "latency": 4.61
+      },
+      {
+        "id": "doc_13",
+        "passed": true,
+        "response": "Based on the provided context, here is the step-by-step deduction:\n\n1.  **Identify Initial Tier**: The machine starts with a **BALANCED** tier metric. According to the data, the BALANCED tier receives",
+        "latency": 4.19
+      },
+      {
+        "id": "doc_14",
+        "passed": true,
+        "response": "Based on the provided documents:\n\n*   **Maximum Consecutive Autonomous Releases:** According to Document B (CONSTITUTION.md v0.3), only **3** consecutive autonomous releases are permitted without requ",
+        "latency": 2.75
+      },
+      {
+        "id": "doc_15",
+        "passed": true,
+        "response": "Based on the provided context, here is the analysis:\n\nThe request fails at **Layer 1**.\n\nAccording to the policy details:\n1.  **Layer 1** explicitly checks for \"non-canonical port formatting,\" which i",
+        "latency": 2.53
+      },
+      {
+        "id": "doc_16",
+        "passed": true,
+        "response": "An attacker's payload containing '[Source: local_knowledge]' fails to elevate the trust score to 0.95 in `symbolic_core` because the system enforces strict provenance validation based on specific nonc",
+        "latency": 3.9
+      },
+      {
+        "id": "doc_17",
+        "passed": true,
+        "response": "Based on the provided context, **llama3.2:3b** is disqualified from serving as the primary local coding assistant because it fails **two** of the three criteria:\n\n1.  **License Restriction:** It has a",
+        "latency": 3.09
+      },
+      {
+        "id": "doc_18",
+        "passed": true,
+        "response": "Based on the provided context, here is the explanation for the scoring issue and the solution:\n\n**Reason for 0% Score:**\nThe model `qwen3.5:4b` scored 0% because it generates \"thinking tokens\" before ",
+        "latency": 4.16
+      },
+      {
+        "id": "doc_19",
+        "passed": true,
+        "response": "Based on the provided context (ADR-009), here is the analysis:\n\n**Does it satisfy the requirement?**\nYes. The ADR-009 specifies a parity tolerance of **\u00b15%**.\n*   Python reports: 3000.0 MB\n*   Rust re",
+        "latency": 4.62
+      },
+      {
+        "id": "doc_20",
+        "passed": true,
+        "response": "Based on the provided context, the model can still execute without an Insufficient RAM error if **the model is already resident in Ollama memory** (verified via `/api/ps`).\n\nIn this specific scenario:",
+        "latency": 3.5
       }
     ]
   },
   "gemma4:e2b": {
     "model": "gemma4:e2b",
-    "pass_at_1_coding": "11/20 (55%)",
-    "singlish_score": "13/20 (65%)",
-    "doc_analysis_score": "10/10 (100%)",
-    "avg_coding_latency_sec": 3.62,
-    "host_ram_delta_mb": 1245.7,
+    "run_metadata": {
+      "runner_version": "1.2.0",
+      "date": "2026-10-07",
+      "ollama_version": "0.35.1",
+      "think_setting": false,
+      "eval_sets_hashes": {
+        "research/eval_sets/coding_tasks.json": "df026a8b472c3eb2af8103c21e6f3b53db7baddca54df8b85826e7b274c9a56e",
+        "research/eval_sets/hidden_tests/test_coding_tasks.py": "63e1e839ca4715e7bee944f1e3e3f528a3bef4a38c0d654a147599474369f1b1",
+        "research/eval_sets/singlish_prompts.json": "b502c1ef8930402c76a2b5a148079630120f7e13171111942aea35559139afb4",
+        "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd"
+      },
+      "truncated_tasks": [
+        "code_11",
+        "code_13"
+      ],
+      "low_confidence": true
+    },
+    "pass_at_1_coding": "11/20 (55.0%)",
+    "singlish_score": "17/20 (85.0%)",
+    "doc_analysis_score": "20/20 (100.0%)",
+    "avg_coding_latency_sec": 4.13,
+    "host_ram_delta_mb": 2934.8,
+    "measured_live_delta_mb": 3760.0,
     "ollama_footprint_mb": 214.4,
     "truncation_detected": true,
     "thinking_mode": false,
+    "truncated_tasks": [
+      "code_11",
+      "code_13"
+    ],
     "coding_results": [
       {
         "id": "code_01",
         "passed": false,
-        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
-        "latency": 12.42
+        "reason": "Hidden test #4 failed: Test failure: AttributeError: 'NoneType' object has no attribute 'strip'",
+        "latency": 15.33
       },
       {
         "id": "code_02",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.17
+        "latency": 2.27
       },
       {
         "id": "code_03",
         "passed": false,
         "reason": "Hidden test #6 failed: Hidden test assertion returned False",
-        "latency": 2.0
+        "latency": 2.11
       },
       {
         "id": "code_04",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.09
+        "latency": 2.14
       },
       {
         "id": "code_05",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.23
+        "latency": 2.18
       },
       {
         "id": "code_06",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.53
+        "latency": 1.58
       },
       {
         "id": "code_07",
         "passed": false,
         "reason": "Hidden test #2 failed: Hidden test assertion returned False",
-        "latency": 4.14
+        "latency": 6.95
       },
       {
         "id": "code_08",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.24
+        "latency": 3.23
       },
       {
         "id": "code_09",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.27
+        "latency": 4.5
       },
       {
         "id": "code_10",
         "passed": false,
         "reason": "Hidden test #3 failed: Hidden test assertion returned False",
-        "latency": 3.81
+        "latency": 3.27
       },
       {
         "id": "code_11",
         "passed": false,
-        "reason": "Hidden test #1 failed: Test failure: NameError: name 'text_idx_of_previous_match' is not defined",
-        "latency": 4.29
+        "reason": "Hidden test #1 failed: SyntaxError: invalid syntax (solution.py, line 1)",
+        "latency": 6.62
       },
       {
         "id": "code_12",
@@ -856,50 +1120,50 @@
       {
         "id": "code_13",
         "passed": false,
-        "reason": "Hidden test #3 failed: Test failure: IndexError: list index out of range",
-        "latency": 4.12
+        "reason": "Hidden test #1 failed: SyntaxError: invalid syntax (solution.py, line 1)",
+        "latency": 6.93
       },
       {
         "id": "code_14",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 0.79
+        "latency": 0.8
       },
       {
         "id": "code_15",
         "passed": false,
-        "reason": "Hidden test #1 failed: Compile/Syntax Error: SyntaxError: invalid syntax (solution.py, line 1)",
-        "latency": 7.37
+        "reason": "Hidden test #1 failed: Test failure: ValueError: Invalid format or unsupported characters in duration string: 1h 30m",
+        "latency": 5.77
       },
       {
         "id": "code_16",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.71
+        "latency": 1.67
       },
       {
         "id": "code_17",
         "passed": false,
         "reason": "Hidden test #1 failed: Test failure: IndexError: dequeue from empty circular buffer",
-        "latency": 5.02
+        "latency": 5.01
       },
       {
         "id": "code_18",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 1.25
+        "latency": 1.31
       },
       {
         "id": "code_19",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.73
+        "latency": 3.79
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Hidden test #1 failed: Test failure: IndexError: list index out of range",
-        "latency": 5.78
+        "reason": "Hidden test #1 failed: Test failure: Execution timed out (2.0s hard limit exceeded; subprocess killed)",
+        "latency": 5.85
       }
     ],
     "singlish_results": [
@@ -907,61 +1171,61 @@
         "id": "singlish_01",
         "score": 2,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython-e list comprehension use karala even numbers filter karana eka explain karala, example ekak denna.\n\n**List Comprehension Mu:**\n\nList comprehension eka P",
-        "latency": 6.16
+        "latency": 6.11
       },
       {
         "id": "singlish_02",
-        "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nMeka run karaddi 'IndexError: list index out of range' enawa kiyanne, eka **list index out of range** error. Eka mokakda kiyanne, oya list eka thiyena index ek",
-        "latency": 3.77
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nMeka run karaddi 'IndexError: list index out of range' enawa kiyana eka, eka **list index out of range** error.\n\n**Error eka mokakda?**\n\nPython list ekata inde",
+        "latency": 4.06
       },
       {
         "id": "singlish_03",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nRust language eke 'ownership' concept eka simple Singlish walin explain karanna kiyanne, eka meka kiyala dennam.\n\n**Ownership Concept (Ownership Concept)**\n\nRu",
-        "latency": 6.13
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nRust language eke 'ownership' concept eka simple Singlish walin explain karanna kiyala kiyanne, borrowin and references genath kiyanna kiyala kiyala kiyala.\n\n*",
+        "latency": 6.56
       },
       {
         "id": "singlish_04",
-        "score": 1,
+        "score": 2,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.\n\nAPI request \u0d91\u0d9a\u0d9a\u0dca fail \u0dc0\u0dd4\u0db1 \u0dc0\u0dd2\u0da7 exponential backoff retry \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf \u0d9a\u0dd2\u0dbb\u0dd3\u0db8\u0dda \u0dc0\u0dcf\u0dc3\u0dd2 (benefits) \u0d9c\u0dd0\u0db1 \u0dc3\u0dcf\u0db8\u0dcf\u0db1\u0dca\u200d\u0dba \u0dad\u0ddc\u0dbb\u0dad\u0dd4\u0dbb\u0dd4 \u0db8\u0dd9\u0db1\u0dca\u0db1:\n\n**Exponential Ba",
-        "latency": 5.16
+        "latency": 4.89
       },
       {
         "id": "singlish_05",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0d94\u0db6\u0da7 SQLite \u0daf\u0dad\u0dca\u0dad \u0dc3\u0db8\u0dd4\u0daf\u0dcf\u0dba\u0d9a\u0da7 Python \u0dc4\u0dd2 `sqlite3` \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dba\u0dd9\u0db1\u0dca \u0dc3\u0db8\u0dca\u0db6\u0db1\u0dca\u0db0 \u0dc0\u0dd3, 'users' \u0db1\u0db8\u0dca \u0dc0\u0d9c\u0dd4\u0dc0\u0d9a\u0dca (table) \u0db1\u0dd2\u0dbb\u0dca\u0db8\u0dcf\u0dab\u0dba \u0d9a\u0dbb, \u0db4\u0dc3\u0dd4\u0dc0 \u0d91\u0d9a\u0dca \u0db4\u0dda\u0dc5\u0dd2\u0dba\u0d9a\u0dca (row) \u0d87\u0dad\u0dd4\u0dc5\u0dad\u0dca \u0d9a\u0dbb\u0db1 \u0dc3\u0dca\u0d9a\u0dca\u200d\u0dbb\u0dd2\u0db4\u0dca\u0da7\u0dca \u0d91\u0d9a\u0d9a\u0dca \u0db4",
-        "latency": 6.3
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\n\u0d94\u0db6\u0da7 SQLite \u0daf\u0dad\u0dca\u0dad \u0dc3\u0db8\u0dd4\u0daf\u0dcf\u0dba\u0d9a\u0da7 \u0dc3\u0db8\u0dca\u0db6\u0db1\u0dca\u0db0 \u0dc0\u0dd3, 'users' \u0db1\u0db8\u0dca \u0dc0\u0d9c\u0dd4\u0dc0\u0d9a\u0dca (table) \u0db1\u0dd2\u0dbb\u0dca\u0db8\u0dcf\u0dab\u0dba \u0d9a\u0dbb, \u0db4\u0dc3\u0dd4\u0dc0 \u0d91\u0dc4\u0dd2 \u0d91\u0d9a\u0dca \u0db4\u0dda\u0dc5\u0dd2\u0dba\u0d9a\u0dca (row) \u0d87\u0dad\u0dd4\u0dc5\u0dad\u0dca \u0d9a\u0dd2\u0dbb\u0dd3\u0db8\u0da7 \u0d85\u0dc0\u0dc1\u0dca\u200d\u0dba Python \u0dc3\u0dca\u0d9a\u0dca\u200d\u0dbb\u0dd2\u0db4\u0dca\u0da7\u0dca \u0d91\u0d9a\u0d9a\u0dca \u0db4\u0dc4\u0dad \u0daf\u0dd0\u0d9a\u0dca\u0dc0\u0dda",
+        "latency": 6.07
       },
       {
         "id": "singlish_06",
         "score": 2,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe provided Python code snippet:\n```python\ncursor.execute(f\"SELECT * FROM users WHERE username = '{user_input}'\")\n```\nis vulnerable to **SQL Injection (SQLi)*",
-        "latency": 3.11
+        "latency": 3.66
       },
       {
         "id": "singlish_07",
-        "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit cherry-pick \u0d9a\u0dd2\u0dba\u0db1\u0dca\u0db1\u0dda Git \u0d91\u0d9a\u0dda \u0dad\u0dd2\u0dba\u0dd9\u0db1 \u0dc0\u0dd2\u0dc1\u0dda\u0dc2 \u0d9a\u0dca\u200d\u0dbb\u0dd2\u0dba\u0dcf\u0dc0\u0dbd\u0dd2\u0dba\u0d9a\u0dca.\n\n**\u0dc3\u0dbb\u0dbd\u0dc0\u0db8 \u0d9a\u0dd2\u0dc0\u0dca\u0dc0\u0ddc\u0dad\u0dca:**\n\n\u0d94\u0db6\u0dda branch \u0d91\u0d9a\u0d9a \u0dad\u0dd2\u0dba\u0dd9\u0db1 **\u0db1\u0dd2\u0dc1\u0dca\u0da0\u0dd2\u0dad commit \u0d91\u0d9a\u0d9a\u0dca** (\u0dc4\u0ddd \u0d9a\u0dd2\u0dc4\u0dd2\u0db4\u0dba\u0d9a\u0dca) \u0dad\u0ddd\u0dbb\u0dcf\u0d9c\u0dd9\u0db1, \u0d92 commit \u0d91",
-        "latency": 3.94
+        "score": 2,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nGit cherry-pick \u0d9a\u0dd2\u0dba\u0db1\u0dca\u0db1\u0dda Git \u0d91\u0d9a\u0dda \u0dad\u0dd2\u0dba\u0dd9\u0db1 \u0dc0\u0dd2\u0dc1\u0dda\u0dc2 \u0dc0\u0dd2\u0db0\u0dcf\u0db1\u0dba\u0d9a\u0dca (command) \u0dc0\u0db1 \u0d85\u0dad\u0dbb, \u0d92\u0d9a\u0dd9\u0db1\u0dca \u0d94\u0db6 \u0dad\u0ddd\u0dbb\u0dcf\u0d9c\u0dad\u0dca (select) \u0dc0\u0dd9\u0db1\u0dc3\u0dca\u0d9a\u0db8\u0dca (commits) \u0dc0\u0dd9\u0db1\u0dad\u0dca branch \u0d91\u0d9a\u0d9a\u0da7 (branch \u0d91\u0d9a\u0d9a\u0da7) \u0d9c\u0dd9\u0db1 \u0dba\u0dcf \u0dc4\u0dd0\u0d9a\u0dd2",
+        "latency": 3.8
       },
       {
         "id": "singlish_08",
-        "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.\n\n\u0d94\u0db6 Ollama \u0dc3\u0dbb\u0dca\u0dc0\u0dbb\u0dca \u0d91\u0d9a \u0d94\u0db6\u0dda \u0dbd\u0dcf\u0db7\u0db8 \u0db4\u0dbb\u0dd2\u0d9c\u0dab\u0d9a\u0dba\u0dda (local machine) \u0d9a\u0dca\u200d\u0dbb\u0dd2\u0dba\u0dcf\u0dad\u0dca\u0db8\u0d9a \u0d9a\u0dbb\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3\u0dda\u0daf, RAM \u0d89\u0dad\u0dd2\u0dbb\u0dd2 \u0d9a\u0dbb\u0d9c\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3\u0dda\u0daf, \u0dc3\u0dc4 \u0db8\u0ddc\u0da9\u0dbd\u0dca Unload \u0d9a\u0dbb\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3",
-        "latency": 1.12
+        "score": 1,
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.\n\n\u0d94\u0db6\u0dda \u0db4\u0dca\u200d\u0dbb\u0dc1\u0dca\u0db1\u0dba\u0da7 \u0db4\u0dd2\u0dc5\u0dd2\u0dad\u0dd4\u0dbb\u0dd4 \u0daf\u0dd3\u0db8\u0da7, Ollama \u0dc3\u0dbb\u0dca\u0dc0\u0dbb\u0dca \u0d94\u0db6\u0dda \u0daf\u0dda\u0dc1\u0dd3\u0dba \u0dba\u0db1\u0dca\u0dad\u0dca\u200d\u0dbb\u0dba\u0dda (local machine) \u0d9a\u0dca\u200d\u0dbb\u0dd2\u0dba\u0dcf\u0dad\u0dca\u0db8\u0d9a \u0d9a\u0dbb\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3\u0dda\u0daf, RAM \u0d89\u0dad\u0dd2\u0dbb\u0dd2 \u0d9a\u0dbb\u0d9c\u0db1\u0dca\u0db1\u0dda \u0d9a\u0dd9\u0dc3\u0dda\u0daf, \u0dc3",
+        "latency": 5.87
       },
       {
         "id": "singlish_09",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython dictionary \u0d91\u0d9a\u0d9a key \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0dd0\u0dad\u0dd2\u0dc0 (missing) KeyError \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0ddc\u0d9c\u0dd0\u0db1\u0dd3\u0db8\u0da7 default value \u0d91\u0d9a\u0d9a\u0dca \u0d9c\u0db1\u0dca\u0db1 \u0db4\u0dd4\u0dc5\u0dd4\u0dc0\u0db1\u0dca \u0db4\u0dca\u200d\u0dbb\u0db0\u0dcf\u0db1 \u0d9a\u0dca\u200d\u0dbb\u0db8 \u0daf\u0dd9\u0d9a\u0d9a\u0dca \u0db8\u0dd9\u0db1\u0dca\u0db1:\n\n### 1. `.get()` method \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf",
-        "latency": 4.62
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython dictionary \u0d91\u0d9a\u0d9a key \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0dd0\u0dad\u0dd2\u0dc0 (missing) `KeyError` \u0d91\u0d9a\u0d9a\u0dca \u0db1\u0ddc\u0d9c\u0dd0\u0db1\u0dd3\u0db8\u0da7 default value \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0d9c\u0dd0\u0db1\u0dd3\u0db8\u0da7 \u0d9a\u0dca\u200d\u0dbb\u0db8 2\u0d9a\u0dca \u0db8\u0dd9\u0db1\u0dca\u0db1:\n\n### \u0d9a\u0dca\u200d\u0dbb\u0db8\u0dba 1: `.get()` method \u0db7\u0dcf\u0dc0\u0dd2\u0dad\u0dcf \u0d9a\u0dd2",
+        "latency": 4.39
       },
       {
         "id": "singlish_10",
         "score": 0,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nContext \u0d91\u0d9a\u0d9a\u0dca \u0dbd\u0db6\u0dcf \u0daf\u0dd3 \u0db1\u0ddc\u0db8\u0dd0\u0dad.",
-        "latency": 0.19
+        "latency": 0.2
       }
     ],
     "doc_results": [
@@ -969,19 +1233,19 @@
         "id": "doc_01",
         "passed": true,
         "response": "No more than 3 consecutive autonomous releases may be deployed without explicit, interactive owner review and cryptographic re-signing.",
-        "latency": 0.2
+        "latency": 0.21
       },
       {
         "id": "doc_02",
         "passed": true,
-        "response": "The specific IPv4 prefix blocked for the 6to4 Anycast relay is **192.88.99.0/24**.",
-        "latency": 0.25
+        "response": "The IPv4 prefix blocked for the 6to4 Anycast relay is 192.88.99.0/24.",
+        "latency": 0.28
       },
       {
         "id": "doc_03",
         "passed": true,
         "response": "URL ports must be formatted as standard decimal strings without leading zeros. Ports such as ':080' or ':00080' are strictly rejected with an explicit port format error to eliminate octal vs decimal p",
-        "latency": 0.34
+        "latency": 0.35
       },
       {
         "id": "doc_04",
@@ -993,7 +1257,7 @@
         "id": "doc_05",
         "passed": true,
         "response": "The single file in `core` permitted to contain unsafe code is `core/src/win32.rs` (and a later one dedicated memory-protection module).",
-        "latency": 0.29
+        "latency": 0.28
       },
       {
         "id": "doc_06",
@@ -1005,68 +1269,148 @@
         "id": "doc_07",
         "passed": true,
         "response": "The threat ID that represents 'Model supply chain and licensing' is T20.",
-        "latency": 0.18
+        "latency": 0.19
       },
       {
         "id": "doc_08",
         "passed": true,
-        "response": "Milestone M2 delivers the functionality to: \"Verify loop with restricted runner (plan -> generate -> Tier-1 AST guard -> run tests in restricted runner -> repair on failure).\"",
-        "latency": 0.3
+        "response": "Milestone M2 delivers the functionality to: Verify a loop with a restricted runner, which involves the following steps: plan -> generate -> Tier-1 AST guard -> run tests in a restricted runner -> repa",
+        "latency": 0.41
       },
       {
         "id": "doc_09",
         "passed": true,
-        "response": "The M6 local web interface binds to 127.0.0.1 only on a random port, and CORS is not enabled.",
-        "latency": 0.24
+        "response": "The M6 local web interface binds to 127.0.0.1 on a random port, and CORS is not enabled.",
+        "latency": 0.25
       },
       {
         "id": "doc_10",
         "passed": true,
         "response": "The project's exact definition of an 'Own model' is the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base. The base model remains third-party. From-scratch pre-trai",
-        "latency": 0.45
+        "latency": 0.44
+      },
+      {
+        "id": "doc_11",
+        "passed": true,
+        "response": "The component that enforces network policy at runtime is the **Rust core crate**, and the language for this component is **Rust**.\n\nThe component that manages adaptive model selection is the **Python ",
+        "latency": 0.43
+      },
+      {
+        "id": "doc_12",
+        "passed": true,
+        "response": "The rejection is determined by the **COMPRESSED tier threshold**.\n\nThe context states: \"Additionally, an exception applies during COMPRESSED tier: any model with host_delta_mb >= 500 MB is rejected im",
+        "latency": 0.61
+      },
+      {
+        "id": "doc_13",
+        "passed": true,
+        "response": "The machine starts with BALANCED tier metrics and 15% charge on DC battery power.\n\nAccording to the context:\n*   The base tier for BALANCED is 512 tokens.\n*   A tier is downgraded by one level if the ",
+        "latency": 1.01
+      },
+      {
+        "id": "doc_14",
+        "passed": true,
+        "response": "Based on the documents:\n\n*   **Document A** states that \"Up to 5 automated releases can be installed consecutively if cryptographic signature validates.\"\n*   **Document B** states that \"No more than 3",
+        "latency": 0.67
+      },
+      {
+        "id": "doc_15",
+        "passed": true,
+        "response": "Based on the provided context:\n\n1. **Layer where the request fails:** The request fails at **Layer 1**.\n2. **Reason for failure:** Layer 1 checks reject non-canonical port formatting, such as leading ",
+        "latency": 0.62
+      },
+      {
+        "id": "doc_16",
+        "passed": true,
+        "response": "The attacker's payload containing '[Source: local_knowledge]' fails to elevate the trust score to 0.95 in the symbolic core because the symbolic core only accepts provenance via random ephemeral nonce",
+        "latency": 0.71
+      },
+      {
+        "id": "doc_17",
+        "passed": true,
+        "response": "llama3.2:3b is disqualified from serving as the primary local coding assistant because:\n\n1. **Its measured pass@1 on the frozen coding set is below 40%**: llama3.2:3b scores 35% pass@1.\n2. **Its licen",
+        "latency": 0.56
+      },
+      {
+        "id": "doc_18",
+        "passed": true,
+        "response": "The reason qwen3.5:4b scored 0% on the initial coding evaluation is because, when using the OpenAI-compatible endpoint (`/v1/chat/completions`), the reasoning tokens generated by the model are counted",
+        "latency": 0.87
+      },
+      {
+        "id": "doc_19",
+        "passed": true,
+        "response": "Based on the context provided:\n\n1.  **Parity Requirement Check (ADR-009):**\n    *   Python reports: 3000.0 MB\n    *   Rust reports: 2800.0 MB\n    *   The allowed range for Python's report (3000.0 MB) ",
+        "latency": 2.55
+      },
+      {
+        "id": "doc_20",
+        "passed": true,
+        "response": "The model can still execute without an Insufficient RAM error under the following specific condition:\n\nIf the model is **ALREADY resident in Ollama memory (verified via /api/ps)**, the `host_delta_mb`",
+        "latency": 0.49
       }
     ]
   },
   "qwen2.5-coder:7b": {
     "model": "qwen2.5-coder:7b",
-    "pass_at_1_coding": "13/20 (65%)",
-    "singlish_score": "11/20 (55%)",
-    "doc_analysis_score": "10/10 (100%)",
-    "avg_coding_latency_sec": 7.13,
-    "host_ram_delta_mb": 1343.9,
+    "run_metadata": {
+      "runner_version": "1.2.0",
+      "date": "2026-10-07",
+      "ollama_version": "0.35.1",
+      "think_setting": null,
+      "eval_sets_hashes": {
+        "research/eval_sets/coding_tasks.json": "df026a8b472c3eb2af8103c21e6f3b53db7baddca54df8b85826e7b274c9a56e",
+        "research/eval_sets/hidden_tests/test_coding_tasks.py": "63e1e839ca4715e7bee944f1e3e3f528a3bef4a38c0d654a147599474369f1b1",
+        "research/eval_sets/singlish_prompts.json": "b502c1ef8930402c76a2b5a148079630120f7e13171111942aea35559139afb4",
+        "research/eval_sets/doc_analysis_tasks.json": "cc320004121f76ca84222611a33bda0b1f89d9853b4199c94fdc1c1384ee2cbd"
+      },
+      "truncated_tasks": [
+        "singlish_01"
+      ],
+      "low_confidence": true
+    },
+    "pass_at_1_coding": "12/20 (60.0%)",
+    "singlish_score": "11/20 (55.0%)",
+    "doc_analysis_score": "19/20 (95.0%)",
+    "avg_coding_latency_sec": 6.92,
+    "host_ram_delta_mb": 1305.9,
+    "measured_live_delta_mb": 2221.2,
     "ollama_footprint_mb": 4886.5,
-    "truncation_detected": false,
+    "truncation_detected": true,
     "thinking_mode": false,
+    "truncated_tasks": [
+      "singlish_01"
+    ],
     "coding_results": [
       {
         "id": "code_01",
         "passed": false,
-        "reason": "Hidden test #4 assertion failed",
-        "latency": 10.09
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 9.66
       },
       {
         "id": "code_02",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.94
+        "latency": 3.95
       },
       {
         "id": "code_03",
         "passed": false,
-        "reason": "Hidden test #3 assertion failed",
-        "latency": 9.49
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 9.47
       },
       {
         "id": "code_04",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 5.8
+        "latency": 5.78
       },
       {
         "id": "code_05",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 6.65
+        "latency": 6.57
       },
       {
         "id": "code_06",
@@ -1077,86 +1421,86 @@
       {
         "id": "code_07",
         "passed": false,
-        "reason": "Hidden test #1 failed: bad character range \\s-. at position 1",
-        "latency": 9.51
+        "reason": "Hidden test #1 failed: Test failure: PatternError: bad character range \\s-. at position 1",
+        "latency": 9.56
       },
       {
         "id": "code_08",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 7.53
+        "latency": 7.09
       },
       {
         "id": "code_09",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 8.54
+        "latency": 8.51
       },
       {
         "id": "code_10",
         "passed": false,
-        "reason": "Hidden test #3 assertion failed",
-        "latency": 4.69
+        "reason": "Hidden test #4 failed: Hidden test assertion returned False",
+        "latency": 5.17
       },
       {
         "id": "code_11",
-        "passed": true,
-        "reason": "Passed all hidden tests",
-        "latency": 5.45
+        "passed": false,
+        "reason": "Hidden test #3 failed: Hidden test assertion returned False",
+        "latency": 6.43
       },
       {
         "id": "code_12",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 4.86
+        "latency": 3.8
       },
       {
         "id": "code_13",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 5.24
+        "latency": 4.52
       },
       {
         "id": "code_14",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 2.35
+        "latency": 2.37
       },
       {
         "id": "code_15",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 8.19
+        "latency": 8.04
       },
       {
         "id": "code_16",
         "passed": false,
-        "reason": "Hidden test #3 assertion failed",
-        "latency": 9.53
+        "reason": "Hidden test #3 failed: Test failure: NameError: name 'bisect' is not defined",
+        "latency": 6.96
       },
       {
         "id": "code_17",
-        "passed": false,
-        "reason": "Hidden test #2 failed: 'int' object is not callable",
-        "latency": 10.84
+        "passed": true,
+        "reason": "Passed all hidden tests",
+        "latency": 10.73
       },
       {
         "id": "code_18",
         "passed": true,
         "reason": "Passed all hidden tests",
-        "latency": 3.25
+        "latency": 3.23
       },
       {
         "id": "code_19",
-        "passed": true,
-        "reason": "Passed all hidden tests",
-        "latency": 9.5
+        "passed": false,
+        "reason": "Hidden test #2 failed: Hidden test assertion returned False",
+        "latency": 6.56
       },
       {
         "id": "code_20",
         "passed": false,
-        "reason": "Hidden test #1 failed: list index out of range",
-        "latency": 10.45
+        "reason": "Hidden test #1 failed: Test failure: KeyError: 3",
+        "latency": 13.13
       }
     ],
     "singlish_results": [
@@ -1164,61 +1508,61 @@
         "id": "singlish_01",
         "score": 2,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nPython eke list comprehension ekak use karala even numbers filter karana hati poddak explain karala example ekak denna.\n\nPython eke list comprehension ekak use",
-        "latency": 40.22
+        "latency": 40.08
       },
       {
         "id": "singlish_02",
         "score": 1,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe error message \"IndexError: list index out of range\" indicates that you are trying to access an index in the list that does not exist. In your code, the lis",
-        "latency": 7.82
+        "latency": 7.71
       },
       {
         "id": "singlish_03",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nRust language eke 'ownership' concept eka simple Singlish walin explain karanna:\n\nRust eke 'ownership' wala idea, ona code eke data eka kula wala owner kara. O",
-        "latency": 40.28
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nOwnership is like when you have a toy, and no one else can play with it at the same time. In Rust, each value has a variable that's called its owner. When the ",
+        "latency": 6.93
       },
       {
         "id": "singlish_04",
         "score": 1,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is insufficient to answer the question. The question asks about implementing exponential backoff retry for an API request and the benefits",
-        "latency": 3.18
+        "latency": 3.71
       },
       {
         "id": "singlish_05",
         "score": 2,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nTo connect to an SQLite database and insert a row into the 'users' table using Python's standard library (sqlite3), you can use the following script:\n\n```pytho",
-        "latency": 12.39
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is insufficient to complete the task. To insert a row into a 'users' table in an SQLite database using Python's standard library (sqlite3)",
+        "latency": 10.8
       },
       {
         "id": "singlish_06",
         "score": 1,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe provided code snippet is vulnerable to SQL injection. To fix this, you should use parameterized queries instead of string formatting. Here's the corrected ",
-        "latency": 3.16
+        "latency": 3.14
       },
       {
         "id": "singlish_07",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is insufficient to answer the task. The task asks about the difference between \"git cherry-pick\" and \"git merge,\" but the context does not",
-        "latency": 1.58
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI apologize, but I don't have enough context to understand or respond to the task. The task appears to be in a language I'm not familiar with, and there's no a",
+        "latency": 2.14
       },
       {
         "id": "singlish_08",
         "score": 0,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'm sorry, but I don't have enough context to provide the steps you're asking for. Could you please provide more information about the Ollama server and the sp",
-        "latency": 2.07
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nI'm sorry, but I don't have enough context to provide the steps you're asking for. Could you please provide more details or clarify your question?",
+        "latency": 1.31
       },
       {
         "id": "singlish_09",
         "score": 2,
         "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nTo handle a KeyError when accessing a key in a Python dictionary that may not exist, you can use the `get` method of the dictionary. This method allows you to ",
-        "latency": 7.99
+        "latency": 9.36
       },
       {
         "id": "singlish_10",
         "score": 1,
-        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is insufficient to answer the question accurately. The question appears to be in a language I'm not familiar with, but it seems to be aski",
-        "latency": 2.57
+        "response_sample": "[UNGROUNDED: No external context provided. Answer generated from internal model weights.]\n\nThe context provided is insufficient to answer the question accurately. The question asks about the PAI architecture's 'stateless reasoning' and the security r",
+        "latency": 2.46
       }
     ],
     "doc_results": [
@@ -1226,61 +1570,121 @@
         "id": "doc_01",
         "passed": true,
         "response": "The maximum number of consecutive autonomous releases permitted before manual owner review is 3.",
-        "latency": 0.75
+        "latency": 0.74
       },
       {
         "id": "doc_02",
         "passed": true,
         "response": "The specific IPv4 prefix blocked for the 6to4 Anycast relay is 192.88.99.0/24.",
-        "latency": 1.45
+        "latency": 1.44
       },
       {
         "id": "doc_03",
         "passed": true,
-        "response": "URL ports with leading zeros (e.g., :080) are rejected. According to the provided context, ports must be formatted as standard decimal strings without leading zeros. Ports such as ':080' or ':00080' a",
-        "latency": 2.86
+        "response": "URL ports with leading zeros, such as ':080' or ':00080', are rejected. This is because URL ports must be formatted as standard decimal strings without leading zeros to eliminate ambiguity between oct",
+        "latency": 2.02
       },
       {
         "id": "doc_04",
         "passed": true,
         "response": "The crate used for native Win32 FFI bindings on Windows targets is `windows-sys`.",
-        "latency": 0.94
+        "latency": 0.95
       },
       {
         "id": "doc_05",
         "passed": true,
         "response": "The single file in the core that is permitted to contain unsafe code is `core/src/win32.rs`.",
-        "latency": 0.98
+        "latency": 0.99
       },
       {
         "id": "doc_06",
         "passed": true,
-        "response": "The configured memory headroom required on top of `host_delta_mb` is 512 MB.",
-        "latency": 0.94
+        "response": "The configured memory headroom required on top of host_delta_mb is 512 MB.",
+        "latency": 0.86
       },
       {
         "id": "doc_07",
         "passed": true,
         "response": "The threat ID that represents 'Model supply chain and licensing' is T20.",
-        "latency": 0.79
+        "latency": 0.78
       },
       {
         "id": "doc_08",
         "passed": true,
         "response": "Milestone M2 delivers a functionality that involves verifying a loop with a restricted runner. This process includes several steps: planning, generating code, creating a Tier-1 AST guard, running test",
-        "latency": 2.04
+        "latency": 2.05
       },
       {
         "id": "doc_09",
         "passed": true,
-        "response": "The M6 local web interface binds to the IP address 127.0.0.1 (localhost) and does not have CORS enabled.",
-        "latency": 1.33
+        "response": "Based on the provided context, the M6 local web interface binds to the IP address `127.0.0.1` (localhost) and does not have CORS (Cross-Origin Resource Sharing) enabled.",
+        "latency": 1.81
       },
       {
         "id": "doc_10",
         "passed": true,
         "response": "The project's definition of an 'Own model' is the owner's own weights delta (LoRA adapter or fine-tune) on a pretrained small open base. The base remains third-party. From-scratch pre-training is defe",
-        "latency": 2.4
+        "latency": 2.41
+      },
+      {
+        "id": "doc_11",
+        "passed": true,
+        "response": "Based on the provided context:\n\n- The component that enforces network policy at runtime is the Rust core crate.\n- The component that manages adaptive model selection is the Python research orchestrato",
+        "latency": 2.37
+      },
+      {
+        "id": "doc_12",
+        "passed": true,
+        "response": "Based on the provided context, the rejection of the model is determined by the COMPRESSED tier threshold, not the 512 MB headroom calculation. The exception in the COMPRESSED tier states that any mode",
+        "latency": 13.83
+      },
+      {
+        "id": "doc_13",
+        "passed": false,
+        "response": "The final effective token limit allocated to the model is 512 tokens.",
+        "latency": 0.81
+      },
+      {
+        "id": "doc_14",
+        "passed": true,
+        "response": "Based on the provided context, Document B takes precedence over Document A. According to Document B, \"Section 2.4 supersedes all prior design notes: No more than 3 consecutive autonomous releases are ",
+        "latency": 4.45
+      },
+      {
+        "id": "doc_15",
+        "passed": true,
+        "response": "Based on the context provided in the NET_POLICY.md, the request fails at Layer 1. This is because Layer 1 checks for canonical schemes and non-canonical port formatting. The port ':080' is considered ",
+        "latency": 3.55
+      },
+      {
+        "id": "doc_16",
+        "passed": true,
+        "response": "The attacker's payload containing '[Source: local_knowledge]' fails to elevate the trust score to 0.95 in the symbolic core because the symbolic core strictly follows the provenance rules defined in t",
+        "latency": 5.71
+      },
+      {
+        "id": "doc_17",
+        "passed": true,
+        "response": "Based on the three criteria provided in ADR-008 Amendment (D6), llama3.2:3b is disqualified from serving as the primary local coding assistant for the following reasons:\n\n1. **Non-commercial or Restri",
+        "latency": 6.12
+      },
+      {
+        "id": "doc_18",
+        "passed": true,
+        "response": "qwen3.5:4b scored 0% on the initial coding evaluation because it was generating thinking tokens before outputting code. This caused the token count to exceed the HIGH tier cap of 1024 tokens on the Op",
+        "latency": 5.42
+      },
+      {
+        "id": "doc_19",
+        "passed": true,
+        "response": "To determine if the reported RAM values satisfy the ADR-009 parity requirement and to calculate the exact percentage difference, we can follow these steps:\n\n1. **Identify the reported values:**\n   - P",
+        "latency": 17.88
+      },
+      {
+        "id": "doc_20",
+        "passed": true,
+        "response": "Based on the provided context, the model can still execute without an Insufficient RAM error under the following specific condition:\n\nThe model must already be resident in Ollama memory (verified via ",
+        "latency": 4.35
       }
     ]
   }

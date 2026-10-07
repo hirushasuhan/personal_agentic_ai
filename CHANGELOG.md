@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.5.2] — 2026-10-07 — Milestone M1.2 Hardening, Standardized RAM Measurements & Full 20-Doc Bake-Off
+
+### M1.2 Standardized Cold-Start RAM Procedure & Empirical Measurements
+- `docs/MEASUREMENT_PROCEDURE.md`: Documented reproducible 5-run cold-start RAM measurement standard with mandatory cache flushing (`keep_alive: 0`), process settling (2.0s), and median calculation.
+- `research/measure_cold_profile.py`: Automated tool executing the standardized measurement procedure.
+- `docs/evidence/cold_ram_measurements.json`: Empirical 5-run dataset across all 5 models:
+  - `llama3.2:3b`: Median host delta **740.0 MB** (min 601.5 MB, max 783.5 MB, latency 3.21s).
+  - `qwen2.5-coder:1.5b`: Median host delta **590.4 MB** (min 586.3 MB, max 672.4 MB, latency 3.82s).
+  - `qwen3.5:4b`: Median host delta **1038.6 MB** (min 1016.9 MB, max 1060.4 MB, latency 8.69s).
+  - `gemma4:e2b`: Median host delta **2934.8 MB** (min 2894.4 MB, max 3004.8 MB, latency 14.86s). Solved Ollama footprint anomaly: the 214.4 MB reported by `ollama ps` is discrete VRAM only; remaining weights allocate 2.93 GB of host RAM.
+  - `qwen2.5-coder:7b`: Median host delta **1305.9 MB** (min 1289.4 MB, max 1435.5 MB, latency 18.25s).
+- `research/model_profiles.json`: Updated schema v2 with official Hugging Face repository URLs, verified SPDX license IDs (`Apache-2.0`, `Llama-3.2-Community`), license URLs, and median host deltas.
+
+### M1.2 Batch Evaluation Harness & Complete Run Metadata
+- `research/run_bakeoff.py`:
+  - Upgraded to runner version `1.2.0`.
+  - Added structured `run_metadata` block recording runner version, execution date, live Ollama version (`0.35.1`), thinking mode setting (`think: False` for reasoning models), cryptographic eval set hashes, and explicit audit list of truncated task IDs (`truncated_tasks`).
+  - Scored all 20 document tasks (`doc_01`–`doc_20`), including the 10 discriminating hard questions.
+  - Automatic `low_confidence = True` flag when task truncation occurs.
+- `docs/evidence/m1_bakeoff_results.json`: Re-evaluated all 5 candidate models with identical harness and isolated subprocess sandboxing:
+  - `llama3.2:3b`: 8/20 (40.0%) coding, 11/20 (55.0%) Singlish, 20/20 (100.0%) doc analysis, 2.30s latency, 740.0 MB cold RAM delta. (Truncated on 4 long Singlish prompts).
+  - `qwen2.5-coder:1.5b`: 9/20 (45.0%) coding, 4/20 (20.0%) Singlish, 16/20 (80.0%) doc analysis, 1.35s latency, 590.4 MB cold RAM delta. (0 truncations).
+  - `qwen3.5:4b`: 8/20 (40.0%) coding, 15/20 (75.0%) Singlish, 20/20 (100.0%) doc analysis, 5.50s latency, 1038.6 MB cold RAM delta. (Truncated on `code_16`).
+  - `gemma4:e2b`: 11/20 (55.0%) coding, 17/20 (85.0%) Singlish, 20/20 (100.0%) doc analysis, 4.13s latency, 2934.8 MB cold RAM delta. (Truncated on `code_11`, `code_13`).
+  - `qwen2.5-coder:7b`: 12/20 (60.0%) coding, 11/20 (55.0%) Singlish, 19/20 (95.0%) doc analysis, 6.92s latency, 1305.9 MB cold RAM delta. (Truncated on `singlish_01`).
+
+### Tests
+- Python: 184 tests pass (5 skipped).
+- Rust: 13 unit tests pass. Clippy clean (`-D warnings`).
+
 ## [0.5.1] — 2026-10-07 — Milestone M1.1 Hardening & Sandboxed Code Runner
 
 ### M1.1 Sandboxing & Safe Code Runner

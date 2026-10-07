@@ -116,6 +116,7 @@ def evaluate_model_bakeoff(
     code_latencies = []
     has_thinking = False
     has_truncation = False
+    truncated_tasks = []
 
     sys_code = "You are an expert Python software engineer. Output ONLY valid Python code inside a ```python block. Do not add markdown wrappers or explanations."
 
@@ -133,6 +134,8 @@ def evaluate_model_bakeoff(
                 has_thinking = True
             if getattr(reasoner, "last_truncated", False) or "[TRUNCATED:" in resp:
                 has_truncation = True
+                if tid not in truncated_tasks:
+                    truncated_tasks.append(tid)
             code = extract_python_code(resp)
             passed, reason = evaluate_coding_task(code, entry, HIDDEN_TESTS.get(tid, []))
         except Exception as e:
@@ -163,6 +166,10 @@ def evaluate_model_bakeoff(
             lat = round(time.time() - t0, 2)
             if getattr(reasoner, "last_thinking_detected", False) or "<think>" in resp:
                 has_thinking = True
+            if getattr(reasoner, "last_truncated", False) or "[TRUNCATED:" in resp:
+                has_truncation = True
+                if sid not in truncated_tasks:
+                    truncated_tasks.append(sid)
             # Automated keyword scoring as objective baseline
             kw_matches = [kw for kw in s.get("expected_keywords", []) if kw.lower() in resp.lower()]
             kw_ratio = len(kw_matches) / max(1, len(s.get("expected_keywords", [])))
@@ -187,8 +194,8 @@ def evaluate_model_bakeoff(
             "latency": lat,
         })
 
-    # 3. Evaluate Document Analysis Tasks (10)
-    print("\n[Set 3: Document Analysis Tasks (10)]")
+    # 3. Evaluate Document Analysis Tasks
+    print(f"\n[Set 3: Document Analysis Tasks ({len(doc_tasks)})]")
     doc_results = []
     doc_passed = 0
 
@@ -202,6 +209,10 @@ def evaluate_model_bakeoff(
             lat = round(time.time() - t0, 2)
             if getattr(reasoner, "last_thinking_detected", False) or "<think>" in resp:
                 has_thinking = True
+            if getattr(reasoner, "last_truncated", False) or "[TRUNCATED:" in resp:
+                has_truncation = True
+                if did not in truncated_tasks:
+                    truncated_tasks.append(did)
             # Check if ground truth keywords are in the answer
             kws = d.get("ground_truth_keywords", [])
             match = any(kw.lower() in resp.lower() for kw in kws)
@@ -240,18 +251,61 @@ def evaluate_model_bakeoff(
     except Exception:
         pass
 
+    # Query Ollama version
+    ollama_ver = "unknown"
+    try:
+        import urllib.request
+        with urllib.request.urlopen(f"{ollama_base}/api/version", timeout=2) as r:
+            ollama_ver = json.loads(r.read().decode()).get("version", "unknown")
+    except Exception:
+        pass
+
+    # Load frozen eval hashes
+    hashes_file = os.path.join(os.path.dirname(root_dir), "docs", "evidence", "eval_sets_hashes.json")
+    eval_hashes = {}
+    if os.path.exists(hashes_file):
+        try:
+            with open(hashes_file, "r", encoding="utf-8") as f:
+                eval_hashes = json.load(f).get("file_hashes_sha256", {})
+        except Exception:
+            pass
+
+    # Load standardized 5-run cold median host delta from model_profiles.json
+    profiles_path = os.path.join(root_dir, "model_profiles.json")
+    model_prof = {}
+    if os.path.exists(profiles_path):
+        try:
+            with open(profiles_path, "r", encoding="utf-8") as f:
+                model_prof = json.load(f).get("profiles", {}).get(model_name, {})
+        except Exception:
+            pass
+
+    standard_host_delta = model_prof.get("host_delta_mb", ram_delta)
+    standard_footprint = model_prof.get("model_footprint_mb", footprint_mb)
+
     avg_code_lat = round(sum(code_latencies) / len(code_latencies), 2) if code_latencies else 0.0
 
     summary = {
         "model": model_name,
+        "run_metadata": {
+            "runner_version": "1.2.0",
+            "date": "2026-10-07",
+            "ollama_version": ollama_ver,
+            "think_setting": think,
+            "eval_sets_hashes": eval_hashes,
+            "truncated_tasks": truncated_tasks,
+            "low_confidence": len(truncated_tasks) > 0,
+        },
         "pass_at_1_coding": f"{code_passed}/{len(coding_tasks)} ({round(code_passed / max(1, len(coding_tasks)) * 100, 1)}%)",
         "singlish_score": f"{singlish_total_score}/{len(singlish_prompts) * 2} ({round(singlish_total_score / max(1, len(singlish_prompts) * 2) * 100, 1)}%)",
         "doc_analysis_score": f"{doc_passed}/{len(doc_tasks)} ({round(doc_passed / max(1, len(doc_tasks)) * 100, 1)}%)",
         "avg_coding_latency_sec": avg_code_lat,
-        "host_ram_delta_mb": ram_delta,
-        "ollama_footprint_mb": footprint_mb,
-        "truncation_detected": has_truncation,
+        "host_ram_delta_mb": standard_host_delta,
+        "measured_live_delta_mb": ram_delta,
+        "ollama_footprint_mb": standard_footprint,
+        "truncation_detected": len(truncated_tasks) > 0,
         "thinking_mode": has_thinking,
+        "truncated_tasks": truncated_tasks,
         "coding_results": coding_results,
         "singlish_results": singlish_results,
         "doc_results": doc_results,
@@ -263,10 +317,12 @@ def evaluate_model_bakeoff(
     print(f"Singlish Score:       {summary['singlish_score']}", flush=True)
     print(f"Doc Analysis Score:   {summary['doc_analysis_score']}", flush=True)
     print(f"Avg Coding Latency:   {avg_code_lat}s", flush=True)
-    print(f"Host RAM Delta:       {ram_delta} MB", flush=True)
-    print(f"Footprint (VRAM/RAM): {footprint_mb} MB", flush=True)
+    print(f"Host RAM Delta:       {standard_host_delta} MB (standardized median)", flush=True)
+    print(f"Live Measured Delta:  {ram_delta} MB", flush=True)
+    print(f"Footprint (RAM/VRAM): {standard_footprint} MB", flush=True)
     print(f"Thinking Mode:        {has_thinking}", flush=True)
-    print(f"Truncation:           {has_truncation}", flush=True)
+    print(f"Truncated Tasks:      {truncated_tasks if truncated_tasks else 'None'}", flush=True)
+    print(f"Low Confidence Flag:  {summary['run_metadata']['low_confidence']}", flush=True)
     print("-----------------------------------------", flush=True)
 
     # Save to docs/evidence/m1_bakeoff_results.json

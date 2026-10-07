@@ -136,14 +136,14 @@ class LocalModel(unittest.TestCase):
             self.assertIn("insufficient RAM headroom", str(cm.exception))
             self.assertIn("llama3.2:3b", str(cm.exception))
 
-            # 1B model requires 734.0 MB + 512.0 MB = 1246.0 MB -> 1300 MB available succeeds
+            # 1B model requires 734.0 MB + 512.0 MB = 1246.0 MB -> 1250 MB available succeeds
             b_mid = budget("BALANCED")
-            b_mid.avail_ram_mb = 1300.0
+            b_mid.avail_ram_mb = 1250.0
             r1b = LocalLLMReasoner(s.url, model="llama3.2:1b", timeout=5)
             res1b = r1b.reason("q", None, b_mid)
             self.assertIn("42", res1b)
 
-            # But 3B model with 1300 MB fails (< 1328 MB)
+            # But 3B model with 1250 MB fails (< 1252 MB)
             with self.assertRaises(ReasonerError):
                 r3b.reason("q", None, b_mid)
 

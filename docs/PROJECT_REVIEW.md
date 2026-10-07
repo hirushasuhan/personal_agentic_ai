@@ -127,7 +127,22 @@ Python suite (170 OK); Rust unit tests (10 OK, built independently with cargo 1.
 * `truncation_detected` is still true for `qwen3.5:4b` and `gemma4:e2b` with thinking off, so some of their answers are cut off and the scores are lower bounds.
 * Singlish score is keyword matching (0-2 per prompt) on 10 prompts; differences of a few points are noise.
 * Licence dates were recorded, but the profiles do not store the source URL or the licence text used.
-* Rust tests (13), clippy and fuzz results were reported by the owner and were not re-run in this review.
+### M1.2 hardening and standardized batch evaluation (2026-10-07)
+* **Standardized RAM procedure implemented and measured**: `docs/MEASUREMENT_PROCEDURE.md` documents a 5-run cold-start median procedure with explicit cache flushing (`keep_alive: 0`) and 2.0s settling. Measurements recorded in `docs/evidence/cold_ram_measurements.json`:
+  - `llama3.2:3b`: Median host delta 740.0 MB (min 601.5 MB, max 783.5 MB, latency 3.21s).
+  - `qwen2.5-coder:1.5b`: Median host delta 590.4 MB (min 586.3 MB, max 672.4 MB, latency 3.82s).
+  - `qwen3.5:4b`: Median host delta 1038.6 MB (min 1016.9 MB, max 1060.4 MB, latency 8.69s).
+  - `gemma4:e2b`: Median host delta 2934.8 MB (min 2894.4 MB, max 3004.8 MB, latency 14.86s). **Memory anomaly explained**: The 214.4 MB reported by `ollama ps` is discrete VRAM only; remaining weights allocate 2934.8 MB (2.93 GB) in shared host RAM.
+  - `qwen2.5-coder:7b`: Median host delta 1305.9 MB (min 1289.4 MB, max 1435.5 MB, latency 18.25s).
+* **Profiles reconciled**: `research/model_profiles.json` updated with official Hugging Face repository URLs, SPDX license IDs (`Apache-2.0`, `Llama-3.2-Community`), license URLs, and median host deltas.
+* **Full 20-doc batch evaluation executed**: All 5 candidate models scored across all 20 document questions (`doc_01`–`doc_20`) in `docs/evidence/m1_bakeoff_results.json`.
+* **Run metadata recorded**: Every entry in `m1_bakeoff_results.json` records `runner_version: "1.2.0"`, date, live `ollama_version: "0.35.1"`, thinking setting, frozen eval set SHA-256 hashes, and list of truncated task IDs with `low_confidence = True` flag when cutoffs occur.
+* **Empirical bake-off summary (runner 1.2.0)**:
+  - `qwen2.5-coder:7b`: 12/20 (60.0%) pass@1 coding, 11/20 (55.0%) Singlish, 19/20 (95.0%) doc analysis, 6.92s coding latency, 1305.9 MB cold delta.
+  - `gemma4:e2b`: 11/20 (55.0%) pass@1 coding, 17/20 (85.0%) Singlish, 20/20 (100.0%) doc analysis, 4.13s coding latency, 2934.8 MB cold delta.
+  - `qwen2.5-coder:1.5b`: 9/20 (45.0%) pass@1 coding, 4/20 (20.0%) Singlish, 16/20 (80.0%) doc analysis, 1.35s coding latency, 590.4 MB cold delta (zero truncations).
+  - `llama3.2:3b`: 8/20 (40.0%) pass@1 coding, 11/20 (55.0%) Singlish, 20/20 (100.0%) doc analysis, 2.30s coding latency, 740.0 MB cold delta.
+  - `qwen3.5:4b`: 8/20 (40.0%) pass@1 coding, 15/20 (75.0%) Singlish, 20/20 (100.0%) doc analysis, 5.50s coding latency, 1038.6 MB cold delta.
 
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

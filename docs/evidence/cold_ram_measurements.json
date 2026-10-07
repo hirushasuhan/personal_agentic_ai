@@ -1,0 +1,297 @@
+{
+  "llama3.2:3b": {
+    "model": "llama3.2:3b",
+    "runs_count": 5,
+    "host_delta_mb_median": 740.0,
+    "host_delta_mb_max": 808.9,
+    "host_delta_mb_avg": 754.8,
+    "host_delta_mb_min": 731.5,
+    "latency_sec_median": 3.21,
+    "latency_sec_avg": 3.69,
+    "model_footprint_mb": 2436.4,
+    "model_vram_mb": 2436.4,
+    "runs": [
+      {
+        "run": 1,
+        "baseline_ram_mb": 4781.9,
+        "active_ram_mb": 3973.0,
+        "host_delta_mb": 808.9,
+        "latency_sec": 5.024,
+        "footprint_mb": 2436.4,
+        "vram_mb": 2436.4
+      },
+      {
+        "run": 2,
+        "baseline_ram_mb": 4689.7,
+        "active_ram_mb": 3958.2,
+        "host_delta_mb": 731.5,
+        "latency_sec": 3.133,
+        "footprint_mb": 2436.4,
+        "vram_mb": 2436.4
+      },
+      {
+        "run": 3,
+        "baseline_ram_mb": 4688.9,
+        "active_ram_mb": 3953.7,
+        "host_delta_mb": 735.2,
+        "latency_sec": 3.901,
+        "footprint_mb": 2436.4,
+        "vram_mb": 2436.4
+      },
+      {
+        "run": 4,
+        "baseline_ram_mb": 4719.8,
+        "active_ram_mb": 3979.8,
+        "host_delta_mb": 740.0,
+        "latency_sec": 3.162,
+        "footprint_mb": 2436.4,
+        "vram_mb": 2436.4
+      },
+      {
+        "run": 5,
+        "baseline_ram_mb": 4733.4,
+        "active_ram_mb": 3975.2,
+        "host_delta_mb": 758.2,
+        "latency_sec": 3.212,
+        "footprint_mb": 2436.4,
+        "vram_mb": 2436.4
+      }
+    ]
+  },
+  "qwen2.5-coder:1.5b": {
+    "model": "qwen2.5-coder:1.5b",
+    "runs_count": 5,
+    "host_delta_mb_median": 590.4,
+    "host_delta_mb_max": 628.3,
+    "host_delta_mb_avg": 594.2,
+    "host_delta_mb_min": 579.3,
+    "latency_sec_median": 3.82,
+    "latency_sec_avg": 3.91,
+    "model_footprint_mb": 1112.2,
+    "model_vram_mb": 1112.2,
+    "runs": [
+      {
+        "run": 1,
+        "baseline_ram_mb": 4727.2,
+        "active_ram_mb": 4098.9,
+        "host_delta_mb": 628.3,
+        "latency_sec": 3.742,
+        "footprint_mb": 1112.2,
+        "vram_mb": 1112.2
+      },
+      {
+        "run": 2,
+        "baseline_ram_mb": 4684.7,
+        "active_ram_mb": 4103.4,
+        "host_delta_mb": 581.3,
+        "latency_sec": 4.432,
+        "footprint_mb": 1112.2,
+        "vram_mb": 1112.2
+      },
+      {
+        "run": 3,
+        "baseline_ram_mb": 4697.1,
+        "active_ram_mb": 4105.6,
+        "host_delta_mb": 591.5,
+        "latency_sec": 2.944,
+        "footprint_mb": 1112.2,
+        "vram_mb": 1112.2
+      },
+      {
+        "run": 4,
+        "baseline_ram_mb": 4702.3,
+        "active_ram_mb": 4111.9,
+        "host_delta_mb": 590.4,
+        "latency_sec": 4.62,
+        "footprint_mb": 1112.2,
+        "vram_mb": 1112.2
+      },
+      {
+        "run": 5,
+        "baseline_ram_mb": 4699.8,
+        "active_ram_mb": 4120.5,
+        "host_delta_mb": 579.3,
+        "latency_sec": 3.817,
+        "footprint_mb": 1112.2,
+        "vram_mb": 1112.2
+      }
+    ]
+  },
+  "qwen3.5:4b": {
+    "model": "qwen3.5:4b",
+    "runs_count": 5,
+    "host_delta_mb_median": 1038.6,
+    "host_delta_mb_max": 1059.3,
+    "host_delta_mb_avg": 1033.3,
+    "host_delta_mb_min": 987.8,
+    "latency_sec_median": 8.69,
+    "latency_sec_avg": 8.38,
+    "model_footprint_mb": 2985.0,
+    "model_vram_mb": 2985.0,
+    "runs": [
+      {
+        "run": 1,
+        "baseline_ram_mb": 4712.2,
+        "active_ram_mb": 3683.4,
+        "host_delta_mb": 1028.8,
+        "latency_sec": 9.492,
+        "footprint_mb": 2985.0,
+        "vram_mb": 2985.0
+      },
+      {
+        "run": 2,
+        "baseline_ram_mb": 4722.7,
+        "active_ram_mb": 3670.6,
+        "host_delta_mb": 1052.1,
+        "latency_sec": 6.779,
+        "footprint_mb": 2985.0,
+        "vram_mb": 2985.0
+      },
+      {
+        "run": 3,
+        "baseline_ram_mb": 4715.7,
+        "active_ram_mb": 3727.9,
+        "host_delta_mb": 987.8,
+        "latency_sec": 10.377,
+        "footprint_mb": 2985.0,
+        "vram_mb": 2985.0
+      },
+      {
+        "run": 4,
+        "baseline_ram_mb": 4796.7,
+        "active_ram_mb": 3737.4,
+        "host_delta_mb": 1059.3,
+        "latency_sec": 6.547,
+        "footprint_mb": 2985.0,
+        "vram_mb": 2985.0
+      },
+      {
+        "run": 5,
+        "baseline_ram_mb": 4782.0,
+        "active_ram_mb": 3743.4,
+        "host_delta_mb": 1038.6,
+        "latency_sec": 8.688,
+        "footprint_mb": 2985.0,
+        "vram_mb": 2985.0
+      }
+    ]
+  },
+  "gemma4:e2b": {
+    "model": "gemma4:e2b",
+    "runs_count": 5,
+    "host_delta_mb_median": 2934.8,
+    "host_delta_mb_max": 2996.6,
+    "host_delta_mb_avg": 2930.5,
+    "host_delta_mb_min": 2854.6,
+    "latency_sec_median": 14.86,
+    "latency_sec_avg": 14.93,
+    "model_footprint_mb": 214.4,
+    "model_vram_mb": 214.4,
+    "runs": [
+      {
+        "run": 1,
+        "baseline_ram_mb": 4796.2,
+        "active_ram_mb": 1861.4,
+        "host_delta_mb": 2934.8,
+        "latency_sec": 15.139,
+        "footprint_mb": 214.4,
+        "vram_mb": 214.4
+      },
+      {
+        "run": 2,
+        "baseline_ram_mb": 4831.6,
+        "active_ram_mb": 1904.1,
+        "host_delta_mb": 2927.5,
+        "latency_sec": 14.361,
+        "footprint_mb": 214.4,
+        "vram_mb": 214.4
+      },
+      {
+        "run": 3,
+        "baseline_ram_mb": 4873.2,
+        "active_ram_mb": 2018.6,
+        "host_delta_mb": 2854.6,
+        "latency_sec": 14.861,
+        "footprint_mb": 214.4,
+        "vram_mb": 214.4
+      },
+      {
+        "run": 4,
+        "baseline_ram_mb": 4952.6,
+        "active_ram_mb": 1956.0,
+        "host_delta_mb": 2996.6,
+        "latency_sec": 14.378,
+        "footprint_mb": 214.4,
+        "vram_mb": 214.4
+      },
+      {
+        "run": 5,
+        "baseline_ram_mb": 4937.2,
+        "active_ram_mb": 1998.2,
+        "host_delta_mb": 2939.0,
+        "latency_sec": 15.91,
+        "footprint_mb": 214.4,
+        "vram_mb": 214.4
+      }
+    ]
+  },
+  "qwen2.5-coder:7b": {
+    "model": "qwen2.5-coder:7b",
+    "runs_count": 5,
+    "host_delta_mb_median": 1305.9,
+    "host_delta_mb_max": 1367.2,
+    "host_delta_mb_avg": 1293.1,
+    "host_delta_mb_min": 1226.2,
+    "latency_sec_median": 18.25,
+    "latency_sec_avg": 18.31,
+    "model_footprint_mb": 4886.5,
+    "model_vram_mb": 3991.8,
+    "runs": [
+      {
+        "run": 1,
+        "baseline_ram_mb": 4974.7,
+        "active_ram_mb": 3740.3,
+        "host_delta_mb": 1234.4,
+        "latency_sec": 13.407,
+        "footprint_mb": 4886.5,
+        "vram_mb": 3991.8
+      },
+      {
+        "run": 2,
+        "baseline_ram_mb": 5052.1,
+        "active_ram_mb": 3825.9,
+        "host_delta_mb": 1226.2,
+        "latency_sec": 17.655,
+        "footprint_mb": 4886.5,
+        "vram_mb": 3991.8
+      },
+      {
+        "run": 3,
+        "baseline_ram_mb": 5116.9,
+        "active_ram_mb": 3785.1,
+        "host_delta_mb": 1331.8,
+        "latency_sec": 21.164,
+        "footprint_mb": 4886.5,
+        "vram_mb": 3991.8
+      },
+      {
+        "run": 4,
+        "baseline_ram_mb": 5535.2,
+        "active_ram_mb": 4168.0,
+        "host_delta_mb": 1367.2,
+        "latency_sec": 18.252,
+        "footprint_mb": 4886.5,
+        "vram_mb": 3991.8
+      },
+      {
+        "run": 5,
+        "baseline_ram_mb": 5454.9,
+        "active_ram_mb": 4149.0,
+        "host_delta_mb": 1305.9,
+        "latency_sec": 21.057,
+        "footprint_mb": 4886.5,
+        "vram_mb": 3991.8
+      }
+    ]
+  }
+}
