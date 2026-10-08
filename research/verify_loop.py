@@ -376,27 +376,27 @@ class VerifyLoop:
         frozen_suite: FrozenTestSuite,
     ) -> TestExecutionResult:
         """
-        Executes solution and frozen test suite inside the OS sandbox using an isolated discovery driver
-        and dedicated out-of-scratch authenticated verdict channel (Milestone M2b Step 3 / ADR-011 v2.1).
+        Executes solution and frozen test suite inside the OS sandbox using a two-process
+        architecture (Milestone M2b Step 3 / ADR-011 v2.1):
+        1. Trusted Driver Process: loads frozen tests, non-dumpable, holds stdout verdict pipe to parent.
+        2. Candidate Worker Process: isolated child process running candidate code, communicates
+           strictly over anonymous pipes via JSON-only RPC (defeating equality hijack & object spoofing by design).
+        3. Authenticated Verdict: transmitted exclusively over driver-held pipe with parent-verified nonce.
         """
         if not is_sandbox_supported():
             raise RuntimeError(f"Sandbox execution not supported on platform: {sys.platform}")
 
-        # Isolated verdict channel directory outside scratch
-        verdict_dir = tempfile.mkdtemp(prefix="pai_verdict_")
-        verdict_token = uuid.uuid4().hex
-        verdict_filename = f"verdict_{verdict_token}.json"
-        verdict_path = os.path.join(verdict_dir, verdict_filename)
-        verdict_path_norm = verdict_path.replace("\\", "/")
+        parent_nonce = secrets.token_hex(32)
 
         sb = get_sandbox(
             memory_mb=self.memory_mb,
             timeout_sec=self.timeout_sec,
-            extra_writable_dirs=[verdict_dir],
+            max_processes=8,
         )
         sb.setup()
 
         driver_path = os.path.join(sb.scratch_dir, "_pai_driver.py")
+        worker_path = os.path.join(sb.scratch_dir, "_pai_worker.py")
 
         try:
             # 1. Write solution.py into scratch
@@ -418,7 +418,118 @@ class VerifyLoop:
                     f"Test file tampering detected in scratch! Expected {frozen_suite.test_hash}, got {read_back_hash}"
                 )
 
-            # 4. Generate isolated test discovery and execution driver
+            # 4. Generate Candidate Worker Process (_pai_worker.py)
+            worker_code = '''
+import sys
+import os
+import json
+
+scratch_dir = os.path.dirname(os.path.abspath(__file__))
+if scratch_dir not in sys.path:
+    sys.path.insert(0, scratch_dir)
+
+# Candidate Worker Process
+try:
+    import solution
+    import_error = None
+except BaseException as e:
+    solution = None
+    import_error = f"{type(e).__name__}: {e}"
+
+ALLOWED_PRIMITIVES = (int, float, str, bool, type(None))
+
+def validate_json_value(val):
+    """
+    Validates that return value is strictly composed of genuine builtin primitives.
+    Rejects custom classes, subclassed primitives (e.g. class R(int)), and non-JSON objects.
+    """
+    t = type(val)
+    if t in ALLOWED_PRIMITIVES:
+        return True
+    if t is list:
+        return all(validate_json_value(x) for x in val)
+    if t is dict:
+        return all(type(k) is str and validate_json_value(v) for k, v in val.items())
+    return False
+
+symbols = []
+if solution is not None:
+    symbols = [s for s in dir(solution) if not s.startswith("_")]
+
+sys.stdout.write(json.dumps({
+    "status": "ready" if import_error is None else "import_error",
+    "error": import_error,
+    "symbols": symbols
+}) + "\\n")
+sys.stdout.flush()
+
+while True:
+    line = sys.stdin.readline()
+    if not line:
+        break
+    try:
+        req = json.loads(line)
+    except Exception as e:
+        sys.stdout.write(json.dumps({"status": "error", "error_type": "ValueError", "error": f"Invalid JSON: {e}"}) + "\\n")
+        sys.stdout.flush()
+        continue
+
+    op = req.get("op")
+    if op == "call":
+        func_name = req.get("func")
+        args = req.get("args", [])
+        kwargs = req.get("kwargs", {})
+        if solution is None:
+            resp = {"status": "error", "error_type": "ImportError", "error": f"ImportError: {import_error}"}
+        elif not hasattr(solution, func_name):
+            resp = {"status": "error", "error_type": "AttributeError", "error": f"module 'solution' has no attribute '{func_name}'"}
+        else:
+            fn = getattr(solution, func_name)
+            if not callable(fn):
+                resp = {"status": "error", "error_type": "TypeError", "error": f"'{func_name}' is not callable"}
+            else:
+                try:
+                    res = fn(*args, **kwargs)
+                    if not validate_json_value(res):
+                        resp = {
+                            "status": "error",
+                            "error_type": "EqualityHijackError",
+                            "error": f"EqualityHijackError: Candidate '{func_name}' returned non-builtin or subclassed object of type '{type(res).__name__}'"
+                        }
+                    else:
+                        resp = {"status": "ok", "result": res}
+                except BaseException as ex:
+                    resp = {"status": "error", "error_type": type(ex).__name__, "error": str(ex)}
+        sys.stdout.write(json.dumps(resp) + "\\n")
+        sys.stdout.flush()
+    elif op == "getattr":
+        attr_name = req.get("name")
+        if solution is None:
+            resp = {"status": "error", "error_type": "ImportError", "error": f"ImportError: {import_error}"}
+        elif not hasattr(solution, attr_name):
+            resp = {"status": "error", "error_type": "AttributeError", "error": f"module 'solution' has no attribute '{attr_name}'"}
+        else:
+            val = getattr(solution, attr_name)
+            if callable(val):
+                resp = {"status": "callable"}
+            elif validate_json_value(val):
+                resp = {"status": "ok", "value": val}
+            else:
+                resp = {"status": "error", "error_type": "TypeError", "error": f"TypeError: Attribute '{attr_name}' is not JSON serializable"}
+        sys.stdout.write(json.dumps(resp) + "\\n")
+        sys.stdout.flush()
+    elif op == "exit":
+        break
+'''
+            with open(worker_path, "w", encoding="utf-8") as f:
+                f.write(worker_code)
+
+            try:
+                os.chmod(worker_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+            except Exception:
+                pass
+
+            # 5. Generate Trusted Test Driver Process (_pai_driver.py)
             driver_code = f'''
 import sys
 import os
@@ -428,19 +539,30 @@ import hashlib
 import unittest
 import types
 import ast
-import secrets
-import stat
+import subprocess
 import atexit
+
+# 1. Linux non-dumpable protection: prevents child/sibling from inspecting fds or memory via /proc
+if sys.platform.startswith("linux"):
+    try:
+        import ctypes
+        libc = ctypes.CDLL(None)
+        # PR_SET_DUMPABLE = 4, SUID_DUMP_DISABLE = 0
+        libc.prctl(4, 0)
+    except Exception:
+        pass
+
+# 2. Acquire parent nonce from argv and sanitize argv
+parent_nonce = sys.argv[1] if len(sys.argv) > 1 else ""
+sys.argv = ["test_suite.py"]
 
 scratch_dir = os.path.dirname(os.path.abspath(__file__))
 if scratch_dir not in sys.path:
     sys.path.insert(0, scratch_dir)
 
-sys.argv = ["test_suite.py"]
-verdict_file_path = "{verdict_path_norm}"
 expected_test_ids = {list(frozen_suite.expected_test_ids)}
 
-# In-sandbox read-back hash verification of test suite
+# 3. In-sandbox read-back hash verification of test suite
 with open("test_suite.py", "r", encoding="utf-8") as f:
     test_source = f.read()
 
@@ -458,22 +580,127 @@ if actual_hash != expected_hash:
         "errors": 1,
         "failures": [{{"test_id": "<integrity>", "type": "TestMutationError", "message": "In-sandbox hash mismatch"}}],
     }}
-    try:
-        with open(verdict_file_path, "w", encoding="utf-8") as f:
-            json.dump(res, f)
-    except Exception:
-        pass
+    sys.stdout.write("\\n---PAI_VERDICT_START---\\n" + json.dumps(res) + "\\n---PAI_VERDICT_END---\\n")
+    sys.stdout.flush()
     os._exit(2)
 
-# Load test suite into isolated module named 'test_suite'
+# 4. Spawn Candidate Worker Process with close_fds=True and isolated stdio pipes
+py_exe = sys._base_executable if hasattr(sys, "_base_executable") else sys.executable
+worker_env = {{"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "PYTHONDONTWRITEBYTECODE": "1", "PYTHONUNBUFFERED": "1"}}
+
+worker_proc = subprocess.Popen(
+    [py_exe, "-I", "-B", "-s", os.path.join(scratch_dir, "_pai_worker.py")],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    close_fds=True,
+    cwd=scratch_dir,
+    env=worker_env,
+    text=True,
+)
+
+handshake_line = worker_proc.stdout.readline()
+worker_symbols = []
+worker_ready = False
+worker_init_error = None
+
+if handshake_line:
+    try:
+        hs = json.loads(handshake_line)
+        if hs.get("status") == "ready":
+            worker_ready = True
+            worker_symbols = hs.get("symbols", [])
+        else:
+            worker_init_error = hs.get("error")
+    except Exception as e:
+        worker_init_error = str(e)
+else:
+    poll_code = worker_proc.poll()
+    worker_init_error = f"Candidate worker exited prematurely at import (exit code {{poll_code}})"
+
+def _call_worker(func_name, args, kwargs):
+    if not worker_ready:
+        raise RuntimeError(f"Candidate worker not available: {{worker_init_error}}")
+    try:
+        req_json = json.dumps({{"op": "call", "func": func_name, "args": args, "kwargs": kwargs}}) + "\\n"
+    except TypeError as te:
+        raise TypeError(f"pai code v1 only supports JSON-serializable arguments/results: {{te}}")
+    try:
+        worker_proc.stdin.write(req_json)
+        worker_proc.stdin.flush()
+        line = worker_proc.stdout.readline()
+        if not line:
+            poll_code = worker_proc.poll()
+            raise RuntimeError(f"Candidate worker terminated unexpectedly (exit code {{poll_code}})")
+        resp = json.loads(line)
+    except Exception as e:
+        if isinstance(e, (RuntimeError, TypeError, AssertionError)):
+            raise
+        raise RuntimeError(f"Candidate RPC error: {{e}}")
+
+    if resp.get("status") == "error":
+        err_type = resp.get("error_type", "RuntimeError")
+        err_msg = resp.get("error", "Error in candidate execution")
+        if err_type == "EqualityHijackError" or "EqualityHijackError" in err_msg or err_type == "AssertionError":
+            raise AssertionError(err_msg)
+        import builtins
+        exc_cls = getattr(builtins, err_type, RuntimeError)
+        if not issubclass(exc_cls, BaseException):
+            exc_cls = RuntimeError
+        raise exc_cls(err_msg)
+    return resp.get("result")
+
+def _make_proxy_callable(name):
+    def _proxy(*args, **kwargs):
+        return _call_worker(name, args, kwargs)
+    _proxy.__name__ = name
+    return _proxy
+
+# 5. Build Proxy Module for candidate solution
+class SolutionProxyModule(types.ModuleType):
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        if not worker_ready:
+            raise RuntimeError(f"Candidate worker not available: {{worker_init_error}}")
+        try:
+            worker_proc.stdin.write(json.dumps({{"op": "getattr", "name": name}}) + "\\n")
+            worker_proc.stdin.flush()
+            line = worker_proc.stdout.readline()
+            if not line:
+                raise RuntimeError("Candidate worker terminated during getattr")
+            resp = json.loads(line)
+        except Exception as e:
+            raise RuntimeError(f"Worker communication error: {{e}}")
+        if resp.get("status") == "error":
+            err_type = resp.get("error_type", "RuntimeError")
+            err_msg = resp.get("error", "")
+            if err_type == "AttributeError" or "AttributeError" in err_msg or "has no attribute" in err_msg:
+                raise AttributeError(err_msg)
+            raise RuntimeError(err_msg)
+        if resp.get("status") == "callable":
+            fn = _make_proxy_callable(name)
+            setattr(self, name, fn)
+            return fn
+        return resp.get("value")
+
+sol_mod = SolutionProxyModule("solution")
+sol_mod.__file__ = os.path.abspath("solution.py")
+sol_mod.__package__ = ""
+sol_mod.__path__ = None
+sol_mod.__all__ = list(worker_symbols)
+for sym in worker_symbols:
+    setattr(sol_mod, sym, _make_proxy_callable(sym))
+
+sys.modules["solution"] = sol_mod
+
+# 6. Load and run test suite
 test_mod = types.ModuleType("test_suite")
 test_mod.__file__ = os.path.abspath("test_suite.py")
 test_mod.__name__ = "test_suite"
 sys.modules["test_suite"] = test_mod
 
 module_error = None
-
-# Execute module-level code (imports, definitions, top-level assertions)
 try:
     exec(compile(test_source, "test_suite.py", "exec"), test_mod.__dict__)
 except AssertionError as ae:
@@ -481,77 +708,16 @@ except AssertionError as ae:
 except BaseException as ex:
     module_error = ex
 
-# NONCE GENERATION: Generated strictly AFTER candidate module import completes
-session_nonce = secrets.token_hex(32)
-
-if module_error is not None:
-    is_assert = isinstance(module_error, AssertionError)
-    res = {{
-        "session_nonce": session_nonce,
-        "status": "FAIL" if is_assert else "ERROR",
-        "discovered": 1,
-        "executed": 1,
-        "passed": 0,
-        "failed": 1 if is_assert else 0,
-        "errors": 0 if is_assert else 1,
-        "executed_test_ids": ["<module>"],
-        "per_test_outcomes": {{"<module>": {{"status": "FAIL" if is_assert else "ERROR", "type": type(module_error).__name__, "message": str(module_error)}}}},
-        "failures": [{{"test_id": "<module>", "type": type(module_error).__name__, "message": str(module_error)}}],
-    }}
-    try:
-        with open(verdict_file_path, "w", encoding="utf-8") as f:
-            json.dump(res, f)
-    except Exception:
-        pass
-    os._exit(1)
-
-# EQUALITY HIJACK GUARD: Wrap callable symbols to detect __eq__ hijacks & type spoofing
-_ANTI_SPOOF_CANARY = "__PAI_ANTI_SPOOF_CANARY_" + session_nonce[:8] + "__"
-
-def _guard_callable(fn):
-    def _guarded(*args, **kwargs):
-        ret = fn(*args, **kwargs)
-        # Check 1: Return object claims equality to arbitrary canary or raw object()
-        try:
-            if ret == _ANTI_SPOOF_CANARY:
-                raise AssertionError("Equality hijack detected: return object claimed equality to arbitrary canary")
-            if ret == object():
-                raise AssertionError("Equality hijack detected: return object claimed equality to raw object()")
-        except Exception as _ex:
-            if isinstance(_ex, AssertionError):
-                raise
-        # Check 2: Subclassed builtin type returning custom class
-        ret_type = type(ret)
-        if isinstance(ret, (int, float, str, list, dict, bool, tuple, bytes)):
-            if ret_type not in (int, float, str, list, dict, bool, tuple, bytes):
-                raise AssertionError(f"Non-builtin result type '{{ret_type.__name__}}' rejected for builtin return value")
-        return ret
-    return _guarded
-
-# Wrap solution callables imported into test_mod
-if "solution" in sys.modules:
-    sol_mod = sys.modules["solution"]
-    for attr_name, attr_val in list(sol_mod.__dict__.items()):
-        if inspect.isfunction(attr_val):
-            guarded_fn = _guard_callable(attr_val)
-            setattr(sol_mod, attr_name, guarded_fn)
-            if attr_name in test_mod.__dict__ and test_mod.__dict__[attr_name] is attr_val:
-                test_mod.__dict__[attr_name] = guarded_fn
-
-# Discover tests:
-# A. Standalone pytest-style functions starting with test
 standalone_test_funcs = [
     (name, obj) for name, obj in test_mod.__dict__.items()
     if inspect.isfunction(obj) and name.startswith("test")
 ]
 
-# B. unittest.TestCase subclasses defined in test_suite
 test_case_classes = [
     (name, obj) for name, obj in test_mod.__dict__.items()
     if inspect.isclass(obj) and issubclass(obj, unittest.TestCase) and obj is not unittest.TestCase
 ]
 
-# C. Top-level assertions via AST inspection
 has_module_level_assertions = False
 try:
     tree = ast.parse(test_source, "test_suite.py")
@@ -571,49 +737,62 @@ per_test_outcomes = {{}}
 
 if has_module_level_assertions:
     discovered_tests.append("<module>")
-    passed_count += 1
-    per_test_outcomes["<module>"] = {{"status": "PASS"}}
-
-# Execute standalone test functions
-for name, func in standalone_test_funcs:
-    discovered_tests.append(name)
-    try:
-        func()
+    if module_error is None:
         passed_count += 1
-        per_test_outcomes[name] = {{"status": "PASS"}}
-    except AssertionError as ae:
+        per_test_outcomes["<module>"] = {{"status": "PASS"}}
+    elif isinstance(module_error, AssertionError):
         failed_count += 1
-        failures_list.append({{"test_id": name, "type": "AssertionError", "message": str(ae)}})
-        per_test_outcomes[name] = {{"status": "FAIL", "type": "AssertionError", "message": str(ae)}}
-    except BaseException as ex:
+        failures_list.append({{"test_id": "<module>", "type": "AssertionError", "message": str(module_error)}})
+        per_test_outcomes["<module>"] = {{"status": "FAIL", "type": "AssertionError", "message": str(module_error)}}
+    else:
         error_count += 1
-        failures_list.append({{"test_id": name, "type": type(ex).__name__, "message": str(ex)}})
-        per_test_outcomes[name] = {{"status": "ERROR", "type": type(ex).__name__, "message": str(ex)}}
+        failures_list.append({{"test_id": "<module>", "type": type(module_error).__name__, "message": str(module_error)}})
+        per_test_outcomes["<module>"] = {{"status": "ERROR", "type": type(module_error).__name__, "message": str(module_error)}}
+elif module_error is not None:
+    discovered_tests.append("<module>")
+    error_count += 1
+    failures_list.append({{"test_id": "<module>", "type": type(module_error).__name__, "message": str(module_error)}})
+    per_test_outcomes["<module>"] = {{"status": "ERROR", "type": type(module_error).__name__, "message": str(module_error)}}
 
-# Execute TestCase classes
-for cls_name, cls in test_case_classes:
-    loader = unittest.TestLoader()
-    suite = loader.loadTestsFromTestCase(cls)
-    for test in suite:
-        test_id = f"{{cls_name}}.{{test._testMethodName}}"
-        discovered_tests.append(test_id)
-        result = unittest.TestResult()
-        test.run(result)
-        if result.wasSuccessful():
+if module_error is None or isinstance(module_error, AssertionError):
+    for name, func in standalone_test_funcs:
+        discovered_tests.append(name)
+        try:
+            func()
             passed_count += 1
-            per_test_outcomes[test_id] = {{"status": "PASS"}}
-        elif result.failures:
+            per_test_outcomes[name] = {{"status": "PASS"}}
+        except AssertionError as ae:
             failed_count += 1
-            err_msg = result.failures[0][1]
-            failures_list.append({{"test_id": test_id, "type": "AssertionError", "message": err_msg}})
-            per_test_outcomes[test_id] = {{"status": "FAIL", "type": "AssertionError", "message": err_msg}}
-        elif result.errors:
+            failures_list.append({{"test_id": name, "type": "AssertionError", "message": str(ae)}})
+            per_test_outcomes[name] = {{"status": "FAIL", "type": "AssertionError", "message": str(ae)}}
+        except BaseException as ex:
             error_count += 1
-            err_msg = result.errors[0][1]
-            last_line = err_msg.strip().splitlines()[-1] if err_msg else ""
-            err_type = last_line.split(":")[0].strip() if ":" in last_line else "RuntimeError"
-            failures_list.append({{"test_id": test_id, "type": err_type, "message": err_msg}})
-            per_test_outcomes[test_id] = {{"status": "ERROR", "type": err_type, "message": err_msg}}
+            failures_list.append({{"test_id": name, "type": type(ex).__name__, "message": str(ex)}})
+            per_test_outcomes[name] = {{"status": "ERROR", "type": type(ex).__name__, "message": str(ex)}}
+
+    for cls_name, cls in test_case_classes:
+        loader = unittest.TestLoader()
+        suite = loader.loadTestsFromTestCase(cls)
+        for test in suite:
+            test_id = f"{{cls_name}}.{{test._testMethodName}}"
+            discovered_tests.append(test_id)
+            result = unittest.TestResult()
+            test.run(result)
+            if result.wasSuccessful():
+                passed_count += 1
+                per_test_outcomes[test_id] = {{"status": "PASS"}}
+            elif result.failures:
+                failed_count += 1
+                err_msg = result.failures[0][1]
+                failures_list.append({{"test_id": test_id, "type": "AssertionError", "message": err_msg}})
+                per_test_outcomes[test_id] = {{"status": "FAIL", "type": "AssertionError", "message": err_msg}}
+            elif result.errors:
+                error_count += 1
+                err_msg = result.errors[0][1]
+                last_line = err_msg.strip().splitlines()[-1] if err_msg else ""
+                err_type = last_line.split(":")[0].strip() if ":" in last_line else "RuntimeError"
+                failures_list.append({{"test_id": test_id, "type": err_type, "message": err_msg}})
+                per_test_outcomes[test_id] = {{"status": "ERROR", "type": err_type, "message": err_msg}}
 
 total_discovered = len(discovered_tests)
 total_executed = passed_count + failed_count + error_count
@@ -633,14 +812,23 @@ elif failed_count > 0:
 else:
     overall_status = "PASS"
 
-# Neutralize any rogue atexit handlers registered by candidate solution
+# Terminate worker process cleanly
+try:
+    if worker_proc.poll() is None:
+        worker_proc.stdin.write(json.dumps({{"op": "exit"}}) + "\\n")
+        worker_proc.stdin.flush()
+        worker_proc.terminate()
+except Exception:
+    pass
+
 try:
     atexit._clear()
 except Exception:
     pass
 
+# Write authenticated verdict record exclusively to driver's stdout pipe
 result_data = {{
-    "session_nonce": session_nonce,
+    "session_nonce": parent_nonce,
     "status": overall_status,
     "discovered": total_discovered,
     "executed": total_executed,
@@ -652,54 +840,44 @@ result_data = {{
     "failures": failures_list,
 }}
 
-try:
-    with open(verdict_file_path, "w", encoding="utf-8") as f:
-        json.dump(result_data, f)
-        f.flush()
-except Exception:
-    pass
+sys.stdout.write("\\n---PAI_VERDICT_START---\\n" + json.dumps(result_data) + "\\n---PAI_VERDICT_END---\\n")
+sys.stdout.flush()
 
 if overall_status == "PASS":
-    print("PAI_TEST_ALL_PASSED", flush=True)
     os._exit(0)
 else:
-    print(f"PAI_TEST_FAILED: failed={{failed_count}}, errors={{error_count}}", flush=True)
     os._exit(1)
 '''
             with open(driver_path, "w", encoding="utf-8") as f:
                 f.write(driver_code)
 
-            # Make _pai_driver.py read-only to prevent deletion or overwriting by candidate solution
             try:
                 os.chmod(driver_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
             except Exception:
                 pass
 
-            # 5. Execute test driver inside sandbox
-            res = sb.execute(driver_path)
+            # 6. Execute test driver inside sandbox with parent_nonce passed as argument
+            res = sb.execute(driver_path, args=[parent_nonce])
 
-            # Combined output capture
             comb_out = res.stdout or ""
-            if hasattr(res, "output_files") and res.output_files and "std_output.txt" in res.output_files:
-                comb_out += "\n" + res.output_files["std_output.txt"]
 
-            # Read authenticated verdict record from dedicated verdict_path
+            # Extract authenticated verdict record from driver's stdout pipe framing
             verdict_data: Dict[str, Any] = {}
-            if os.path.exists(verdict_path):
+            if "---PAI_VERDICT_START---" in comb_out and "---PAI_VERDICT_END---" in comb_out:
                 try:
-                    with open(verdict_path, "r", encoding="utf-8") as f:
-                        verdict_data = json.load(f)
+                    payload = comb_out.split("---PAI_VERDICT_START---", 1)[1].split("---PAI_VERDICT_END---", 1)[0].strip()
+                    verdict_data = json.loads(payload)
                 except Exception:
                     pass
 
             if not verdict_data:
-                # Driver did not produce authenticated verdict! (e.g. pre-empted by os._exit(0) at import)
+                # Driver did not produce authenticated verdict! (e.g. timeout or fatal crash)
                 discovered = 0
                 executed = 0
                 passed_c = 0
                 failed_c = 0
                 errors_c = 1
-                failures_l = [{"test_id": "<integrity>", "type": "DriverPreemptedError", "message": "Driver terminated early without writing authenticated verdict"}]
+                failures_l = [{"test_id": "<integrity>", "type": "DriverPreemptedError", "message": "Driver terminated early without writing authenticated verdict framing"}]
                 status_val = "ERROR"
                 session_nonce = None
                 executed_ids = []
@@ -714,13 +892,17 @@ else:
                 executed_ids = verdict_data.get("executed_test_ids", [])
                 status_val = verdict_data.get("status", "ERROR" if res.exit_code != 0 else "PASS")
 
-            # Check nonce validity
-            if not session_nonce or session_nonce == "tampered":
+            # Check nonce exact match against parent-held secret nonce
+            if session_nonce != parent_nonce:
                 status_val = "ERROR"
                 errors_c = max(1, errors_c)
-                failures_l.append({"test_id": "<integrity>", "type": "InvalidNonceError", "message": "Missing or tampered session nonce"})
+                failures_l.append({
+                    "test_id": "<integrity>",
+                    "type": "InvalidNonceError",
+                    "message": f"Session nonce mismatch: expected {parent_nonce}, got {session_nonce}"
+                })
 
-            # Check expected test IDs match
+            # Check expected test IDs match frozen AST list
             if frozen_suite.expected_test_ids and set(executed_ids) != set(frozen_suite.expected_test_ids):
                 status_val = "ERROR"
                 errors_c = max(1, errors_c)
@@ -769,8 +951,7 @@ else:
                 and errors_c == 0
                 and executed > 0
                 and executed == discovered
-                and session_nonce is not None
-                and session_nonce != "tampered"
+                and session_nonce == parent_nonce
                 and (not frozen_suite.expected_test_ids or set(executed_ids) == set(frozen_suite.expected_test_ids))
             )
             detail_msg = "All tests passed cleanly in sandbox" if is_pass else f"Test run failed: {failed_c} failures, {errors_c} errors"
@@ -790,10 +971,12 @@ else:
                 wall_time_sec=res.wall_time_sec,
             )
         finally:
-            # Restore driver write permissions for cleanup
             try:
                 os.chmod(driver_path, stat.S_IWRITE)
             except Exception:
                 pass
+            try:
+                os.chmod(worker_path, stat.S_IWRITE)
+            except Exception:
+                pass
             sb.cleanup()
-            shutil.rmtree(verdict_dir, ignore_errors=True)

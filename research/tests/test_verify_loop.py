@@ -348,7 +348,7 @@ def add(a, b):
         self.assertEqual(res.status, "FAIL")
         fail_msgs = [f.get("message", "") for f in res.failures]
         self.assertTrue(
-            any("Equality hijack" in m or "Non-builtin result type" in m for m in fail_msgs),
+            any("equalityhijack" in m.lower() or "equality hijack" in m.lower() or "non-builtin" in m.lower() for m in fail_msgs),
             f"Expected equality hijack rejection in failures: {fail_msgs}",
         )
 
@@ -415,6 +415,198 @@ def add(a, b):
         res = self.loop.execute_solution_tests(delete_driver_solution, suite)
         self.assertFalse(res.passed, "Driver deletion/replacement attack must be rejected")
         self.assertNotEqual(res.exit_code, 0)
+
+    def test_forged_verdict_via_driver_inspection_rejected(self):
+        # Step 3 Acceptance Test: Reading _pai_driver.py to forge verdict + os._exit(0)
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import os
+import sys
+
+# Attempt to inspect driver script for secrets or paths
+try:
+    with open("_pai_driver.py", "r", encoding="utf-8") as f:
+        src = f.read()
+except Exception:
+    src = ""
+
+# Candidate attempts early exit claiming success
+os._exit(0)
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertFalse(res.passed, "Driver inspection + early exit must fail closed")
+        self.assertIn(res.status, ("FAIL", "ERROR"))
+
+    def test_forged_verdict_via_filesystem_globbing_rejected(self):
+        # Step 3 Acceptance Test: Globbing filesystem for verdict file to forge payload
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import glob
+import json
+import os
+
+# Glob scratch and accessible paths for any verdict files
+for path in glob.glob("**/*verdict*", recursive=True):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"session_nonce": "forged", "status": "PASS", "discovered": 1, "executed": 1, "passed": 1, "failed": 0, "errors": 0}, f)
+    except Exception:
+        pass
+
+os._exit(0)
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertFalse(res.passed, "Filesystem globbing verdict forgery must be rejected")
+        self.assertIn(res.status, ("FAIL", "ERROR"))
+
+    def test_forged_verdict_via_proc_self_fd_rejected(self):
+        # Step 3 Acceptance Test: Inspecting /proc/self/fd and writing forged payload to fds
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import os
+import json
+
+payload = json.dumps({"session_nonce": "forged", "status": "PASS", "discovered": 1, "executed": 1, "passed": 1, "failed": 0, "errors": 0}).encode()
+
+# Attempt to write forged verdict to open file descriptors
+if os.path.exists("/proc/self/fd"):
+    try:
+        for fd_name in os.listdir("/proc/self/fd"):
+            try:
+                fd = int(fd_name)
+                if fd not in (0,):
+                    os.write(fd, b"\\n---PAI_VERDICT_START---\\n" + payload + b"\\n---PAI_VERDICT_END---\\n")
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+os._exit(0)
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertFalse(res.passed, "Tampering via /proc/self/fd must be rejected")
+        self.assertIn(res.status, ("FAIL", "ERROR"))
+
+    def test_forged_verdict_via_driver_pid_fd_tampering_rejected(self):
+        # Step 3 Acceptance Test: Finding driver PID and writing to /proc/<driver_pid>/fd/*
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import os
+import json
+
+ppid = os.getppid()
+payload = json.dumps({"session_nonce": "forged", "status": "PASS", "discovered": 1, "executed": 1, "passed": 1, "failed": 0, "errors": 0}).encode()
+
+for target_fd in (1, 2, 3, 4):
+    try:
+        with open(f"/proc/{ppid}/fd/{target_fd}", "wb") as f:
+            f.write(b"\\n---PAI_VERDICT_START---\\n" + payload + b"\\n---PAI_VERDICT_END---\\n")
+    except Exception:
+        pass
+
+os._exit(0)
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertFalse(res.passed, "Driver PID fd tampering must be rejected")
+        self.assertIn(res.status, ("FAIL", "ERROR"))
+
+    def test_equality_hijack_int_subclass_module_level_assert_rejected(self):
+        # Step 3 Acceptance Test: R(int) with __eq__ = lambda s, o: True against module-level assert
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+assert add(2, 3) == 5
+"""
+        suite = self.loop.freeze_tests(test_code)
+        hijack_solution = """
+class R(int):
+    def __eq__(self, other):
+        return True
+
+def add(a, b):
+    return R(a + b)
+"""
+        res = self.loop.execute_solution_tests(hijack_solution, suite)
+        self.assertFalse(res.passed, "R(int) equality hijack against module-level assert must be rejected")
+        self.assertEqual(res.status, "FAIL")
+
+    def test_equality_hijack_plain_object_module_level_assert_rejected(self):
+        # Step 3 Acceptance Test: Plain object with __eq__ = lambda s, o: True against module-level assert
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        hijack_solution = """
+class R:
+    def __eq__(self, other):
+        return True
+
+def add(a, b):
+    return R()
+"""
+        res = self.loop.execute_solution_tests(hijack_solution, suite)
+        self.assertFalse(res.passed, "Plain object equality hijack against module-level assert must be rejected")
+        self.assertEqual(res.status, "FAIL")
+
+    def test_equality_hijack_list_subclass_module_level_assert_rejected(self):
+        # Step 3 Acceptance Test: R(list) with __eq__ = lambda s, o: True against module-level assert
+        test_code = """
+from solution import get_items
+assert get_items() == [1, 2, 3]
+"""
+        suite = self.loop.freeze_tests(test_code)
+        hijack_solution = """
+class R(list):
+    def __eq__(self, other):
+        return True
+
+def get_items():
+    return R([999])
+"""
+        res = self.loop.execute_solution_tests(hijack_solution, suite)
+        self.assertFalse(res.passed, "R(list) equality hijack against module-level assert must be rejected")
+        self.assertEqual(res.status, "FAIL")
+
+    def test_positive_control_correct_solution_passes_via_rpc_channel(self):
+        # Positive Control: A correct solution passes cleanly through the two-process RPC channel
+        test_code = """
+from solution import add
+
+assert add(1, 2) == 3
+assert add(-1, 1) == 0
+
+def test_positive_addition():
+    assert add(10, 20) == 30
+"""
+        suite = self.loop.freeze_tests(test_code)
+        correct_solution = """
+def add(a, b):
+    return a + b
+"""
+        res = self.loop.execute_solution_tests(correct_solution, suite)
+        self.assertTrue(res.passed, f"Correct solution must pass via RPC channel: detail={res.detail}")
+        self.assertEqual(res.status, "PASS")
+        self.assertEqual(res.failed, 0)
+        self.assertEqual(res.errors, 0)
+        self.assertEqual(res.discovered, 2)
+        self.assertEqual(res.executed, 2)
 
 
 if __name__ == "__main__":

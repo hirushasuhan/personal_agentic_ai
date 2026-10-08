@@ -441,5 +441,42 @@ Design requirements: verdict written by the trusted driver to a location the sol
 - *Current Mitigation*: The driver isolates the test module namespace (`test_suite`), generates nonces post-import, wraps solution callables with equality/type guards, disarms `atexit` hooks, and verifies integrity through out-of-scratch authenticated channels.
 - *Higher-Tier Roadmap*: For higher security tiers where hostile malware or sophisticated runtime tampering is modeled, each test call can be executed in an independent child process whose return code and output are supervised directly by the parent verifier outside the sandbox.
 
+### M2b step 3 review (commit `0d87ca7`, 2026-10-08) — not accepted; verdict channel still forgeable
+
+**Verified.** Linux host (bwrap 0.6.1): `Ran 277 tests ... OK (skipped=13)`. Rejected correctly by reviewer probes: the Step 2 forgeries (stdout marker, empty/complete `test_result.json` in scratch), overwriting or deleting `_pai_driver.py`, a daemon thread calling `os._exit(0)`, builtins monkeypatching; the equality-hijack guard rejects `R(int)`, a plain object and `R(list)` for pytest-style, unittest and `solution.add` suites. A correct solution passes and a wrong one fails.
+
+**S3-1 (blocking). The new verdict channel is forgeable.** The verdict directory is bound writable *into* the sandbox (`extra_writable_dirs=[verdict_dir]`), the full verdict path is written in plain text into `_pai_driver.py` (`verdict_file_path = "..."`), and that file is readable by the solution (it is only made read-only, not hidden). The parent never checks the nonce against a value it holds: it accepts any non-empty string other than `"tampered"`. A solution that reads `_pai_driver.py`, extracts the path, writes `{"session_nonce": "aaaa...", "status": "PASS", "discovered": N, "executed": N, "failed": 0, "errors": 0, "executed_test_ids": [<ids copied from the test file>]}` there and calls `os._exit(0)` at import is reported `passed=True, status=PASS` (reproduced for both a plain-assert suite and a pytest-style suite). The named test `test_forged_test_result_with_early_exit_rejected` only writes the old `test_result.json` into scratch, so it does not cover this attack. A nonce generated inside the same process that the solution runs in, and checked only for non-emptiness, gives no integrity.
+
+**S3-2 (blocking). The equality-hijack guard does not apply to module-level assertions.** For `from solution import add` followed by a top-level `assert add(1,2)==3`, the three hijack solutions (`R(int)`, plain object, `R(list)` with `__eq__` always True) pass. The guard wraps callables only on the test-function path.
+
+**Required design change (replaces the in-process verdict).** Tests and solution must not share a process with the thing that writes the verdict:
+1. A trusted driver process (no candidate code) loads the frozen tests and runs them. It calls the solution through a child process (also inside the sandbox) over a pipe it created, exchanging JSON values only. Every return value reaches the tests as plain JSON (int, float, str, list, dict, bool, None), which removes `__eq__` hijacks, forged verdicts from the child and object spoofing by construction. A child that exits early, crashes or sends malformed data fails the test; it cannot write the verdict.
+2. The verdict leaves the sandbox through a pipe or file descriptor held only by the driver (the child is started with `close_fds=True`), not through a path that is mounted writable for the candidate. Set the driver non-dumpable (`prctl(PR_SET_DUMPABLE, 0)`) so the child cannot open `/proc/<driver>/fd/*`. On Windows the same split applies (driver process and child process under the job object, anonymous pipes).
+3. The parent generates and checks the nonce itself and compares the executed test-id list with the frozen AST list; it never trusts a field only because it is present.
+4. Scope: this works for function-level tasks whose arguments and results are JSON values. Tasks needing live objects must be marked unsupported for `pai code` v1 rather than falling back to the in-process path.
+
+**Acceptance tests (named, all must be rejected):** the forged-verdict solution above (including a variant that globs for the verdict file and a variant that reads `/proc/self/fd`), a solution that finds the driver pid and writes to its fds, the three hijack classes against a module-level-assert suite, plus the Step 2 and Step 3 tests already present. Add a positive control that a correct solution passes through the same channel.
+
+### M2b step 3 re-implementation & verification (2026-10-08) — Two-Process Architecture, JSON RPC & Pipe Verdict Channel
+
+**Architecture Implementation:**
+1. **Two-Process Split Inside Sandbox**:
+   - **Trusted Driver Process (`_pai_driver.py`)**: Runs frozen test suite without ever importing candidate code. Set non-dumpable via `prctl(PR_SET_DUMPABLE, 0)` on Linux to restrict `/proc/<driver>/fd/*` and memory access. Injects `SolutionProxyModule` exposing proxy callables for candidate functions.
+   - **Candidate Worker Process (`_pai_worker.py`)**: Spawned as isolated child process with `close_fds=True`, communicating with the driver strictly via standard anonymous pipes exchanging JSON-serialized values. Strictly validates that results are genuine builtin primitives (`int, float, str, bool, type(None)` or lists/dicts of them). Rejects custom classes or subclassed primitives (`class R(int)`, `class R(list)`, `object()`) with `EqualityHijackError`, mapped to `AssertionError` in the test suite.
+2. **Driver-Held Verdict Channel & Parent-Verified Nonce**:
+   - Verdict is written exclusively to the driver process's standard output pipe enclosed within `---PAI_VERDICT_START---` and `---PAI_VERDICT_END---` framing. No writable verdict mount directory exists inside the sandbox.
+   - Candidate worker does not inherit driver's stdout pipe (`close_fds=True`) and cannot open it via `/proc` due to `PR_SET_DUMPABLE = 0`.
+   - Parent generates 32-byte hex `parent_nonce` outside the sandbox and passes it to the driver. The parent strictly validates exact equality (`session_nonce == parent_nonce`) and set equality of executed test IDs against the frozen AST list.
+3. **Acceptance Tests Added & Verified**:
+   - `test_forged_verdict_via_driver_inspection_rejected`: Candidate reads `_pai_driver.py`, attempts early exit -> REJECTED.
+   - `test_forged_verdict_via_filesystem_globbing_rejected`: Candidate globs scratch and filesystem for verdict files -> REJECTED.
+   - `test_forged_verdict_via_proc_self_fd_rejected`: Candidate inspects `/proc/self/fd` and writes payloads to open fds -> REJECTED.
+   - `test_forged_verdict_via_driver_pid_fd_tampering_rejected`: Candidate finds driver PID and writes to `/proc/<driver_pid>/fd/*` -> REJECTED.
+   - `test_equality_hijack_int_subclass_module_level_assert_rejected`: `R(int)` against module-level `assert add(1, 2) == 3` -> REJECTED (`FAIL`).
+   - `test_equality_hijack_plain_object_module_level_assert_rejected`: `plain object()` against module-level `assert add(1, 2) == 3` -> REJECTED (`FAIL`).
+   - `test_equality_hijack_list_subclass_module_level_assert_rejected`: `R(list)` against module-level assert -> REJECTED (`FAIL`).
+   - `test_positive_control_correct_solution_passes_via_rpc_channel`: Correct solution passes cleanly through the two-process RPC channel (`PASS`, 2/2 tests).
+   - Plus all existing Step 2 & Step 3 tests (31 tests total in `test_verify_loop.py`). Full suite: 285 passed, 0 failed (skipped=19).
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

@@ -203,7 +203,7 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
 
         return launcher_path
 
-    def _build_bwrap_args(self, launcher_path: str, script_path: str) -> list[str]:
+    def _build_bwrap_args(self, launcher_path: str, script_path: str, extra_args: Optional[List[str]] = None) -> list[str]:
         """Constructs the complete bwrap command-line argument list."""
         bwrap_bin = shutil.which("bwrap")
         if not bwrap_bin:
@@ -289,10 +289,12 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             launcher_path,
             script_path,
         ])
+        if extra_args:
+            args.extend(extra_args)
 
         return args
 
-    def execute(self, script_path: str) -> SandboxResult:
+    def execute(self, script_path: str, args: Optional[List[str]] = None) -> SandboxResult:
         """
         Executes a Python script inside the bubblewrap sandbox with resource limits.
         """
@@ -306,7 +308,7 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             )
 
         launcher_path = self._prepare_launcher(script_path)
-        cmd = self._build_bwrap_args(launcher_path, script_path)
+        cmd = self._build_bwrap_args(launcher_path, script_path, extra_args=args)
 
         start_time = time.monotonic()
         try:

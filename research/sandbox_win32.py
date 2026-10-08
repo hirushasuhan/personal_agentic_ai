@@ -117,8 +117,17 @@ class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
     ]
 
 
+class SECURITY_ATTRIBUTES(ctypes.Structure):
+    _fields_ = [
+        ("nLength", wintypes.DWORD),
+        ("lpSecurityDescriptor", ctypes.c_void_p),
+        ("bInheritHandle", wintypes.BOOL),
+    ]
+
+
 # Win32 Constants
 PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES = 0x20009
+PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x00020002
 EXTENDED_STARTUPINFO_PRESENT = 0x00080000
 CREATE_SUSPENDED = 0x00000004
 CREATE_NO_WINDOW = 0x08000000
@@ -238,10 +247,12 @@ class Win32Sandbox:
         scratch_dir: Optional[str] = None,
         max_output_bytes: int = 65536,
         extra_writable_dirs: Optional[List[str]] = None,
+        max_processes: int = 1,
     ):
         self.memory_mb = min(float(memory_mb), 2048.0)
         self.timeout_sec = min(float(timeout_sec), 30.0)
         self.max_output_bytes = max_output_bytes
+        self.max_processes = max(1, int(max_processes))
 
         self.k32 = _get_k32()
         self.uenv = _get_uenv()
@@ -286,7 +297,7 @@ class Win32Sandbox:
             | JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION
         )
         eli.BasicLimitInformation.LimitFlags = limit_flags
-        eli.BasicLimitInformation.ActiveProcessLimit = 1  # Block child process spawns
+        eli.BasicLimitInformation.ActiveProcessLimit = self.max_processes  # Bounds child process count
         # 100ns units: 1 sec = 10,000,000 units
         eli.BasicLimitInformation.PerProcessUserTimeLimit = int(self.timeout_sec * 10_000_000)
 
@@ -353,10 +364,10 @@ class Win32Sandbox:
 
         self._is_setup = True
 
-    def execute(self, script_path: str) -> SandboxResult:
+    def execute(self, script_path: str, args: Optional[List[str]] = None) -> SandboxResult:
         """
         Executes a Python script inside the configured AppContainer + Job Object sandbox.
-        Stdout and stderr are captured and capped at 64 KB.
+        Stdout and stderr are captured via anonymous pipe and capped at 64 KB.
         """
         if not self._is_setup:
             self.setup()
@@ -372,13 +383,26 @@ class Win32Sandbox:
         else:
             target_script = script_path
 
-        # 1. Setup PROC_THREAD_ATTRIBUTE_LIST with PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES
+        # Setup anonymous pipe with SDDL granting full control to AppContainer
+        pSD = ctypes.c_void_p()
+        self.adv.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            "D:(A;;GA;;;WD)(A;;GA;;;AC)", 1, ctypes.byref(pSD), None
+        )
+        sa = SECURITY_ATTRIBUTES()
+        sa.nLength = ctypes.sizeof(SECURITY_ATTRIBUTES)
+        sa.lpSecurityDescriptor = pSD
+        sa.bInheritHandle = True
+
+        hReadOut = wintypes.HANDLE()
+        hWriteOut = wintypes.HANDLE()
+        self.k32.CreatePipe(ctypes.byref(hReadOut), ctypes.byref(hWriteOut), ctypes.byref(sa), 0)
+        self.k32.SetHandleInformation(hReadOut, 1, 0)  # Read end non-inheritable
+
+        # 1. Setup PROC_THREAD_ATTRIBUTE_LIST with PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES and HANDLE_LIST
         attr_size = wintypes.DWORD(0)
-        # SAFETY: Initial query for required buffer size. Returns FALSE and sets last error to ERROR_INSUFFICIENT_BUFFER.
-        self.k32.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(attr_size))
+        self.k32.InitializeProcThreadAttributeList(None, 2, 0, ctypes.byref(attr_size))
         attr_buf = ctypes.create_string_buffer(attr_size.value)
-        # SAFETY: Initializes the attribute list buffer of the queried size.
-        self.k32.InitializeProcThreadAttributeList(attr_buf, 1, 0, ctypes.byref(attr_size))
+        self.k32.InitializeProcThreadAttributeList(attr_buf, 2, 0, ctypes.byref(attr_size))
 
         sec_caps = SECURITY_CAPABILITIES()
         sec_caps.AppContainerSid = self.psid
@@ -386,7 +410,6 @@ class Win32Sandbox:
         sec_caps.CapabilityCount = 0
         sec_caps.Reserved = 0
 
-        # SAFETY: Sets the AppContainer security capabilities attribute for CreateProcessW.
         ok = self.k32.UpdateProcThreadAttribute(
             attr_buf,
             0,
@@ -398,26 +421,44 @@ class Win32Sandbox:
         )
         if not ok:
             err = ctypes.get_last_error()
-            raise OSError(f"UpdateProcThreadAttribute failed with error {err}")
+            raise OSError(f"UpdateProcThreadAttribute (SECURITY_CAPABILITIES) failed with error {err}")
+
+        handle_array = (wintypes.HANDLE * 1)(hWriteOut)
+        ok = self.k32.UpdateProcThreadAttribute(
+            attr_buf,
+            0,
+            PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
+            ctypes.byref(handle_array),
+            ctypes.sizeof(handle_array),
+            None,
+            None
+        )
+        if not ok:
+            err = ctypes.get_last_error()
+            raise OSError(f"UpdateProcThreadAttribute (HANDLE_LIST) failed with error {err}")
 
         # 2. Setup STARTUPINFOEXW
         si = STARTUPINFOEXW()
         si.StartupInfo.cb = ctypes.sizeof(STARTUPINFOEXW)
         si.lpAttributeList = ctypes.cast(attr_buf, ctypes.c_void_p)
+        si.StartupInfo.dwFlags = STARTF_USESTDHANDLES
+        si.StartupInfo.hStdOutput = hWriteOut
+        si.StartupInfo.hStdError = hWriteOut
 
         pi = PROCESS_INFORMATION()
 
         cmd = f'"{runtime_py}" -I -B -s -S "{target_script}"'
+        if args:
+            cmd += " " + " ".join(f'"{a}"' for a in args)
         flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED | CREATE_NO_WINDOW
 
         t0 = time.time()
-        # SAFETY: CreateProcessW spawns child suspended so it can be assigned to the Job Object before execution.
         created = self.k32.CreateProcessW(
             None,
             cmd,
             None,
             None,
-            False,
+            True,  # bInheritHandles = True so hWriteOut is inherited
             flags,
             None,
             self.scratch_dir,
@@ -426,55 +467,74 @@ class Win32Sandbox:
         )
         if not created:
             err = ctypes.get_last_error()
+            self.k32.CloseHandle(hWriteOut)
+            self.k32.CloseHandle(hReadOut)
             raise OSError(f"CreateProcessW failed with error {err}")
 
         # 3. Assign process to Job Object
-        # SAFETY: AssignProcessToJobObject binds the newly created suspended process to our resource limits.
         assigned = self.k32.AssignProcessToJobObject(self.hJob, pi.hProcess)
         if not assigned:
             err = ctypes.get_last_error()
             self.k32.TerminateProcess(pi.hProcess, 1)
             self.k32.CloseHandle(pi.hProcess)
             self.k32.CloseHandle(pi.hThread)
+            self.k32.CloseHandle(hWriteOut)
+            self.k32.CloseHandle(hReadOut)
             raise OSError(f"AssignProcessToJobObject failed with error {err}")
 
         # 4. Resume thread to begin execution
-        # SAFETY: ResumeThread transitions suspended thread to runnable state.
         self.k32.ResumeThread(pi.hThread)
 
         # 5. Wait with timeout
         timeout_ms = int(self.timeout_sec * 1000)
-        # SAFETY: WaitForSingleObject blocks until child process terminates or timeout expires.
         wait_res = self.k32.WaitForSingleObject(pi.hProcess, timeout_ms)
 
         timed_out = (wait_res == WAIT_TIMEOUT)
         if timed_out:
-            # SAFETY: TerminateJobObject terminates all processes attached to the job unconditionally.
             self.k32.TerminateJobObject(self.hJob, 99)
             exit_code = 99
         else:
             raw_code = wintypes.DWORD()
-            # SAFETY: GetExitCodeProcess retrieves process termination code.
             self.k32.GetExitCodeProcess(pi.hProcess, ctypes.byref(raw_code))
             exit_code = raw_code.value
 
         wall_time = round(time.time() - t0, 3)
 
-        # SAFETY: Close handles to avoid resource leaks.
         self.k32.CloseHandle(pi.hProcess)
         self.k32.CloseHandle(pi.hThread)
-
-        # Delete attribute list
-        # SAFETY: DeleteProcThreadAttributeList releases resources allocated by InitializeProcThreadAttributeList.
         self.k32.DeleteProcThreadAttributeList(attr_buf)
 
-        # Read outputs safely capped at 64 KB
-        stdout_str = ""
+        # Close parent write end so pipe hits EOF
+        self.k32.CloseHandle(hWriteOut)
+
+        # Read pipe output
+        pipe_output = b""
+        chunk = ctypes.create_string_buffer(4096)
+        bytes_read = wintypes.DWORD(0)
+        while len(pipe_output) < self.max_output_bytes:
+            avail = wintypes.DWORD(0)
+            if not self.k32.PeekNamedPipe(hReadOut, None, 0, None, ctypes.byref(avail), None):
+                break
+            if avail.value == 0:
+                break
+            to_read = min(4096, avail.value, self.max_output_bytes - len(pipe_output))
+            if not self.k32.ReadFile(hReadOut, chunk, to_read, ctypes.byref(bytes_read), None) or bytes_read.value == 0:
+                break
+            pipe_output += chunk.raw[:bytes_read.value]
+
+        self.k32.CloseHandle(hReadOut)
+        if pSD.value:
+            self.k32.LocalFree(pSD)
+
+        stdout_str = pipe_output.decode("utf-8", errors="replace")
         stderr_str = ""
+
         if os.path.exists(out_file):
             try:
                 with open(out_file, "r", encoding="utf-8", errors="replace") as f:
-                    stdout_str = f.read(65536)
+                    file_out = f.read(65536)
+                    if file_out:
+                        stdout_str = (stdout_str + "\n" + file_out).strip() if stdout_str else file_out
             except Exception:
                 pass
 

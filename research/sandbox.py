@@ -45,10 +45,20 @@ def get_sandbox(
     scratch_dir: Optional[str] = None,
     max_output_bytes: int = 65536,
     extra_writable_dirs: Optional[list] = None,
+    max_processes: int = 1,
 ):
     """Returns the platform-specific sandbox instance."""
     if PlatformSandbox is None:
         raise NotImplementedError(f"No sandbox runner available for platform: {sys.platform}")
+    if sys.platform == "win32":
+        return PlatformSandbox(
+            memory_mb=memory_mb,
+            timeout_sec=timeout_sec,
+            scratch_dir=scratch_dir,
+            max_output_bytes=max_output_bytes,
+            extra_writable_dirs=extra_writable_dirs,
+            max_processes=max_processes,
+        )
     return PlatformSandbox(
         memory_mb=memory_mb,
         timeout_sec=timeout_sec,
