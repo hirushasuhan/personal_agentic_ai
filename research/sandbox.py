@@ -8,10 +8,13 @@ Provides an OS-agnostic facade dispatching to platform-specific sandbox implemen
 Fails closed if the platform boundary cannot be created or verified.
 """
 
-from __future__ import annotations
-
+import os
 import sys
 from typing import Any, Optional, Tuple
+
+_DIR = os.path.dirname(os.path.abspath(__file__))
+if _DIR not in sys.path:
+    sys.path.insert(0, _DIR)
 
 if sys.platform == "win32":
     from sandbox_win32 import Win32Sandbox as PlatformSandbox

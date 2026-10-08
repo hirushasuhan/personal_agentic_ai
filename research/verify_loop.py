@@ -1,0 +1,358 @@
+"""
+Verify Loop & Frozen Test Harness (Milestone M2b / ADR-011 v2.1)
+
+Enforces:
+1. Frozen Model-Written & User Tests:
+   Tests are parsed, analyzed for assertions, and cryptographically hashed (SHA-256)
+   before any solution code is generated or repaired. Any mutation to the test code
+   or hash during the repair loop raises TestMutationError.
+2. Stub Probe (Fail-Vacuous):
+   Every test suite is executed inside the sandbox against a trivial wrong solution
+   (stub returning None for all symbols). If tests pass against the stub, the suite is
+   rejected as vacuous. Meaningful tests must fail against the stub.
+3. User Test Priority:
+   User-provided --tests take priority over model-written tests.
+4. Isolated Sandbox Execution:
+   All stub probes and solution test runs execute strictly inside the OS sandbox.
+"""
+
+from __future__ import annotations
+
+import ast
+import hashlib
+import os
+import shutil
+import sys
+import tempfile
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Set, Tuple
+
+# Ensure research root is on path
+_CURR_DIR = os.path.dirname(os.path.abspath(__file__))
+if _CURR_DIR not in sys.path:
+    sys.path.insert(0, _CURR_DIR)
+
+from sandbox import get_sandbox, is_sandbox_supported
+
+
+class TestMutationError(RuntimeError):
+    """Raised when frozen test code is modified during the verification or repair loop."""
+    pass
+
+
+class VacuousTestError(ValueError):
+    """Raised when a candidate test suite passes against a trivial stub implementation."""
+    pass
+
+
+class TestSyntaxError(ValueError):
+    """Raised when a candidate test suite has invalid Python syntax."""
+    pass
+
+
+@dataclass(frozen=True)
+class FrozenTestSuite:
+    """
+    Immutable representation of a frozen test suite.
+    Guarantees test code integrity across repair cycles.
+    """
+    test_code: str
+    test_hash: str
+    source: str  # "user" or "model"
+    target_symbols: Tuple[str, ...] = field(default_factory=tuple)
+    assertion_count: int = 0
+
+    @classmethod
+    def create(cls, test_code: str, source: str = "model") -> FrozenTestSuite:
+        """Parses, counts assertions, extracts referenced symbols, and computes SHA-256 hash."""
+        clean_code = test_code.strip()
+        if not clean_code:
+            raise VacuousTestError("Test suite is empty")
+
+        try:
+            tree = ast.parse(clean_code, filename="test_suite.py")
+        except SyntaxError as e:
+            raise TestSyntaxError(f"Test suite has invalid syntax: {e}") from e
+
+        symbols: Set[str] = set()
+        assertions = 0
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assert):
+                assertions += 1
+            elif isinstance(node, ast.Call):
+                # Check for unittest assertions (self.assertEqual, etc.)
+                if isinstance(node.func, ast.Attribute) and node.func.attr.startswith("assert"):
+                    assertions += 1
+                elif isinstance(node.func, ast.Name):
+                    symbols.add(node.func.id)
+                elif isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name):
+                    if node.func.value.id in ("solution", "sol"):
+                        symbols.add(node.func.attr)
+
+            elif isinstance(node, ast.ImportFrom):
+                if node.module in ("solution", "sol"):
+                    for alias in node.names:
+                        symbols.add(alias.name)
+
+        h = hashlib.sha256(clean_code.encode("utf-8")).hexdigest()
+
+        return cls(
+            test_code=clean_code,
+            test_hash=h,
+            source=source,
+            target_symbols=tuple(sorted(symbols)),
+            assertion_count=assertions,
+        )
+
+    def verify_integrity(self, test_code: str) -> None:
+        """Verifies that the candidate test code strictly matches the frozen SHA-256 hash."""
+        current_hash = hashlib.sha256(test_code.strip().encode("utf-8")).hexdigest()
+        if current_hash != self.test_hash:
+            raise TestMutationError(
+                f"Frozen test suite modified! Original hash: {self.test_hash}, attempted hash: {current_hash}"
+            )
+
+
+@dataclass
+class StubProbeResult:
+    """Outcome of running the stub probe against a test suite."""
+    passed: bool  # True = non-vacuous (tests properly rejected stub); False = vacuous (tests passed stub)
+    detail: str
+    stdout: str = ""
+    stderr: str = ""
+
+
+@dataclass
+class TestExecutionResult:
+    """Outcome of running a solution against the test suite."""
+    passed: bool
+    exit_code: int
+    stdout: str
+    stderr: str
+    detail: str
+    wall_time_sec: float = 0.0
+
+
+def generate_stub_code(symbols: Tuple[str, ...]) -> str:
+    """
+    Generates a trivial wrong solution stub defining all referenced symbols
+    to return None, ensuring any substantive assertion fails.
+    """
+    lines = [
+        "# Autogenerated Trivial Stub for Stub Probe (ADR-011 v2.1)",
+        "import sys",
+        "",
+        "class _TrivialStub:",
+        "    def __call__(self, *args, **kwargs):",
+        "        return None",
+        "    def __getattr__(self, name):",
+        "        return _TrivialStub()",
+        "    def __repr__(self):",
+        "        return '<TrivialStub>'",
+        "",
+    ]
+    # Define explicit stubs for all identified function/class names
+    for s in symbols:
+        lines.append(f"def {s}(*args, **kwargs):")
+        lines.append("    return None")
+        lines.append("")
+
+    # Module-level fallback __getattr__ so any other attribute/function returns None
+    lines.append("def __getattr__(name):")
+    lines.append("    return _TrivialStub()")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
+class VerifyLoop:
+    """
+    Manages frozen test registration, stub probe verification,
+    and isolated solution execution inside the OS sandbox.
+    """
+
+    def __init__(
+        self,
+        memory_mb: float = 512.0,
+        timeout_sec: float = 5.0,
+        max_repairs: int = 3,
+    ):
+        self.memory_mb = memory_mb
+        self.timeout_sec = timeout_sec
+        self.max_repairs = max_repairs
+
+    def freeze_tests(self, test_code: str, source: str = "model") -> FrozenTestSuite:
+        """Parses and freezes test code with cryptographic hashing."""
+        return FrozenTestSuite.create(test_code, source=source)
+
+    def prepare_test_suite(
+        self,
+        user_tests_path: Optional[str] = None,
+        model_test_code: Optional[str] = None,
+    ) -> FrozenTestSuite:
+        """
+        Prepares and freezes the test suite.
+        User-provided --tests strictly take priority over model-written tests.
+        """
+        if user_tests_path and os.path.exists(user_tests_path):
+            with open(user_tests_path, "r", encoding="utf-8") as f:
+                user_code = f.read()
+            return self.freeze_tests(user_code, source="user")
+
+        if model_test_code:
+            return self.freeze_tests(model_test_code, source="model")
+
+        raise ValueError("No test code provided: neither user_tests_path nor model_test_code was specified")
+
+    def run_stub_probe(self, suite: FrozenTestSuite) -> StubProbeResult:
+        """
+        Executes the frozen test suite against a trivial stub solution in the sandbox.
+        - If tests PASS against the stub -> test suite is VACUOUS -> REJECTED.
+        - If tests FAIL against the stub (AssertionError) -> test suite is NON-VACUOUS -> ACCEPTED.
+        """
+        # Static guard: 0 assertions is immediately vacuous
+        if suite.assertion_count == 0:
+            return StubProbeResult(
+                passed=False,
+                detail="VACUOUS_TESTS_REJECTED: Test suite contains 0 assertions",
+            )
+
+        stub_code = generate_stub_code(suite.target_symbols)
+        exec_res = self._execute_in_sandbox(stub_code, suite.test_code)
+
+        if exec_res.passed:
+            # Tests passed against a trivial stub returning None -> vacuous!
+            return StubProbeResult(
+                passed=False,
+                detail="VACUOUS_TESTS_REJECTED: Test suite passed against trivial stub solution",
+                stdout=exec_res.stdout,
+                stderr=exec_res.stderr,
+            )
+        else:
+            # Tests failed against the trivial stub -> meaningful assertions confirmed
+            return StubProbeResult(
+                passed=True,
+                detail=f"NON_VACUOUS_VERIFIED: Test suite correctly failed against stub ({exec_res.detail})",
+                stdout=exec_res.stdout,
+                stderr=exec_res.stderr,
+            )
+
+    def execute_solution_tests(
+        self,
+        solution_code: str,
+        frozen_suite: FrozenTestSuite,
+        current_test_code: Optional[str] = None,
+    ) -> TestExecutionResult:
+        """
+        Executes candidate solution against the frozen test suite in the sandbox.
+        Ensures frozen tests were not mutated during the repair cycle.
+        """
+        if current_test_code is not None:
+            frozen_suite.verify_integrity(current_test_code)
+
+        return self._execute_in_sandbox(solution_code, frozen_suite.test_code)
+
+    def _execute_in_sandbox(self, solution_code: str, test_code: str) -> TestExecutionResult:
+        """
+        Executes solution and test code inside the OS sandbox using an isolated test driver.
+        """
+        if not is_sandbox_supported():
+            raise RuntimeError(f"Sandbox execution not supported on platform: {sys.platform}")
+
+        sb = get_sandbox(memory_mb=self.memory_mb, timeout_sec=self.timeout_sec)
+        sb.setup()
+
+        try:
+            # 1. Write solution.py into scratch
+            sol_path = os.path.join(sb.scratch_dir, "solution.py")
+            with open(sol_path, "w", encoding="utf-8") as f:
+                f.write(solution_code)
+
+            # 2. Write test_suite.py into scratch
+            test_path = os.path.join(sb.scratch_dir, "test_suite.py")
+            with open(test_path, "w", encoding="utf-8") as f:
+                f.write(test_code)
+
+            # 3. Write test driver into scratch
+            driver_code = """
+import sys
+import os
+
+# Put scratch directory at head of module search path
+scratch_dir = os.path.dirname(os.path.abspath(__file__))
+if scratch_dir not in sys.path:
+    sys.path.insert(0, scratch_dir)
+
+sys.argv = ["test_suite.py"]
+main_mod = sys.modules["__main__"]
+
+try:
+    with open("test_suite.py", "r", encoding="utf-8") as f:
+        test_source = f.read()
+
+    exec(compile(test_source, "test_suite.py", "exec"), main_mod.__dict__)
+    print("PAI_TEST_ALL_PASSED", flush=True)
+    with open("std_output.txt", "w", encoding="utf-8") as f:
+        f.write("PAI_TEST_ALL_PASSED\\n")
+except SystemExit as se:
+    code = se.code if isinstance(se.code, int) else (0 if se.code is None else 1)
+    if code == 0:
+        print("PAI_TEST_ALL_PASSED", flush=True)
+        with open("std_output.txt", "w", encoding="utf-8") as f:
+            f.write("PAI_TEST_ALL_PASSED\\n")
+    else:
+        print(f"PAI_TEST_FAILED: SystemExit({code})", flush=True)
+        with open("std_output.txt", "w", encoding="utf-8") as f:
+            f.write(f"PAI_TEST_FAILED: SystemExit({code})\\n")
+        sys.exit(code)
+except Exception as ex:
+    print(f"PAI_TEST_FAILED: {type(ex).__name__}: {ex}", flush=True)
+    with open("std_output.txt", "w", encoding="utf-8") as f:
+        f.write(f"PAI_TEST_FAILED: {type(ex).__name__}: {ex}\\n")
+    sys.exit(1)
+"""
+            driver_path = os.path.join(sb.scratch_dir, "_pai_driver.py")
+            with open(driver_path, "w", encoding="utf-8") as f:
+                f.write(driver_code)
+
+            # 4. Execute test driver inside sandbox
+            res = sb.execute(driver_path)
+
+            # Combined output capture
+            comb_out = res.stdout or ""
+            if hasattr(res, "output_files") and res.output_files and "std_output.txt" in res.output_files:
+                comb_out += "\n" + res.output_files["std_output.txt"]
+
+            if res.status == "timeout":
+                return TestExecutionResult(
+                    passed=False,
+                    exit_code=res.exit_code,
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail=f"Execution timed out after {self.timeout_sec}s",
+                    wall_time_sec=res.wall_time_sec,
+                )
+
+            if res.exit_code == 0 and "PAI_TEST_ALL_PASSED" in comb_out:
+                return TestExecutionResult(
+                    passed=True,
+                    exit_code=0,
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail="All tests passed cleanly in sandbox",
+                    wall_time_sec=res.wall_time_sec,
+                )
+
+            # Test failure
+            err_summary = res.stderr.strip()[:120] if res.stderr else comb_out.strip()[:120]
+            return TestExecutionResult(
+                passed=False,
+                exit_code=res.exit_code,
+                stdout=comb_out,
+                stderr=res.stderr,
+                detail=f"Test failed (exit={res.exit_code}): {err_summary}",
+                wall_time_sec=res.wall_time_sec,
+            )
+        finally:
+            sb.cleanup()

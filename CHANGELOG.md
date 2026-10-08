@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.7.5] — 2026-10-08 — Milestone M2b.2 Frozen Tests, Stub Probe & A8 Refinements
+
+### Milestone M2b.2 Fixes & Verification
+- **Frozen Test Suite & Cryptographic Hashing (`research/verify_loop.py`)**:
+  - Test suites (model-written or user-supplied) are analyzed for assertions and symbols via Python AST and cryptographically frozen with SHA-256 before candidate solution generation or repair.
+  - User-provided `--tests` strictly take priority over model-written tests.
+  - Anti-weakening enforcement: Any attempt to mutate test code during the repair loop raises `TestMutationError`.
+- **Sandbox-Isolated Stub Probe (`research/verify_loop.py`)**:
+  - Every candidate test suite is executed in the OS sandbox against a trivial wrong solution stub returning `None` for all symbols.
+  - Test suites that pass against the stub are identified as vacuous and rejected (`VACUOUS_TESTS_REJECTED`).
+  - To be accepted, test suites must contain substantive assertions that correctly fail against the stub (`NON_VACUOUS_VERIFIED`).
+- **CLI Integration (`research/pai.py`)**:
+  - Added `--tests <path>` argument to `pai code`. CLI freezes tests, validates non-vacuity via the stub probe, and enforces sandbox boundaries.
+- **A8 Matrix Vector Refinements (`research/run_m2a_matrix.py`)**:
+  - Discriminating network sub-check: accepts strictly `ENETUNREACH`, `EPERM`, `EACCES` and rejects `ECONNREFUSED` (111).
+  - Dropped non-discriminating fork sub-check from vector A8.
+  - Asserted host canary file existence and unchanged content post-run (`secret_a8`).
+  - Added strict rejection of any `FAIL_` lines in test assertion output.
+- **Test Suite**: 266 Python unit tests passing (19 skipped on Windows: 5 privilege/POSIX + 14 Linux bwrap tests). 13 Rust core tests passing, clippy clean.
+
 ## [0.7.4] — 2026-10-08 — Milestone M2b.1 Native OS Boundary Vector Hardening & Portability Clarifications
 
 ### Milestone M2b.1 Fixes & Verification

@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from typing import Any, Dict, List
 
 # Ensure research root is on path
@@ -401,8 +402,9 @@ except Exception as e:
     # A8: Native Code Loading / OS Boundary Escape Attempt
     # -------------------------------------------------------------------------
     canary_a8 = os.path.join(pai_dir, f"m2a_canary_a8_{os.getpid()}.tmp")
+    secret_a8 = f"A8_SECRET_CANARY_{os.getpid()}_{uuid.uuid4().hex[:8]}"
     with open(canary_a8, "w", encoding="utf-8") as f:
-        f.write("HOST_CANARY_A8")
+        f.write(secret_a8)
 
     if sys.platform == "win32":
         a8_code = f"""
@@ -493,7 +495,7 @@ if libc is not None:
     else:
         results.append(f"FAIL_POSITIVE_CONTROL: {{ctypes.get_errno()}}")
 
-    # 2. Native socket connect (loopback/outside egress attempt)
+    # 2. Native socket connect (discriminating network check; rejects ECONNREFUSED)
     try:
         libc.socket.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
         libc.socket.restype = ctypes.c_int
@@ -515,7 +517,8 @@ if libc is not None:
                 results.append("LEAK_NATIVE_NET_CONNECTED")
             else:
                 n_err = ctypes.get_errno()
-                if n_err in (errno.ENETUNREACH, errno.EPERM, errno.EACCES, errno.ECONNREFUSED):
+                # Fresh network namespace has no route/loopback up; strictly accept ENETUNREACH/EPERM/EACCES
+                if n_err in (errno.ENETUNREACH, errno.EPERM, errno.EACCES):
                     results.append(f"CONTAINED_NATIVE_NET_DENIED: {{n_err}}")
                 else:
                     results.append(f"FAIL_UNEXPECTED_NET_ERR: {{n_err}}")
@@ -528,24 +531,6 @@ if libc is not None:
                 results.append(f"FAIL_UNEXPECTED_SOCKET_ERR: {{s_err}}")
     except Exception as e:
         results.append(f"FAIL_NATIVE_NET_EXC: {{e}}")
-
-    # 3. Native fork attempt
-    try:
-        libc.fork.restype = ctypes.c_int
-        pid = libc.fork()
-        if pid == 0:
-            os._exit(0)
-        elif pid > 0:
-            os.waitpid(pid, 0)
-            results.append("CONTAINED_NATIVE_FORK_OK")
-        else:
-            f_err = ctypes.get_errno()
-            if f_err in (errno.EAGAIN, errno.EPERM):
-                results.append(f"CONTAINED_NATIVE_FORK_DENIED: {{f_err}}")
-            else:
-                results.append(f"FAIL_UNEXPECTED_FORK_ERR: {{f_err}}")
-    except Exception as e:
-        results.append(f"FAIL_NATIVE_FORK_EXC: {{e}}")
 else:
     results.append("FAIL_NO_LIBC")
 
@@ -555,18 +540,30 @@ with open("std_output.txt", "w", encoding="utf-8") as f:
     f.write(out)
 """
 
+    def _assert_a8(r):
+        comb = get_combined_output(r)
+        if not os.path.exists(canary_a8):
+            return False, "Canary file outside scratch was deleted"
+        with open(canary_a8, "r", encoding="utf-8") as f:
+            if f.read() != secret_a8:
+                return False, "Canary file outside scratch was modified"
+        if "FAIL_" in comb:
+            return False, f"A8 sub-check failed: {comb.strip()[:80]}"
+        if "LEAK" in comb:
+            return False, f"A8 leak detected: {comb.strip()[:80]}"
+        if not ("CONTAINED_NATIVE_DENIED" in comb or "CONTAINED_NATIVE_FILE_DENIED" in comb):
+            return False, "Missing native file containment marker"
+        if "POSITIVE_CONTROL_NATIVE_OK" not in comb:
+            return False, "Missing positive control marker"
+        return True, f"Native OS boundary call verified with positive control (out={comb.strip()[:80]})"
+
     try:
         exec_sandbox_test(
             vec_id="A8",
             name="Native code loading / OS boundary escape attempt",
             desc="Direct native/OS calls outside scratch must be denied while positive control in scratch succeeds",
             code=a8_code,
-            assert_fn=lambda r: (
-                ("CONTAINED_NATIVE_DENIED" in get_combined_output(r) or "CONTAINED_NATIVE_FILE_DENIED" in get_combined_output(r))
-                and "POSITIVE_CONTROL_NATIVE_OK" in get_combined_output(r)
-                and "LEAK" not in get_combined_output(r),
-                f"Native OS boundary call verified with positive control (out={get_combined_output(r).strip()[:80]})",
-            ),
+            assert_fn=_assert_a8,
         )
     finally:
         if os.path.exists(canary_a8):

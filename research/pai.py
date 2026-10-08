@@ -604,6 +604,7 @@ def build_parser() -> argparse.ArgumentParser:
     # code (M2b verify loop)
     p_code = subparsers.add_parser("code", help="Sandbox-verified code generation (M2b)")
     p_code.add_argument("task", nargs="?", default="", help="Coding task prompt")
+    p_code.add_argument("--tests", type=str, help="User-supplied test file (takes priority over model-written tests)")
     p_code.add_argument("--out", type=str, help="Output staging directory")
 
     # Deferred execution commands (M2+)
@@ -612,6 +613,39 @@ def build_parser() -> argparse.ArgumentParser:
         p_def.add_argument("args", nargs="*", help="Arguments")
 
     return parser
+
+
+def cmd_code(args) -> int:
+    enforce_sandbox_boundary()
+    print("Sandbox execution boundary verified fail-closed.")
+
+    from verify_loop import VerifyLoop, VacuousTestError, TestSyntaxError
+
+    loop = VerifyLoop()
+
+    if getattr(args, "tests", None):
+        tests_path = args.tests
+        if not os.path.exists(tests_path):
+            print(f"Error: Specified test file not found: {tests_path}", file=sys.stderr)
+            return 1
+        try:
+            suite = loop.prepare_test_suite(user_tests_path=tests_path)
+        except (VacuousTestError, TestSyntaxError, Exception) as e:
+            print(f"Error: Invalid test suite: {e}", file=sys.stderr)
+            return 1
+
+        print(f"[TESTS FROZEN] Source: {suite.source} | Hash: {suite.test_hash} | Assertions: {suite.assertion_count}")
+        probe_res = loop.run_stub_probe(suite)
+        if not probe_res.passed:
+            print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
+            return 1
+        print(f"[STUB PROBE OK] {probe_res.detail}")
+
+    if not args.task and not getattr(args, "tests", None):
+        print("Notice: Full verify loop & 'pai code' execution pipeline is scheduled for Milestone M2b.")
+        return 0
+
+    return 0
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -628,10 +662,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     if args.subcommand == "code":
-        enforce_sandbox_boundary()
-        print("Sandbox execution boundary verified fail-closed.")
-        print("Notice: Full verify loop & 'pai code' execution pipeline is scheduled for Milestone M2b.")
-        return 0
+        return cmd_code(args)
 
     if args.subcommand == "doctor":
         return cmd_doctor(args)

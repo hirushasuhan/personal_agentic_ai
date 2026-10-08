@@ -126,6 +126,43 @@ class TestPaiCLI(unittest.TestCase):
         self.assertTrue(isinstance(desc, str))
         self.assertTrue(len(desc) > 0)
 
+    def test_pai_code_with_user_tests_meaningful(self):
+        """pai code --tests with meaningful test file freezes tests and passes stub probe."""
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write("from solution import add\nassert add(1, 2) == 3\n")
+            test_path = f.name
+
+        try:
+            f_out = io.StringIO()
+            with redirect_stdout(f_out):
+                code = main(["code", "--tests", test_path])
+            self.assertEqual(code, 0)
+            val = f_out.getvalue()
+            self.assertIn("[TESTS FROZEN]", val)
+            self.assertIn("[STUB PROBE OK]", val)
+        finally:
+            if os.path.exists(test_path):
+                os.remove(test_path)
+
+    def test_pai_code_with_vacuous_tests_rejected(self):
+        """pai code --tests with vacuous test file fails closed via stub probe."""
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+            f.write("def test_v(): assert True\n")
+            test_path = f.name
+
+        try:
+            f_err = io.StringIO()
+            with io.StringIO() as f_out, patch("sys.stderr", f_err):
+                code = main(["code", "--tests", test_path])
+            self.assertEqual(code, 1)
+            self.assertIn("Stub probe failed", f_err.getvalue())
+        finally:
+            if os.path.exists(test_path):
+                os.remove(test_path)
+
 
 if __name__ == "__main__":
     unittest.main()
+

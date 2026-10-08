@@ -375,5 +375,17 @@ This does not prove the numbers are false, but the file is not machine-generated
 
 **M2b gate (carried from ADR-011 v2.1).** Frozen model-written tests plus stub probe; result-integrity channel; AST guard relaxation measured on at least 50 tasks (report false-reject rate for correct solutions); bounded repair loop (at most 3 repairs); staging with `O_EXCL`, fixed filenames and symlink rejection; `pai code --out`; evaluation with repeat runs, per-task flips and false-accept rate reported, metric named `pass@1_repair3`, no significance claims at N=20.
 
+### M2b step 1 review (commit `43414a3`, 2026-10-08) — A8 replaced; accepted with two minor items
+
+**Verdict: accepted. Step 2 may start.**
+
+**Reproduced on Linux** (Ubuntu 22.04.5, kernel 6.8.0-138-generic, bwrap 0.6.1): suite `Ran 252 tests ... OK (skipped=13)`; `run_m2a_matrix.py` on a scratch copy: exit 0, 10/10, A8 output `CONTAINED_NATIVE_FILE_DENIED: 2`, `POSITIVE_CONTROL_NATIVE_OK`, `CONTAINED_NATIVE_NET_DENIED: 111`, `CONTAINED_NATIVE_FORK_OK`.
+
+**Negative control (reviewer).** The generated A8 script, run without any sandbox on the reviewer host, prints `LEAK_NATIVE_OPEN` and creates the outside canary on the host, so the assertion would fail. The file-denial part of A8 is therefore no longer vacuous: it fails when the boundary is absent and passes only with the native `open()` denied plus a working native `open()` in scratch.
+
+**Minor items (fix in the next M2b commit, no re-review needed beyond the diff):**
+1. The native network and fork sub-checks are not discriminating and are not asserted. Unsandboxed, the `connect()` returns ECONNREFUSED (111) because nothing listens on the chosen port, yet the script prints `CONTAINED_NATIVE_NET_DENIED`; the fork succeeds and prints `CONTAINED_NATIVE_FORK_OK`. Either remove the labels or make them real: accept only ENETUNREACH/EPERM/EACCES for the network check (a fresh network namespace has no route; ECONNREFUSED must not count), and for fork either drop the sub-check or assert the NPROC bound with a loop. The assertion must also reject any `FAIL_` line.
+2. On Linux the outside path is masked by the `/home` tmpfs, so the denial is ENOENT (2), not a permission error. This is acceptable as containment (the host file is untouched), but the vector should also assert that the host canary does not exist or is unchanged after the run, as A4 does.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
