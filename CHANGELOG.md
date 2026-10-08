@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.6] — 2026-10-08 — Milestone M2b Step 2.1 Stub Family, Discovery Driver & Mandatory Freeze Enforcement
+
+### Milestone M2b Step 2.1 Fixes & Verification (F1, F2, F4, F5)
+- **F1: Substantive Assertion Enforcement in Stub Probe (`research/verify_loop.py`)**:
+  - `run_stub_probe` strictly differentiates between substantive assertion failures (`AssertionError`, unittest FAIL) and test suite runtime crashes.
+  - Test suites raising non-assertion errors (`NameError`, `ZeroDivisionError`, `ImportError`, `SystemExit`) or timing out are rejected fail-closed as `TEST_SUITE_INVALID`, rather than treated as verified.
+  - Negative control tests added: `test_nameerror_suite_rejected_as_invalid`, `test_timeout_suite_rejected_as_invalid`.
+- **F2: Dynamic Test Discovery & Execution Driver (`research/verify_loop.py`)**:
+  - Replaced naive top-level `exec` driver with an isolated discovery driver loaded under dedicated module namespace `test_suite`.
+  - Prevents top-level `if __name__ == '__main__': unittest.main()` from aborting runner execution with early `sys.exit(1)`.
+  - Discovers both pytest-style standalone `test_*` functions and `unittest.TestCase` subclasses, as well as AST-detected module-level assertions.
+  - Executes each test individually and strictly enforces `executed == discovered >= 1`.
+  - Negative control tests added: `test_pytest_style_suite_discovered_and_verified`, `test_empty_tests_discovery_fails`.
+- **F4: 11-Member Stub Family (`research/verify_loop.py`)**:
+  - Expanded stub probe from single `None` stub to an 11-member diverse stub family: `(None, 0, 1, -1, "", [], {}, True, False, first argument, NotImplementedError)`.
+  - Rejects weak assertions (e.g. `assert x is not None`) as `VACUOUS_TESTS_REJECTED`, specifically naming the passing stub (e.g. stub `'0'`).
+  - Handles `NotImplementedError` raised by the stub cleanly as expected failure while still rejecting tests that vacuously pass or crash with unrelated errors.
+  - Negative control test added: `test_weak_is_not_none_suite_rejected`.
+- **F5: Mandatory Freeze & Anti-Tampering Enforcement (`research/verify_loop.py`)**:
+  - Removed optional `current_test_code` parameter from `execute_solution_tests()`; VerifyLoop strictly owns test writing.
+  - Verifies file hash read-back from sandbox scratch before execution; driver additionally verifies SHA-256 hash inside the sandbox.
+  - Negative control tests added: `test_execute_solution_tests_no_current_test_code_parameter`, `test_tampered_scratch_file_raises_mutation_error`.
+- **Test Suite**: 272 Python unit tests passing (19 skipped on Windows: 5 privilege/POSIX + 14 Linux bwrap tests). 13 Rust core tests passing, clippy clean.
+
 ## [0.7.5] — 2026-10-08 — Milestone M2b.2 Frozen Tests, Stub Probe & A8 Refinements
 
 ### Milestone M2b.2 Fixes & Verification
