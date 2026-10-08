@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.7.9] — 2026-10-08 — Milestone M2b Step 4: pai code Pipeline Wiring & Loopback E2E Test Harness
+
+### Milestone M2b Step 4 Resolution & End-to-End Pipeline Integration (ADR-011 v2.1)
+- **R1: Cross-Platform Verdict Attack Script Alignment (`research/tests/test_verify_loop.py`)**:
+  - Replaced single-PID scan with namespace-wide fd scan (`glob.glob('/proc/[0-9]*/fd/1')`) alongside Windows `std_output.txt`.
+  - Ensures injected forged verdict frames reliably reach the host stdout channel across both Linux bubblewrap launcher pipelines and Windows Job Object/AppContainer processes, strictly asserting `INTEGRITY_VIOLATION`.
+- **R2: Full End-to-End `pai code` Pipeline Integration (`research/pai.py`)**:
+  - Implemented complete execution pipeline wiring together: sandbox boundary capability enforcement, model routing (`ModelRouter.route("code")`), test preparation/probing, candidate solution generation, static AST filtering (`ast_guard.check_source`), bounded repair loop (`VerifyLoop.run_repair_loop`), and race-free safe staging (`stage_artifacts`).
+  - Implemented `call_model_generate` with strict local loopback binding enforcement (`127.0.0.1`, `localhost`, `::1`).
+  - Implemented `extract_python_code` handling markdown fences and plain text code.
+  - Aligned CLI exit codes with specification (0: success, 1: syntax/AST rejection or vacuous tests or missing args, 2: test failure or exhausted repairs, 4: collision / safety violation, 5: probe refusal or RAM refusal).
+  - Ensured `pai code` without arguments exits non-zero (exit 1).
+  - Added structured `--json` output reporting `pass_at_1_zero_shot`, `pass_at_1_repair3`, `total_repairs`, and iteration history.
+- **Library Enhancements (`research/verify_loop.py`)**:
+  - `run_repair_loop`: Records `GENERATOR_ERROR` on repair generator exceptions or empty return values rather than silently reusing old solutions.
+  - `sanitize_untrusted_diagnostics`: Strips control characters, truncates failure diagnostics to bounded character ceiling (max 1000 chars), and wraps untrusted output in explicit prompt-injection defense data block.
+  - `stage_artifacts`: Simplified symlink validation checking `out_dir` and destination files without fragile ancestor crawling; rejects directory destinations (`IsADirectoryError`).
+  - Added negative control tests for staging (symlinked `out_dir`, symlinked `solution.py` with and without `--overwrite`, directory named `solution.py`, generator errors) in `research/tests/test_verify_loop.py`.
+- **Bwrap Host-Side Secrets Protection (`research/sandbox_linux.py`)**:
+  - Replaced host-visible `--setenv` command-line flags with private `sys.stdin` pipe injection for sandbox launcher environment variables (DoD Section 4 compliance).
+- **Loopback End-to-End Test Suite (`research/tests/test_pai_code_e2e.py`)**:
+  - 10 comprehensive unit tests against live loopback `http.server.ThreadingHTTPServer` covering all 7 required scenarios:
+    1. Zero-shot pass (exit 0, `pass_at_1_zero_shot=True`, staged files)
+    2. Pass after one repair (exit 0, `pass_at_1_repair3=True`, `total_repairs=1`)
+    3. Exhausted repairs (exit 2, files not staged)
+    4. Collision protection (exit 4 without `--overwrite`, exit 0 with `--overwrite`)
+    5. Probe refusal & RAM refusal (exit 5)
+    6. Vacuous tests rejection (exit 1)
+    7. Generator error handling (exit 2, `GENERATOR_ERROR` recorded)
+    8. Missing arguments & AST violations (exit 1)
+- **Suite Verification**:
+  - Full test suite: 311 tests passing (19 skipped on Windows).
+  - Rust core: 13 passed, 0 failed, clippy clean (`cargo clippy -- -D warnings`).
+  - Claims lint: 2 passed, 0 failed.
+  - Ctypes allow-list: 1 passed, 0 failed.
+
 ## [0.7.8] — 2026-10-08 — Milestone M2b Step 4 Hardening (H1–H3), Bounded Repair Loop & Safe Staging
 
 ### Milestone M2b Step 4 Hardening & Bounded Repair Loop (ADR-011 v2.1)

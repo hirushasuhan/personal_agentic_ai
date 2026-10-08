@@ -165,7 +165,17 @@ class LinuxSandbox:
         fsize_bytes = 1048576  # 1 MB file write cap
 
         launcher_path = os.path.join(self.scratch_dir, "_pai_launcher.py")
-        launcher_code = f"""import os, sys
+        launcher_code = f"""import os, sys, json
+try:
+    if not sys.stdin.isatty():
+        env_line = sys.stdin.readline()
+        if env_line and env_line.strip().startswith("{{"):
+            env_map = json.loads(env_line)
+            for k, v in env_map.items():
+                os.environ[k] = str(v)
+except Exception:
+    pass
+
 try:
     import resource
     try:
@@ -285,11 +295,6 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             "--setenv", "PYTHONUNBUFFERED", "1",
         ])
 
-        # Caller-supplied private environment variables (e.g. secret session nonce and HMAC key)
-        if extra_env:
-            for k, v in extra_env.items():
-                args.extend(["--setenv", str(k), str(v)])
-
         # Invocation command: python executes the in-sandbox launcher which limits resources and execs script
         python_exe = sys._base_executable if hasattr(sys, "_base_executable") else sys.executable
         args.extend([
@@ -330,12 +335,21 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
         try:
             # Notice: No preexec_fn with RLIMIT_NPROC! bwrap creates namespaces freely;
             # limits are enforced inside the sandbox by _pai_launcher.py.
+            # Secrets passed over private stdin pipe rather than host-visible argv (DoD Section 4).
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                stdin=subprocess.DEVNULL,
+                stdin=subprocess.PIPE if extra_env else subprocess.DEVNULL,
             )
+
+            if extra_env and proc.stdin:
+                try:
+                    proc.stdin.write(json.dumps(extra_env).encode("utf-8") + b"\n")
+                    proc.stdin.flush()
+                    proc.stdin.close()
+                except Exception:
+                    pass
 
             try:
                 stdout_data, stderr_data = proc.communicate(timeout=self.timeout_sec)

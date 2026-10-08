@@ -557,6 +557,58 @@ def cmd_route(args: argparse.Namespace) -> int:
     return 0
 
 
+def call_model_generate(
+    model_name: str,
+    prompt: str,
+    base_url: Optional[str] = None,
+    timeout: float = 60.0,
+) -> str:
+    """
+    Invokes local model server via Ollama /api/generate over local loopback.
+    Enforces Threat T21 / loopback binding invariants.
+    """
+    url = base_url or os.environ.get("PAI_MODEL_URL", "http://127.0.0.1:11434")
+    parts = urllib.parse.urlsplit(url)
+    hostname = (parts.hostname or "").lower()
+    if hostname not in ("127.0.0.1", "localhost", "::1", "[::1]"):
+        raise ValueError(f"Model server endpoint must be local loopback, got '{url}'")
+
+    req_data = json.dumps({
+        "model": model_name,
+        "prompt": prompt,
+        "stream": False,
+        "think": False,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        f"{url}/api/generate",
+        data=req_data,
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            resp_json = json.loads(resp.read().decode("utf-8"))
+            return str(resp_json.get("response", ""))
+    except Exception as e:
+        raise RuntimeError(f"Failed to generate from model '{model_name}' at {url}: {e}")
+
+
+def extract_python_code(raw: str) -> str:
+    """Extracts python code block from model response or returns raw text."""
+    text = raw.strip()
+    if "```python" in text:
+        parts = text.split("```python", 1)[1]
+        if "```" in parts:
+            return parts.split("```", 1)[0].strip()
+        return parts.strip()
+    if "```" in text:
+        parts = text.split("```", 1)[1]
+        if "```" in parts:
+            return parts.split("```", 1)[0].strip()
+        return parts.strip()
+    return text
+
+
 def enforce_sandbox_boundary() -> None:
     """
     Enforces that the host sandbox boundary passes the behavioural capability probe.
@@ -627,8 +679,29 @@ def cmd_code(args) -> int:
     if not getattr(args, "json", False):
         print("Sandbox execution boundary verified fail-closed.")
 
-    from verify_loop import VerifyLoop, VacuousTestError, TestSyntaxError, stage_artifacts
+    from ast_guard import check_source
+    from verify_loop import (
+        FrozenTestSuite,
+        TestExecutionResult,
+        TestMutationError,
+        TestSyntaxError,
+        VacuousTestError,
+        VerifyLoop,
+        sanitize_untrusted_diagnostics,
+        stage_artifacts,
+    )
 
+    # 1. Validate inputs: command must have work to do
+    if not getattr(args, "task", "") and not getattr(args, "tests", None):
+        print("Error: No task or tests specified. Provide a task description or --tests file.", file=sys.stderr)
+        return 1
+
+    # If generating a solution (task is provided), --out is strictly required
+    if getattr(args, "task", "") and not getattr(args, "out", None):
+        print("Error: Staging output directory (--out) is required for 'pai code'.", file=sys.stderr)
+        return 1
+
+    # 2. Setup VerifyLoop
     timeout_sec = min(30.0, max(1.0, float(getattr(args, "timeout", 10.0) or 10.0)))
     memory_mb = min(2048.0, max(64.0, float(getattr(args, "memory_mb", 512.0) or 512.0)))
     max_repairs = min(5, max(1, int(getattr(args, "max_repairs", 3) or 3)))
@@ -639,6 +712,7 @@ def cmd_code(args) -> int:
         max_repairs=max_repairs,
     )
 
+    # 3. Handle user-supplied tests first (if provided)
     suite = None
     if getattr(args, "tests", None):
         tests_path = args.tests
@@ -653,19 +727,220 @@ def cmd_code(args) -> int:
 
         if not getattr(args, "json", False):
             print(f"[TESTS FROZEN] Source: {suite.source} | Hash: {suite.test_hash} | Assertions: {suite.assertion_count}")
+
         allow_weak = getattr(args, "allow_weak_tests", False)
         probe_res = loop.run_stub_probe(suite, allow_weak_tests=allow_weak)
         if not probe_res.passed:
-            print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
+            if getattr(args, "json", False):
+                print(json.dumps({"success": False, "error": "STUB_PROBE_FAILED", "detail": probe_res.detail}, indent=2))
+            else:
+                print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
             return 1
+
         if not getattr(args, "json", False):
             print(f"[STUB PROBE OK] {probe_res.detail}")
 
-    if not args.task and not getattr(args, "tests", None):
-        print("Notice: Full verify loop & 'pai code' execution pipeline is active for Milestone M2b.")
-        return 0
+        # If user only requested test suite verification/probing (--tests <path> without task and without --out):
+        if not getattr(args, "task", "") and not getattr(args, "out", None):
+            return 0
 
-    return 0
+    # 4. From here on, code generation and artifact staging is requested: --out is strictly required
+    if not getattr(args, "out", None):
+        print("Error: Staging output directory (--out) is required for 'pai code'.", file=sys.stderr)
+        return 1
+
+    # 5. Model selection / routing
+    model_name = getattr(args, "model", None)
+    if not model_name:
+        router = ModelRouter(load_system_profile=True)
+        decision = router.route("code")
+        if not decision.selected_model:
+            if getattr(args, "json", False):
+                print(json.dumps({
+                    "success": False,
+                    "error": "ROUTE_REFUSAL",
+                    "explanation": decision.explanation,
+                    "reason_codes": decision.reason_codes,
+                }, indent=2))
+            else:
+                print(f"Error: Model route refused: {decision.explanation}", file=sys.stderr)
+            return 5
+        model_name = decision.selected_model
+
+    if not getattr(args, "json", False):
+        print(f"Executing verified code generation with model '{model_name}'...")
+
+    # 6. If model-written tests needed: generate, freeze, and probe
+    if suite is None:
+        test_prompt = (
+            f"Write a Python test suite for the following task:\n{args.task}\n\n"
+            "Requirements:\n"
+            "- Tests must test the module named 'solution' (e.g. 'from solution import ...').\n"
+            "- Write clear assertions testing functionality and edge cases.\n"
+            "- Return ONLY the Python test code enclosed in ```python ... ``` without explanations.\n"
+        )
+        try:
+            raw_tests = call_model_generate(model_name, test_prompt)
+        except Exception as e:
+            if getattr(args, "json", False):
+                print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e)}, indent=2))
+            else:
+                print(f"Error: Model failed to generate test suite: {e}", file=sys.stderr)
+            return 2
+        test_code = extract_python_code(raw_tests)
+        try:
+            suite = loop.prepare_test_suite(model_test_code=test_code)
+        except (VacuousTestError, TestSyntaxError, Exception) as e:
+            if getattr(args, "json", False):
+                print(json.dumps({"success": False, "error": "TEST_SUITE_INVALID", "detail": str(e)}, indent=2))
+            else:
+                print(f"Error: Model generated invalid test suite: {e}", file=sys.stderr)
+            return 1
+
+        if not getattr(args, "json", False):
+            print(f"[TESTS FROZEN] Source: {suite.source} | Hash: {suite.test_hash} | Assertions: {suite.assertion_count}")
+
+        allow_weak = getattr(args, "allow_weak_tests", False)
+        probe_res = loop.run_stub_probe(suite, allow_weak_tests=allow_weak)
+        if not probe_res.passed:
+            if getattr(args, "json", False):
+                print(json.dumps({"success": False, "error": "STUB_PROBE_FAILED", "detail": probe_res.detail}, indent=2))
+            else:
+                print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
+            return 1
+
+        if not getattr(args, "json", False):
+            print(f"[STUB PROBE OK] {probe_res.detail}")
+
+    # 5. Generate initial candidate solution
+    task_desc = args.task or "Implement solution to pass the provided test suite."
+    sol_prompt = (
+        f"Write a Python solution for the following task:\n{task_desc}\n\n"
+        f"The solution must satisfy these tests:\n```python\n{suite.test_code}\n```\n\n"
+        "Requirements:\n"
+        "- Implement all required functions and classes in module 'solution'.\n"
+        "- Return ONLY the Python solution code enclosed in ```python ... ``` without explanations.\n"
+    )
+    try:
+        raw_sol = call_model_generate(model_name, sol_prompt)
+    except Exception as e:
+        if getattr(args, "json", False):
+            print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e)}, indent=2))
+        else:
+            print(f"Error: Model failed to generate initial solution: {e}", file=sys.stderr)
+        return 2
+
+    initial_solution = extract_python_code(raw_sol)
+
+    # Static AST safety check
+    guard_rep = check_source(initial_solution)
+    if not guard_rep.ok:
+        v_details = [str(x) for x in guard_rep.violations]
+        if getattr(args, "json", False):
+            print(json.dumps({"success": False, "error": "AST_SAFETY_VIOLATION", "violations": v_details}, indent=2))
+        else:
+            print(f"Error: Solution rejected by AST safety guard: {v_details}", file=sys.stderr)
+        return 1
+
+    # 6. Define bounded repair generator
+    def repair_generator_fn(cur_sol: str, last_res: TestExecutionResult, frz_suite: FrozenTestSuite) -> str:
+        sanitized_diag = sanitize_untrusted_diagnostics(last_res)
+        rep_prompt = (
+            f"Fix the Python solution for the following task:\n{task_desc}\n\n"
+            f"Current solution:\n```python\n{cur_sol}\n```\n\n"
+            f"Execution diagnostics:\n{sanitized_diag}\n\n"
+            f"Tests to satisfy:\n```python\n{frz_suite.test_code}\n```\n\n"
+            "Requirements:\n"
+            "- Modify the solution so that all tests pass.\n"
+            "- Return ONLY the Python code enclosed in ```python ... ``` without explanations.\n"
+        )
+        raw_rep = call_model_generate(model_name, rep_prompt)
+        rep_code = extract_python_code(raw_rep)
+        if not rep_code or not rep_code.strip():
+            raise ValueError("Model returned empty code during repair")
+        rep_guard = check_source(rep_code)
+        if not rep_guard.ok:
+            raise ValueError(f"Repaired solution violated AST guard: {[str(x) for x in rep_guard.violations]}")
+        return rep_code
+
+    # 7. Execute bounded repair loop
+    repair_result = loop.run_repair_loop(
+        initial_solution,
+        suite,
+        repair_generator_fn=repair_generator_fn,
+        max_repairs=max_repairs,
+    )
+
+    # 8. Handle result and safe staging
+    if repair_result.success:
+        try:
+            sol_dest, test_dest = stage_artifacts(
+                args.out,
+                repair_result.final_solution,
+                suite.test_code,
+                overwrite=getattr(args, "overwrite", False),
+            )
+        except FileExistsError as e:
+            if getattr(args, "json", False):
+                print(json.dumps({
+                    "success": False,
+                    "error": "COLLISION",
+                    "detail": str(e),
+                    "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
+                    "pass_at_1_repair3": repair_result.pass_at_1_repair3,
+                }, indent=2))
+            else:
+                print(f"Error: File collision during staging: {e}", file=sys.stderr)
+            return 4
+        except (ValueError, IsADirectoryError) as e:
+            if getattr(args, "json", False):
+                print(json.dumps({
+                    "success": False,
+                    "error": "STAGING_VIOLATION",
+                    "detail": str(e),
+                    "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
+                    "pass_at_1_repair3": repair_result.pass_at_1_repair3,
+                }, indent=2))
+            else:
+                print(f"Error: Safe staging safety violation: {e}", file=sys.stderr)
+            return 4
+
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "success": True,
+                "status": "PASS",
+                "selected_model": model_name,
+                "staged_solution": sol_dest,
+                "staged_tests": test_dest,
+                "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
+                "pass_at_1_repair3": repair_result.pass_at_1_repair3,
+                "total_repairs": repair_result.total_repairs,
+                "iterations": len(repair_result.iterations),
+                "detail": repair_result.detail,
+            }, indent=2))
+        else:
+            print(f"[VERIFIED PASS] Solution verified and staged to {args.out}")
+            print(f"  - Solution: {sol_dest}")
+            print(f"  - Tests   : {test_dest}")
+            print(f"  - pass@1_zero_shot: {repair_result.pass_at_1_zero_shot}")
+            print(f"  - pass@1_repair3  : {repair_result.pass_at_1_repair3}")
+            print(f"  - Repairs used    : {repair_result.total_repairs} / {max_repairs}")
+        return 0
+    else:
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "success": False,
+                "status": "FAIL",
+                "selected_model": model_name,
+                "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
+                "pass_at_1_repair3": repair_result.pass_at_1_repair3,
+                "total_repairs": repair_result.total_repairs,
+                "iterations": len(repair_result.iterations),
+                "detail": repair_result.detail,
+            }, indent=2))
+        else:
+            print(f"[FAIL] Verification failed: {repair_result.detail}", file=sys.stderr)
+        return 2
 
 
 def main(argv: Optional[List[str]] = None) -> int:
