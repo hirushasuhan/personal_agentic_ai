@@ -11,7 +11,9 @@ records exact exit codes, wall-clock timings, raw stdout/stderr streams, and wri
 import json
 import os
 import platform
+import shutil
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -23,6 +25,52 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 from sandbox import get_sandbox, is_sandbox_supported, probe_system_boundary
+
+
+def get_platform_metadata() -> Dict[str, Any]:
+    """
+    Programmatically extracts legitimate OS, runtime, and sandbox engine metadata.
+    Reads from platform, /etc/os-release, and bwrap --version without hardcoding.
+    """
+    meta: Dict[str, Any] = {
+        "system": platform.system(),
+        "release": platform.release(),
+        "architecture": platform.machine(),
+        "python_version": platform.python_version(),
+        "compiler": platform.python_compiler(),
+    }
+    if sys.platform.startswith("linux"):
+        # Distro detection from standard /etc/os-release
+        distro = "Linux"
+        if os.path.exists("/etc/os-release"):
+            try:
+                with open("/etc/os-release", "r", encoding="utf-8") as f:
+                    for line in f:
+                        if line.startswith("PRETTY_NAME="):
+                            distro = line.split("=", 1)[1].strip().strip('"')
+                            break
+            except Exception:
+                pass
+        meta["distro"] = distro
+
+        # Query bubblewrap version directly from bwrap binary in PATH
+        bwrap_version = "not installed"
+        bwrap_path = shutil.which("bwrap")
+        if bwrap_path:
+            try:
+                res = subprocess.run([bwrap_path, "--version"], capture_output=True, text=True, timeout=2.0)
+                if res.returncode == 0:
+                    bwrap_version = res.stdout.strip()
+            except Exception:
+                pass
+        meta["bwrap_version"] = bwrap_version
+        meta["sandbox_technology"] = f"bubblewrap ({bwrap_version}) + POSIX rlimits"
+
+    elif sys.platform == "win32":
+        meta["windows_version"] = platform.version()
+        meta["sandbox_technology"] = "Win32 AppContainer + Job Objects"
+
+    return meta
 
 
 def run_matrix() -> int:
@@ -38,8 +86,14 @@ def run_matrix() -> int:
         print(formatted)
         log_lines.append(formatted)
 
+    meta = get_platform_metadata()
+
     log("=" * 72)
-    log(f"PAI MILESTONE M2a ADVERSARIAL MATRIX HARNESS (Python {platform.python_version()} on {platform.system()})")
+    log(f"PAI MILESTONE M2a ADVERSARIAL MATRIX HARNESS (Python {meta['python_version']} on {meta['system']})")
+    if meta["system"] == "Linux":
+        log(f"Kernel: {meta['release']} | Distro: {meta.get('distro')} | Engine: {meta.get('bwrap_version')}")
+    elif meta["system"] == "Windows":
+        log(f"OS: Windows {meta['release']} (Build {meta.get('windows_version')}) | Tech: {meta.get('sandbox_technology')}")
     log("=" * 72)
 
     if not is_sandbox_supported():
@@ -392,14 +446,7 @@ ctypes.string_at(0)
 
     current_platform_entry = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "platform": {
-            "system": platform.system(),
-            "release": platform.release(),
-            "kernel": platform.release(),
-            "architecture": platform.machine(),
-            "python_version": platform.python_version(),
-            "compiler": platform.python_compiler(),
-        },
+        "platform": meta,
         "summary": {
             "total_vectors": total_tests,
             "passed": passed_tests,
@@ -423,30 +470,14 @@ ctypes.string_at(0)
         json.dump(report_data, f, indent=2)
     log(f"\n[OK] Machine-readable evidence written to: {json_path}")
 
-    # For raw log, preserve existing platform logs if from different system
-    existing_log = ""
-    if os.path.exists(log_path):
-        try:
-            with open(log_path, "r", encoding="utf-8") as f:
-                existing_log = f.read()
-        except Exception:
-            existing_log = ""
-
-    current_run_log = "\n".join(log_lines) + "\n"
-    other_sys = "Linux" if platform.system() == "Windows" else "Windows"
-    other_platform_tag = f"on {other_sys}"
-    if other_platform_tag in existing_log:
-        combined_log = existing_log.strip() + "\n\n" + current_run_log
-    else:
-        combined_log = current_run_log
-
-    with open(log_path, "w", encoding="utf-8") as f:
-        f.write(combined_log)
-    log(f"[OK] Raw execution trace written to: {log_path}")
-
     log("=" * 72)
     log(f"M2a MATRIX RUN COMPLETE: {passed_tests}/{total_tests} vectors PASSED ({report_data['summary']['success_rate_pct']}%)")
     log("=" * 72)
+
+    # Write authentic raw execution trace for the execution run
+    with open(log_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(log_lines) + "\n")
+    print(f"[OK] Raw execution trace written to: {log_path}")
 
     return 0 if (passed_tests == total_tests) else 1
 

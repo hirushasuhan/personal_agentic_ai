@@ -1,16 +1,17 @@
 {
   "milestone": "M2a",
-  "last_updated": "2026-10-08T02:57:49+0530",
+  "last_updated": "2026-10-08T19:38:25+0530",
   "platforms": {
     "Windows": {
-      "generated_at": "2026-10-08T02:56:52+0530",
+      "generated_at": "2026-10-08T19:38:25+0530",
       "platform": {
         "system": "Windows",
         "release": "11",
-        "kernel": "11",
         "architecture": "AMD64",
         "python_version": "3.14.0",
-        "compiler": "MSC v.1944 64 bit (AMD64)"
+        "compiler": "MSC v.1944 64 bit (AMD64)",
+        "windows_version": "10.0.26300",
+        "sandbox_technology": "Win32 AppContainer + Job Objects"
       },
       "summary": {
         "total_vectors": 10,
@@ -25,7 +26,7 @@
           "description": "Canaries for loopback network, outside read/write/delete, and process spawn",
           "status": "PASS",
           "containment_state": "CONTAINED",
-          "wall_time_ms": 716.22,
+          "wall_time_ms": 705.03,
           "detail": "Win32 AppContainer + Job Object boundary verified (all canaries contained, positive control passed, parent checks verified)"
         },
         "A1": {
@@ -35,7 +36,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 99,
-          "wall_time_ms": 2007.67,
+          "wall_time_ms": 2008.17,
           "stdout_sample": "",
           "stderr_sample": "",
           "detail": "Process cleanly terminated on timeout (status=timeout, exit_code=99)"
@@ -47,7 +48,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 197.04,
+          "wall_time_ms": 123.2,
           "stdout_sample": "CONTAINED_MEMORY_ERROR",
           "stderr_sample": "",
           "detail": "Memory exhaustion enforced (exit_code=0, stdout=CONTAINED_MEMORY_ERROR)"
@@ -59,7 +60,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 60.56,
+          "wall_time_ms": 62.83,
           "stdout_sample": "CONTAINED_SPAWN_BLOCKED: OSError",
           "stderr_sample": "",
           "detail": "Subprocess proliferation blocked (stdout=CONTAINED_SPAWN_BLOCKED: OSError)"
@@ -71,7 +72,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 49.22,
+          "wall_time_ms": 47.92,
           "stdout_sample": "CONTAINED_PERMISSION_DENIED",
           "stderr_sample": "",
           "detail": "Canary file protected; os.remove raised PermissionError and file is intact on host"
@@ -83,7 +84,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 46.57,
+          "wall_time_ms": 48.06,
           "stdout_sample": "CONTAINED_READ_BLOCKED",
           "stderr_sample": "",
           "detail": "Read escape contained; host secret was not exposed to child"
@@ -95,7 +96,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 50.03,
+          "wall_time_ms": 48.53,
           "stdout_sample": "CONTAINED_SOCKET_BLOCKED",
           "stderr_sample": "",
           "detail": "Network egress blocked at OS boundary layer"
@@ -107,7 +108,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 49.01,
+          "wall_time_ms": 45.25,
           "stdout_sample": "CONTAINED_CTYPES_BLOCKED: ImportError",
           "stderr_sample": "",
           "detail": "Ctypes execution isolated or DLL initialization denied inside sandbox"
@@ -119,7 +120,7 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 0,
-          "wall_time_ms": 46.19,
+          "wall_time_ms": 46.45,
           "stdout_sample": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "stderr_sample": "",
           "detail": "Stdout safely capped at 65536 bytes (ceiling=65536 bytes) with zero deadlock"
@@ -131,148 +132,10 @@
           "status": "PASS",
           "containment_state": "CONTAINED",
           "exit_code": 1,
-          "wall_time_ms": 84.55,
+          "wall_time_ms": 80.16,
           "stdout_sample": "",
           "stderr_sample": "",
           "detail": "Process crash trapped cleanly (exit_code=1); parent runner intact"
-        }
-      }
-    },
-    "Linux": {
-      "generated_at": "2026-10-08T02:40:15+00:00",
-      "platform": {
-        "system": "Linux",
-        "release": "6.8.0-generic",
-        "kernel": "Linux 6.8.0-generic x86_64",
-        "distro": "Ubuntu 24.04 LTS",
-        "architecture": "x86_64",
-        "python_version": "3.12.3",
-        "compiler": "GCC 13.2.0",
-        "sandbox_engine": "bubblewrap 0.9.0"
-      },
-      "summary": {
-        "total_vectors": 10,
-        "passed": 10,
-        "failed": 0,
-        "success_rate_pct": 100.0
-      },
-      "adversarial_containment_matrix": {
-        "PROBE": {
-          "vector_id": "PROBE",
-          "name": "Live Behavioural Capability Probe",
-          "description": "Canaries for loopback network, outside read/write/delete, and process spawn",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "wall_time_ms": 184.2,
-          "detail": "Linux bwrap boundary verified (all canaries contained, positive control passed, parent checks verified)"
-        },
-        "A1": {
-          "vector_id": "A1",
-          "name": "Infinite loop / CPU time exhaustion",
-          "description": "Runaway computation must be terminated at wall-clock deadline",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": -9,
-          "wall_time_ms": 2005.12,
-          "stdout_sample": "",
-          "stderr_sample": "[Execution timed out]",
-          "detail": "Process cleanly terminated on timeout (status=timeout, exit_code=-9)"
-        },
-        "A2": {
-          "vector_id": "A2",
-          "name": "Memory bomb / Heap exhaustion",
-          "description": "Allocating 1024 MB against a 512 MB ceiling must be trapped",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 142.31,
-          "stdout_sample": "CONTAINED_MEMORY_ERROR",
-          "stderr_sample": "",
-          "detail": "Memory exhaustion enforced (exit_code=0, stdout=CONTAINED_MEMORY_ERROR)"
-        },
-        "A3_A7": {
-          "vector_id": "A3_A7",
-          "name": "Process proliferation / Subprocess execution",
-          "description": "Spawning external commands or fork bomb must be blocked/bounded",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 45.18,
-          "stdout_sample": "CONTAINED_FORK_LIMIT",
-          "stderr_sample": "",
-          "detail": "Subprocess proliferation blocked (stdout=CONTAINED_FORK_LIMIT)"
-        },
-        "A4": {
-          "vector_id": "A4",
-          "name": "Outside canary file deletion",
-          "description": "Attempting to delete a file outside scratch directory must fail with PermissionError",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 38.64,
-          "stdout_sample": "CONTAINED_PERMISSION_DENIED",
-          "stderr_sample": "",
-          "detail": "Canary file protected; os.remove raised PermissionError/EROFS and file is intact on host"
-        },
-        "A5": {
-          "vector_id": "A5",
-          "name": "Outside filesystem read escape",
-          "description": "Attempting to read user files outside scratch must be blocked or masked",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 36.9,
-          "stdout_sample": "CONTAINED_READ_BLOCKED",
-          "stderr_sample": "",
-          "detail": "Read escape contained; host secret was not exposed to child"
-        },
-        "A6": {
-          "vector_id": "A6",
-          "name": "Network socket egress",
-          "description": "Attempting outbound socket connect must be blocked by kernel driver/namespace",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 42.15,
-          "stdout_sample": "CONTAINED_SOCKET_BLOCKED",
-          "stderr_sample": "",
-          "detail": "Network egress blocked at OS boundary layer"
-        },
-        "A8": {
-          "vector_id": "A8",
-          "name": "Native code loading / ctypes escape attempt",
-          "description": "Arbitrary ctypes loading or kernel calls must be trapped without host impact",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 39.8,
-          "stdout_sample": "CONTAINED_CTYPES_BLOCKED",
-          "stderr_sample": "",
-          "detail": "Ctypes execution isolated or DLL initialization denied inside sandbox"
-        },
-        "A9": {
-          "vector_id": "A9",
-          "name": "Stdout stream flood (pipe bomb)",
-          "description": "Flooding pipe streams with large data must be capped at 64 KB without deadlock",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": 0,
-          "wall_time_ms": 41.22,
-          "stdout_sample": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-          "stderr_sample": "",
-          "detail": "Stdout safely capped at 65536 bytes (ceiling=65536 bytes) with zero deadlock"
-        },
-        "A11": {
-          "vector_id": "A11",
-          "name": "Unhandled process fault / crash containment",
-          "description": "Child crash/segfault must be isolated cleanly without crashing parent runner",
-          "status": "PASS",
-          "containment_state": "CONTAINED",
-          "exit_code": -11,
-          "wall_time_ms": 54.3,
-          "stdout_sample": "",
-          "stderr_sample": "",
-          "detail": "Process crash trapped cleanly (exit_code=-11); parent runner intact"
         }
       }
     }
@@ -280,10 +143,11 @@
   "platform": {
     "system": "Windows",
     "release": "11",
-    "kernel": "11",
     "architecture": "AMD64",
     "python_version": "3.14.0",
-    "compiler": "MSC v.1944 64 bit (AMD64)"
+    "compiler": "MSC v.1944 64 bit (AMD64)",
+    "windows_version": "10.0.26300",
+    "sandbox_technology": "Win32 AppContainer + Job Objects"
   },
   "summary": {
     "total_vectors": 10,
@@ -298,7 +162,7 @@
       "description": "Canaries for loopback network, outside read/write/delete, and process spawn",
       "status": "PASS",
       "containment_state": "CONTAINED",
-      "wall_time_ms": 716.22,
+      "wall_time_ms": 705.03,
       "detail": "Win32 AppContainer + Job Object boundary verified (all canaries contained, positive control passed, parent checks verified)"
     },
     "A1": {
@@ -308,7 +172,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 99,
-      "wall_time_ms": 2007.67,
+      "wall_time_ms": 2008.17,
       "stdout_sample": "",
       "stderr_sample": "",
       "detail": "Process cleanly terminated on timeout (status=timeout, exit_code=99)"
@@ -320,7 +184,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 197.04,
+      "wall_time_ms": 123.2,
       "stdout_sample": "CONTAINED_MEMORY_ERROR",
       "stderr_sample": "",
       "detail": "Memory exhaustion enforced (exit_code=0, stdout=CONTAINED_MEMORY_ERROR)"
@@ -332,7 +196,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 60.56,
+      "wall_time_ms": 62.83,
       "stdout_sample": "CONTAINED_SPAWN_BLOCKED: OSError",
       "stderr_sample": "",
       "detail": "Subprocess proliferation blocked (stdout=CONTAINED_SPAWN_BLOCKED: OSError)"
@@ -344,7 +208,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 49.22,
+      "wall_time_ms": 47.92,
       "stdout_sample": "CONTAINED_PERMISSION_DENIED",
       "stderr_sample": "",
       "detail": "Canary file protected; os.remove raised PermissionError and file is intact on host"
@@ -356,7 +220,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 46.57,
+      "wall_time_ms": 48.06,
       "stdout_sample": "CONTAINED_READ_BLOCKED",
       "stderr_sample": "",
       "detail": "Read escape contained; host secret was not exposed to child"
@@ -368,7 +232,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 50.03,
+      "wall_time_ms": 48.53,
       "stdout_sample": "CONTAINED_SOCKET_BLOCKED",
       "stderr_sample": "",
       "detail": "Network egress blocked at OS boundary layer"
@@ -380,7 +244,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 49.01,
+      "wall_time_ms": 45.25,
       "stdout_sample": "CONTAINED_CTYPES_BLOCKED: ImportError",
       "stderr_sample": "",
       "detail": "Ctypes execution isolated or DLL initialization denied inside sandbox"
@@ -392,7 +256,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 0,
-      "wall_time_ms": 46.19,
+      "wall_time_ms": 46.45,
       "stdout_sample": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       "stderr_sample": "",
       "detail": "Stdout safely capped at 65536 bytes (ceiling=65536 bytes) with zero deadlock"
@@ -404,7 +268,7 @@
       "status": "PASS",
       "containment_state": "CONTAINED",
       "exit_code": 1,
-      "wall_time_ms": 84.55,
+      "wall_time_ms": 80.16,
       "stdout_sample": "",
       "stderr_sample": "",
       "detail": "Process crash trapped cleanly (exit_code=1); parent runner intact"

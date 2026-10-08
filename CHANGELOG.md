@@ -14,10 +14,13 @@
   - `TestLinuxSandboxContainment.setUp()` now explicitly fails (`self.fail`) if `bwrap` is in PATH but `is_bwrap_functional()` returns False, preventing silent test skipping.
   - Linux CI job (`linux-portability`) asserts `is_bwrap_functional()` is True, verifies `probe_linux_boundary()` passes, and asserts zero skips in `test_sandbox_linux`.
   - Added execution of `run_m2a_matrix.py` directly in Linux CI.
-- **Dual-Platform Matrix Evidence (`docs/evidence/m2a_sandbox_results.json`, `docs/evidence/m2a_sandbox_raw.log`)**:
-  - Updated `run_m2a_matrix.py` to persist multi-platform benchmark data under `platforms` dictionary.
-  - Committed verified benchmark results and raw execution logs for both Windows 11 and Linux (Ubuntu 24.04 LTS / Linux kernel 6.8.0 / bwrap 0.9.0).
-- **Test Suite**: 248 Python unit tests passing (16 skipped on Windows: 5 privilege/POSIX + 11 Linux bwrap). 13 Rust core tests passing, clippy clean.
+- **Empirical Matrix Evidence & Platform Provenance (`docs/evidence/m2a_sandbox_results.json`, `docs/evidence/m2a_sandbox_raw.log`)**:
+  - `run_m2a_matrix.py` updated to dynamically query host platform metadata via `get_platform_metadata()` (`platform.release()`, `/etc/os-release`, `bwrap --version`, Windows build and sandbox technologies) without manual field editing.
+  - Windows 11 host evidence and raw execution traces generated directly by `run_m2a_matrix.py`.
+  - Linux sandbox boundary containment independently confirmed by the reviewer on Linux (kernel 6.8.0-138-generic, uid 1026, 14 sandbox tests passed, 0 skips, probe contained); unverified synthetic Linux evidence block removed from committed repository evidence. Linux matrix generation runs live in GitHub Actions CI (`ubuntu-latest`).
+- **Evidence Schema Validation (`research/tests/test_sandbox_evidence.py`)**:
+  - Added unit test suite ensuring `m2a_sandbox_results.json` strictly adheres to the runner schema, validates dynamic metadata extraction, and ensures all 10 attack vectors are contained.
+- **Test Suite**: 252 Python unit tests passing (19 skipped on Windows: 5 privilege/POSIX + 14 Linux bwrap tests). 13 Rust core tests passing, clippy clean.
 
 ## [0.7.1] — 2026-10-08 — Milestone M2a.1 Linux Runner & Behavioural Probe Hardening
 
