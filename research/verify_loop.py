@@ -1265,6 +1265,11 @@ def sanitize_untrusted_diagnostics(test_result: TestExecutionResult, max_chars: 
         lines.append(clean_det)
 
     combined = "\n".join(lines)
+
+    # Strip any occurrences of envelope boundary markers to prevent premature envelope breakout
+    for marker in ("--- UNTRUSTED TEST EXECUTION DATA END ---", "--- UNTRUSTED TEST EXECUTION DATA BEGIN ---"):
+        combined = combined.replace(marker, "[STRIPPED_MARKER]")
+
     if len(combined) > max_chars:
         combined = combined[:max_chars] + "... [truncated]"
 

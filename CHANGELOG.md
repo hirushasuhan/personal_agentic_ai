@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.10] — 2026-10-08 — Milestone M2b Step 4: Linux Stdin Secret Channel Fix & Envelope Defanging
+
+### Sandbox Linux Secret Channel Fix (`research/sandbox_linux.py`)
+- **`import json` Missing**: Added missing `import json` module import. Previously `json.dumps(extra_env)` failed silently inside a `try ... except Exception: pass` block, leaving `PAI_SESSION_NONCE` and `PAI_HMAC_KEY` empty inside the sandbox on Linux.
+- **Python 3.10 `proc.communicate(input=...)`**: Replaced manual `proc.stdin.write`/`flush`/`close` with standard `proc.communicate(input=input_payload, timeout=self.timeout_sec)`. Avoids `ValueError: flush of closed file` raised when Python 3.10's `communicate()` attempts to flush an already closed stdin.
+- **Linux Secret Injection Test (`research/tests/test_sandbox_linux.py`)**: Added `test_extra_env_secret_passed_via_stdin_not_in_bwrap_argv` ensuring secrets passed via `extra_env` are confirmed received inside the sandbox and strictly absent from host-visible `bwrap` command-line `argv` (DoD Section 4).
+
+### Diagnostic Envelope Defanging (`research/verify_loop.py`, `research/tests/test_verify_loop.py`)
+- **Untrusted Diagnostic Envelope Marker Stripping**: Updated `sanitize_untrusted_diagnostics` to replace occurrences of `--- UNTRUSTED TEST EXECUTION DATA END ---` and `--- UNTRUSTED TEST EXECUTION DATA BEGIN ---` in failure messages with `[STRIPPED_MARKER]` before wrapping in the outer envelope, preventing adversarial attempts to prematurely close the envelope.
+- **Envelope Defanging Test**: Added unit test assertions verifying embedded end-markers are defanged and the envelope contains strictly one end marker.
+
 ## [0.7.9] — 2026-10-08 — Milestone M2b Step 4: pai code Pipeline Wiring & Loopback E2E Test Harness
 
 ### Milestone M2b Step 4 Resolution & End-to-End Pipeline Integration (ADR-011 v2.1)

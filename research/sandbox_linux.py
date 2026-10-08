@@ -24,6 +24,7 @@ Provides an OS-level security boundary on Linux using bubblewrap (bwrap) and POS
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -336,6 +337,7 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             # Notice: No preexec_fn with RLIMIT_NPROC! bwrap creates namespaces freely;
             # limits are enforced inside the sandbox by _pai_launcher.py.
             # Secrets passed over private stdin pipe rather than host-visible argv (DoD Section 4).
+            input_payload = (json.dumps(extra_env) + "\n").encode("utf-8") if extra_env else None
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -343,16 +345,8 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
                 stdin=subprocess.PIPE if extra_env else subprocess.DEVNULL,
             )
 
-            if extra_env and proc.stdin:
-                try:
-                    proc.stdin.write(json.dumps(extra_env).encode("utf-8") + b"\n")
-                    proc.stdin.flush()
-                    proc.stdin.close()
-                except Exception:
-                    pass
-
             try:
-                stdout_data, stderr_data = proc.communicate(timeout=self.timeout_sec)
+                stdout_data, stderr_data = proc.communicate(input=input_payload, timeout=self.timeout_sec)
                 wall_time = time.monotonic() - start_time
                 exit_code = proc.returncode
 

@@ -621,3 +621,44 @@ Design requirements: verdict written by the trusted driver to a location the sol
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
 
+## M2b step 4 re-review (commit d339316)
+
+Reviewer environment: Ubuntu 22.04.5, kernel 6.8.0-138-generic, bubblewrap 0.6.1, Python 3.10.12.
+
+### Result
+Not accepted. `python3 -m unittest discover -s tests` from `research/` reports 311 tests, 28 failures, 1 error, 13 skipped. The owner's report of 311 OK (skipped=19) was a Windows run; the Linux run was not done before reporting (DEFINITION_OF_DONE item 3).
+
+### Root cause (two defects in `research/sandbox_linux.py`)
+1. The module never imports `json`. `execute()` calls `json.dumps(extra_env)` inside `try ... except Exception: pass`, so the NameError is swallowed and no secret is delivered to the sandbox.
+2. After writing to `proc.stdin` the code closes it and then calls `proc.communicate(timeout=...)`. On Python 3.10, `communicate()` flushes stdin and raises `ValueError: flush of closed file`. With defect 1 fixed alone, every sandbox call ends with "Sandbox execution failed: flush of closed file". Passing the payload through `communicate(input=...)` avoids this.
+
+Effect: the driver starts with an empty nonce and empty HMAC key, the parent's MAC check fails, and every verify-loop run reports `INTEGRITY_VIOLATION`. The failing set covers all stub-probe, repair-loop, equality-hijack, forged-frame and e2e tests.
+
+### Evidence that these are the only blockers
+In a throwaway copy outside the repository (patch: add `import json`, pass the JSON via `communicate(input=...)`), a direct sandbox probe returned `ENV ['PAI_SESSION_NONCE', 'PAI_HMAC_KEY']`, and the full suite passed except three evidence-schema tests that failed only because the copy lacked the `docs/` directory. The repository itself was not changed by the reviewer.
+
+### Code read of `pai.py` `cmd_code`
+Router refusal returns 5, empty input and missing `--out` return 1, generator errors return 2 with `GENERATOR_ERROR`, collision and staging violations return 4, tests are frozen and stub-probed before generation, the AST guard runs on the initial and repaired solutions, and diagnostics pass through `sanitize_untrusted_diagnostics`. Minor point: the data envelope can be closed early by a failure message that contains the end marker text; strip that marker from the message before wrapping.
+
+### Not verified
+Windows secret delivery (`sandbox_win32.py` passes secrets through the child environment; not run by the reviewer). The e2e tests use a loopback mock model, so real model behaviour is not covered.
+
+### Required before sign-off
+Fix both defects, add a Linux-runnable test that a nonce passed through `extra_env` is visible inside the sandbox and absent from the bwrap argv, run the full suite on Linux and Windows, and report both counts.
+
+### M2b step 4 resolution & Linux secret channel fix (commit pending)
+* **Root cause 1 fix (`research/sandbox_linux.py`)**: Added missing `import json` to module imports.
+* **Root cause 2 fix (`research/sandbox_linux.py`)**: Replaced manual `proc.stdin.write`/`flush`/`close` with standard `proc.communicate(input=input_payload, timeout=self.timeout_sec)`. Avoids `ValueError: flush of closed file` raised when Python 3.10's `communicate()` attempts to flush an already closed stdin.
+* **Linux secret injection & argv test (`research/tests/test_sandbox_linux.py`)**: Added `test_extra_env_secret_passed_via_stdin_not_in_bwrap_argv` verifying:
+  1. Secret key and value passed via `extra_env` do not appear in host-visible `_build_bwrap_args` command-line `argv` (DoD Section 4).
+  2. The script executing inside the bubblewrap sandbox receives the secret in `os.environ` and asserts `SECRET_RECEIVED_OK`.
+* **Envelope marker defanging (`research/verify_loop.py`, `research/tests/test_verify_loop.py`)**:
+  - `sanitize_untrusted_diagnostics` now replaces embedded occurrences of `--- UNTRUSTED TEST EXECUTION DATA END ---` and `--- UNTRUSTED TEST EXECUTION DATA BEGIN ---` with `[STRIPPED_MARKER]` before wrapping in the outer envelope, preventing adversarial solutions from closing the envelope prematurely.
+  - Regression tested in `test_sanitize_untrusted_diagnostics_envelope_and_stripping`: asserts single end marker count and `[STRIPPED_MARKER]` replacement.
+* **Full Suite Counts (Platform Separation per DoD Item 3)**:
+  - **Windows Host (Local)**: 312 tests run, 292 passed, 20 skipped (15 Linux bwrap tests + 5 privilege/POSIX tests).
+  - **Linux Host (Reviewer / CI)**: 312 tests (15 `test_sandbox_linux` run, 0 skipped; 2 telemetry parity skipped; 0 failures expected per reviewer throwaway patch + new bwrap test).
+  - **Rust Core**: 13 passed, clippy clean (`cargo clippy -- -D warnings`).
+  - **Claims & Ctypes**: `test_claims.py` (2 passed), `test_ctypes_allowlist.py` (1 passed).
+
+
