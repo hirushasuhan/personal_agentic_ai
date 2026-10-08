@@ -1,6 +1,38 @@
 # Changelog
 
-## [0.7.7] — 2026-10-08 — Milestone M2b Step 3 Two-Process Architecture, JSON RPC & Verdict Pipe Integrity
+## [0.7.8] — 2026-10-08 — Milestone M2b Step 4 Hardening (H1–H3), Bounded Repair Loop & Safe Staging
+
+### Milestone M2b Step 4 Hardening & Bounded Repair Loop (ADR-011 v2.1)
+- **H1: Private Environment Channel for Nonce & HMAC Key (`research/verify_loop.py`, `research/sandbox_linux.py`, `research/sandbox_win32.py`)**:
+  - Eliminated command-line arguments for secrets: `_pai_driver.py` is invoked with `args=[]`. Nonce and HMAC key are never exposed in `sys.argv` or process command lines.
+  - Secrets are passed exclusively via private environment variables (`PAI_SESSION_NONCE`, `PAI_HMAC_KEY`). On Linux, bubblewrap applies `--setenv` with `--clearenv`. On Windows, temporary environment injection passes them to AppContainer `CreateProcessW`.
+  - In `_pai_driver.py`, `prctl(PR_SET_DUMPABLE, 0)` is set immediately on Linux, protecting `/proc/<pid>/environ`, `mem`, and `fd`. Both secrets are popped from `os.environ` before any child worker is spawned.
+  - Candidate worker process environment (`worker_env`) is strictly sanitized and does not inherit secrets.
+- **H2: Worker Reaping & Strictly-Single Verdict Frame Enforcement (`research/verify_loop.py`)**:
+  - Trusted driver forcibly terminates, kills, and reaps the worker process (`worker_proc.kill()` + `worker_proc.wait(timeout=2.0)`) before emitting the verdict frame to stdout, preventing lingering post-execution stdout writes or race conditions.
+  - Parent parser enforces strictly one verdict frame (`count("---PAI_VERDICT_START---") == 1` and `count("---PAI_VERDICT_END---") == 1`). If more than one frame is detected, the run is immediately rejected as `status="INTEGRITY_VIOLATION", passed=False`.
+- **H3: Keyed MAC Authentication via HMAC-SHA256 (`research/verify_loop.py`)**:
+  - The driver calculates a keyed HMAC-SHA256 signature over the canonical JSON payload using `parent_hmac_key`.
+  - Parent validates the signature with `hmac.compare_digest`. Any payload reaching stdout without a valid HMAC signature fails authentication and is rejected as `status="INTEGRITY_VIOLATION", passed=False`.
+- **Bounded Repair State Machine & Metrics (`research/verify_loop.py`)**:
+  - Implemented `run_repair_loop` with bounded repair iterations ($N \le 3$, default 3).
+  - Tests remain strictly frozen throughout all iterations; read-back SHA-256 hash verified before and after every repair invocation. Any mutation attempt raises `TestMutationError`.
+  - Records iteration history and computes both `pass@1_zero_shot` and `pass@1_repair3` metrics.
+- **Race-Free Safe Staging Contract (`research/verify_loop.py`)**:
+  - Implemented `stage_artifacts` enforcing Section 3.7 contract: fixed output file names (`solution.py`, `test_solution.py`), strict symlink rejection, atomic `O_CREAT | O_EXCL` collision prevention (`FileExistsError` on pre-existing files without `--overwrite`), and atomic `os.replace` with `fsync` when `--overwrite` is specified.
+- **Acceptance Tests**:
+  - Added named tests for all hardening criteria and repair loop behaviors in `research/tests/test_verify_loop.py`:
+    - `test_forged_verdict_frame_with_leaked_nonce_rejected_as_integrity_violation`
+    - `test_multiple_verdict_frames_rejected_as_integrity_violation`
+    - `test_worker_killed_before_driver_writes_verdict`
+    - `test_parent_nonce_not_in_driver_cmdline`
+    - `test_run_repair_loop_passes_zero_shot`
+    - `test_run_repair_loop_passes_on_repair`
+    - `test_run_repair_loop_exhausts_repairs`
+    - `test_run_repair_loop_rejects_test_mutation`
+    - `test_safe_staging_exclusive_create_and_symlink_rejection`
+    - Positive control preserved (`test_positive_control_correct_solution_passes_via_rpc_channel`).
+  - Full suite: 294 passed, 0 failed, 19 skipped on Windows. 13 Rust core tests passing, clippy clean. Claims lint passing (2/2).
 
 ### Milestone M2b Step 3 Result-Integrity Channel (ADR-011 v2.1)
 - **Two-Process Split Inside Sandbox (`research/verify_loop.py`, `research/sandbox.py`)**:

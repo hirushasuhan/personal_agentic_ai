@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import hmac
 import inspect
 import json
 import os
@@ -37,7 +38,7 @@ import sys
 import tempfile
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 # Ensure research root is on path
 _CURR_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -181,7 +182,7 @@ class StubProbeResult:
 class TestExecutionResult:
     """Outcome of running a candidate solution against the frozen test suite."""
     passed: bool
-    status: str  # "PASS", "FAIL", "ERROR", "timeout", "mutation_error"
+    status: str  # "PASS", "FAIL", "ERROR", "timeout", "mutation_error", "INTEGRITY_VIOLATION"
     exit_code: int
     discovered: int
     executed: int
@@ -192,6 +193,29 @@ class TestExecutionResult:
     stderr: str
     detail: str
     wall_time_sec: float = 0.0
+
+
+@dataclass
+class RepairIteration:
+    """Single iteration of the bounded repair loop."""
+    iteration: int
+    solution_code: str
+    test_result: TestExecutionResult
+    repair_prompt: Optional[str] = None
+    wall_time_sec: float = 0.0
+
+
+@dataclass
+class RepairLoopResult:
+    """Outcome of running the bounded repair loop across at most 3 repair attempts."""
+    success: bool
+    final_solution: str
+    iterations: List[RepairIteration]
+    total_repairs: int
+    frozen_suite: FrozenTestSuite
+    pass_at_1_zero_shot: bool
+    pass_at_1_repair3: bool
+    detail: str
 
 
 def generate_stub_code(symbols: Tuple[str, ...], stub_name: str, stub_body: str) -> str:
@@ -387,6 +411,7 @@ class VerifyLoop:
             raise RuntimeError(f"Sandbox execution not supported on platform: {sys.platform}")
 
         parent_nonce = secrets.token_hex(32)
+        parent_hmac_key = secrets.token_hex(32)
 
         sb = get_sandbox(
             memory_mb=self.memory_mb,
@@ -552,8 +577,9 @@ if sys.platform.startswith("linux"):
     except Exception:
         pass
 
-# 2. Acquire parent nonce from argv and sanitize argv
-parent_nonce = sys.argv[1] if len(sys.argv) > 1 else ""
+# 2. Acquire parent nonce and HMAC key from private environment channel and pop immediately (H1)
+parent_nonce = os.environ.pop("PAI_SESSION_NONCE", "")
+parent_hmac_key = os.environ.pop("PAI_HMAC_KEY", "")
 sys.argv = ["test_suite.py"]
 
 scratch_dir = os.path.dirname(os.path.abspath(__file__))
@@ -812,12 +838,16 @@ elif failed_count > 0:
 else:
     overall_status = "PASS"
 
-# Terminate worker process cleanly
+# Terminate, kill and reap worker process BEFORE writing authenticated verdict frame (H2)
 try:
     if worker_proc.poll() is None:
-        worker_proc.stdin.write(json.dumps({{"op": "exit"}}) + "\\n")
-        worker_proc.stdin.flush()
-        worker_proc.terminate()
+        try:
+            worker_proc.stdin.write(json.dumps({{"op": "exit"}}) + "\\n")
+            worker_proc.stdin.flush()
+        except Exception:
+            pass
+        worker_proc.kill()
+        worker_proc.wait(timeout=2.0)
 except Exception:
     pass
 
@@ -826,8 +856,11 @@ try:
 except Exception:
     pass
 
-# Write authenticated verdict record exclusively to driver's stdout pipe
-result_data = {{
+# Write authenticated verdict record with HMAC-SHA256 signature (H3) exclusively to driver's stdout pipe
+import hmac
+import hashlib
+
+verdict_payload = {{
     "session_nonce": parent_nonce,
     "status": overall_status,
     "discovered": total_discovered,
@@ -838,6 +871,12 @@ result_data = {{
     "executed_test_ids": discovered_tests,
     "per_test_outcomes": per_test_outcomes,
     "failures": failures_list,
+}}
+canonical_bytes = json.dumps(verdict_payload, sort_keys=True).encode("utf-8")
+mac_signature = hmac.new(parent_hmac_key.encode("utf-8"), canonical_bytes, hashlib.sha256).hexdigest()
+result_data = {{
+    **verdict_payload,
+    "mac": mac_signature,
 }}
 
 sys.stdout.write("\\n---PAI_VERDICT_START---\\n" + json.dumps(result_data) + "\\n---PAI_VERDICT_END---\\n")
@@ -856,51 +895,153 @@ else:
             except Exception:
                 pass
 
-            # 6. Execute test driver inside sandbox with parent_nonce passed as argument
-            res = sb.execute(driver_path, args=[parent_nonce])
+            # 6. Execute test driver inside sandbox with secrets passed via private environment channel (H1)
+            res = sb.execute(
+                driver_path,
+                args=[],
+                extra_env={
+                    "PAI_SESSION_NONCE": parent_nonce,
+                    "PAI_HMAC_KEY": parent_hmac_key,
+                },
+            )
 
             comb_out = res.stdout or ""
 
-            # Extract authenticated verdict record from driver's stdout pipe framing
-            verdict_data: Dict[str, Any] = {}
-            if "---PAI_VERDICT_START---" in comb_out and "---PAI_VERDICT_END---" in comb_out:
-                try:
-                    payload = comb_out.split("---PAI_VERDICT_START---", 1)[1].split("---PAI_VERDICT_END---", 1)[0].strip()
-                    verdict_data = json.loads(payload)
-                except Exception:
-                    pass
+            # Check verdict frame counts (H2: require strictly one verdict frame)
+            start_count = comb_out.count("---PAI_VERDICT_START---")
+            end_count = comb_out.count("---PAI_VERDICT_END---")
 
-            if not verdict_data:
+            if start_count > 1 or end_count > 1:
+                return TestExecutionResult(
+                    passed=False,
+                    status="INTEGRITY_VIOLATION",
+                    exit_code=res.exit_code,
+                    discovered=0,
+                    executed=0,
+                    failed=0,
+                    errors=1,
+                    failures=[{
+                        "test_id": "<integrity>",
+                        "type": "MultipleVerdictFramesError",
+                        "message": f"Multiple verdict frames detected ({start_count} start, {end_count} end)",
+                    }],
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail="INTEGRITY_VIOLATION: Multiple verdict frames detected in output",
+                    wall_time_sec=res.wall_time_sec,
+                )
+
+            if start_count != 1 or end_count != 1:
                 # Driver did not produce authenticated verdict! (e.g. timeout or fatal crash)
                 discovered = 0
                 executed = 0
                 passed_c = 0
                 failed_c = 0
                 errors_c = 1
-                failures_l = [{"test_id": "<integrity>", "type": "DriverPreemptedError", "message": "Driver terminated early without writing authenticated verdict framing"}]
-                status_val = "ERROR"
-                session_nonce = None
-                executed_ids = []
-            else:
-                session_nonce = verdict_data.get("session_nonce")
-                discovered = verdict_data.get("discovered", 0)
-                executed = verdict_data.get("executed", 0)
-                passed_c = verdict_data.get("passed", 0)
-                failed_c = verdict_data.get("failed", 0)
-                errors_c = verdict_data.get("errors", 0)
-                failures_l = verdict_data.get("failures", [])
-                executed_ids = verdict_data.get("executed_test_ids", [])
-                status_val = verdict_data.get("status", "ERROR" if res.exit_code != 0 else "PASS")
+                failures_l = [{
+                    "test_id": "<integrity>",
+                    "type": "DriverPreemptedError",
+                    "message": "Driver terminated early without writing authenticated verdict framing",
+                }]
+                status_val = "timeout" if res.status == "timeout" else "ERROR"
+
+                return TestExecutionResult(
+                    passed=False,
+                    status=status_val,
+                    exit_code=res.exit_code,
+                    discovered=0,
+                    executed=0,
+                    failed=0,
+                    errors=1,
+                    failures=failures_l,
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail=f"Execution failed without verdict framing (status: {res.status})",
+                    wall_time_sec=res.wall_time_sec,
+                )
+
+            # Exactly one verdict frame is present: extract payload
+            verdict_data: Dict[str, Any] = {}
+            try:
+                payload = comb_out.split("---PAI_VERDICT_START---", 1)[1].split("---PAI_VERDICT_END---", 1)[0].strip()
+                verdict_data = json.loads(payload)
+            except Exception as e:
+                return TestExecutionResult(
+                    passed=False,
+                    status="INTEGRITY_VIOLATION",
+                    exit_code=res.exit_code,
+                    discovered=0,
+                    executed=0,
+                    failed=0,
+                    errors=1,
+                    failures=[{
+                        "test_id": "<integrity>",
+                        "type": "VerdictParseError",
+                        "message": f"Failed to parse verdict JSON: {e}",
+                    }],
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail="INTEGRITY_VIOLATION: Unparseable verdict framing",
+                    wall_time_sec=res.wall_time_sec,
+                )
+
+            # H3: Verify HMAC-SHA256 signature over verdict payload
+            received_mac = verdict_data.get("mac", "")
+            payload_without_mac = {k: v for k, v in verdict_data.items() if k != "mac"}
+            canonical_bytes = json.dumps(payload_without_mac, sort_keys=True).encode("utf-8")
+            expected_mac = hmac.new(parent_hmac_key.encode("utf-8"), canonical_bytes, hashlib.sha256).hexdigest()
+            mac_valid = bool(received_mac and hmac.compare_digest(received_mac, expected_mac))
+
+            if not mac_valid:
+                return TestExecutionResult(
+                    passed=False,
+                    status="INTEGRITY_VIOLATION",
+                    exit_code=res.exit_code,
+                    discovered=verdict_data.get("discovered", 0),
+                    executed=verdict_data.get("executed", 0),
+                    failed=verdict_data.get("failed", 0),
+                    errors=max(1, verdict_data.get("errors", 0)),
+                    failures=[{
+                        "test_id": "<integrity>",
+                        "type": "InvalidHmacSignatureError",
+                        "message": "HMAC-SHA256 signature mismatch or missing in verdict frame",
+                    }],
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail="INTEGRITY_VIOLATION: Verdict HMAC-SHA256 signature verification failed",
+                    wall_time_sec=res.wall_time_sec,
+                )
+
+            session_nonce = verdict_data.get("session_nonce")
+            discovered = verdict_data.get("discovered", 0)
+            executed = verdict_data.get("executed", 0)
+            passed_c = verdict_data.get("passed", 0)
+            failed_c = verdict_data.get("failed", 0)
+            errors_c = verdict_data.get("errors", 0)
+            failures_l = verdict_data.get("failures", [])
+            executed_ids = verdict_data.get("executed_test_ids", [])
+            status_val = verdict_data.get("status", "ERROR" if res.exit_code != 0 else "PASS")
 
             # Check nonce exact match against parent-held secret nonce
             if session_nonce != parent_nonce:
-                status_val = "ERROR"
-                errors_c = max(1, errors_c)
-                failures_l.append({
-                    "test_id": "<integrity>",
-                    "type": "InvalidNonceError",
-                    "message": f"Session nonce mismatch: expected {parent_nonce}, got {session_nonce}"
-                })
+                return TestExecutionResult(
+                    passed=False,
+                    status="INTEGRITY_VIOLATION",
+                    exit_code=res.exit_code,
+                    discovered=discovered,
+                    executed=executed,
+                    failed=failed_c,
+                    errors=max(1, errors_c),
+                    failures=[{
+                        "test_id": "<integrity>",
+                        "type": "InvalidNonceError",
+                        "message": f"Session nonce mismatch: expected {parent_nonce}, got {session_nonce}",
+                    }],
+                    stdout=comb_out,
+                    stderr=res.stderr,
+                    detail="INTEGRITY_VIOLATION: Session nonce mismatch in verdict frame",
+                    wall_time_sec=res.wall_time_sec,
+                )
 
             # Check expected test IDs match frozen AST list
             if frozen_suite.expected_test_ids and set(executed_ids) != set(frozen_suite.expected_test_ids):
@@ -952,6 +1093,7 @@ else:
                 and executed > 0
                 and executed == discovered
                 and session_nonce == parent_nonce
+                and mac_valid
                 and (not frozen_suite.expected_test_ids or set(executed_ids) == set(frozen_suite.expected_test_ids))
             )
             detail_msg = "All tests passed cleanly in sandbox" if is_pass else f"Test run failed: {failed_c} failures, {errors_c} errors"
@@ -980,3 +1122,165 @@ else:
             except Exception:
                 pass
             sb.cleanup()
+
+    def run_repair_loop(
+        self,
+        initial_solution_code: str,
+        frozen_suite: FrozenTestSuite,
+        repair_generator_fn: Optional[Callable[[str, TestExecutionResult, FrozenTestSuite], str]] = None,
+        max_repairs: Optional[int] = None,
+    ) -> RepairLoopResult:
+        """
+        Executes bounded repair state machine (max 3 repairs / ADR-011 v2.1).
+        Tests remain strictly frozen throughout all repair iterations.
+        Computes pass@1_zero_shot and pass@1_repair3.
+        """
+        limit = max(1, min(self.max_repairs if max_repairs is None else max_repairs, 3))
+        iterations: List[RepairIteration] = []
+
+        # Iteration 0: Initial solution evaluation
+        current_solution = initial_solution_code
+        frozen_suite.verify_integrity(frozen_suite.test_code)
+
+        res_0 = self.execute_solution_tests(current_solution, frozen_suite)
+        iterations.append(RepairIteration(
+            iteration=0,
+            solution_code=current_solution,
+            test_result=res_0,
+            wall_time_sec=res_0.wall_time_sec,
+        ))
+
+        if res_0.passed:
+            return RepairLoopResult(
+                success=True,
+                final_solution=current_solution,
+                iterations=iterations,
+                total_repairs=0,
+                frozen_suite=frozen_suite,
+                pass_at_1_zero_shot=True,
+                pass_at_1_repair3=True,
+                detail="PASS on zero-shot generation (0 repairs required)",
+            )
+
+        # Iterations 1..limit
+        for rep_idx in range(1, limit + 1):
+            if repair_generator_fn is None:
+                break
+
+            # Invariant: verify test suite was not mutated
+            frozen_suite.verify_integrity(frozen_suite.test_code)
+
+            try:
+                repaired_code = repair_generator_fn(current_solution, iterations[-1].test_result, frozen_suite)
+            except TestMutationError:
+                raise
+            except Exception:
+                repaired_code = current_solution
+
+            # Verify integrity again after generator returns
+            frozen_suite.verify_integrity(frozen_suite.test_code)
+            current_solution = repaired_code
+
+            res = self.execute_solution_tests(current_solution, frozen_suite)
+            iterations.append(RepairIteration(
+                iteration=rep_idx,
+                solution_code=current_solution,
+                test_result=res,
+                wall_time_sec=res.wall_time_sec,
+            ))
+
+            if res.passed:
+                return RepairLoopResult(
+                    success=True,
+                    final_solution=current_solution,
+                    iterations=iterations,
+                    total_repairs=rep_idx,
+                    frozen_suite=frozen_suite,
+                    pass_at_1_zero_shot=False,
+                    pass_at_1_repair3=True,
+                    detail=f"PASS after {rep_idx} repair iterations",
+                )
+
+        return RepairLoopResult(
+            success=False,
+            final_solution=current_solution,
+            iterations=iterations,
+            total_repairs=len(iterations) - 1,
+            frozen_suite=frozen_suite,
+            pass_at_1_zero_shot=False,
+            pass_at_1_repair3=False,
+            detail=f"FAIL: Repair loop exhausted after {len(iterations) - 1} repairs without passing tests",
+        )
+
+
+def stage_artifacts(
+    out_dir: str,
+    solution_code: str,
+    test_code: str,
+    overwrite: bool = False,
+) -> Tuple[str, str]:
+    """
+    Race-free safe staging of verified artifacts (M2b Section 3.7 / ADR-011 v2.1).
+    - Strictly rejects symlinks in out_dir.
+    - Uses fixed filenames: solution.py and test_solution.py.
+    - If overwrite is False: uses atomic os.O_CREAT | os.O_EXCL to prevent collisions.
+    - If overwrite is True: writes to temporary file, fsyncs, and atomically replaces via os.replace.
+    """
+    abs_out = os.path.abspath(out_dir)
+
+    # Check for symlinks in out_dir
+    if os.path.islink(abs_out):
+        raise ValueError(f"Symlinks strictly rejected in staging target: {abs_out}")
+
+    # Ensure parent directory components are not symlinks
+    curr = abs_out
+    while curr and curr != os.path.dirname(curr):
+        if os.path.islink(curr):
+            raise ValueError(f"Symlink component detected in output path: {curr}")
+        curr = os.path.dirname(curr)
+
+    os.makedirs(abs_out, exist_ok=True)
+
+    sol_dest = os.path.join(abs_out, "solution.py")
+    test_dest = os.path.join(abs_out, "test_solution.py")
+
+    files_to_stage = [
+        (sol_dest, solution_code, "solution.py"),
+        (test_dest, test_code, "test_solution.py"),
+    ]
+
+    for dest_path, content, label in files_to_stage:
+        if os.path.islink(dest_path):
+            raise ValueError(f"Symlink destination rejected: {dest_path}")
+
+        if not overwrite:
+            flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+            try:
+                fd = os.open(dest_path, flags, 0o644)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+            except FileExistsError:
+                raise FileExistsError(
+                    f"Refusing to overwrite existing file '{dest_path}'. Use --overwrite to replace."
+                )
+        else:
+            # Atomic replace via temporary file in target directory
+            tmp_path = os.path.join(abs_out, f".{label}.tmp.{uuid.uuid4().hex}")
+            try:
+                flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+                fd = os.open(tmp_path, flags, 0o644)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_path, dest_path)
+            finally:
+                if os.path.exists(tmp_path):
+                    try:
+                        os.remove(tmp_path)
+                    except Exception:
+                        pass
+
+    return sol_dest, test_dest

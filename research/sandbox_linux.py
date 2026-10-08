@@ -203,7 +203,13 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
 
         return launcher_path
 
-    def _build_bwrap_args(self, launcher_path: str, script_path: str, extra_args: Optional[List[str]] = None) -> list[str]:
+    def _build_bwrap_args(
+        self,
+        launcher_path: str,
+        script_path: str,
+        extra_args: Optional[List[str]] = None,
+        extra_env: Optional[Dict[str, str]] = None,
+    ) -> list[str]:
         """Constructs the complete bwrap command-line argument list."""
         bwrap_bin = shutil.which("bwrap")
         if not bwrap_bin:
@@ -279,6 +285,11 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             "--setenv", "PYTHONUNBUFFERED", "1",
         ])
 
+        # Caller-supplied private environment variables (e.g. secret session nonce and HMAC key)
+        if extra_env:
+            for k, v in extra_env.items():
+                args.extend(["--setenv", str(k), str(v)])
+
         # Invocation command: python executes the in-sandbox launcher which limits resources and execs script
         python_exe = sys._base_executable if hasattr(sys, "_base_executable") else sys.executable
         args.extend([
@@ -294,7 +305,12 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
 
         return args
 
-    def execute(self, script_path: str, args: Optional[List[str]] = None) -> SandboxResult:
+    def execute(
+        self,
+        script_path: str,
+        args: Optional[List[str]] = None,
+        extra_env: Optional[Dict[str, str]] = None,
+    ) -> SandboxResult:
         """
         Executes a Python script inside the bubblewrap sandbox with resource limits.
         """
@@ -308,7 +324,7 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             )
 
         launcher_path = self._prepare_launcher(script_path)
-        cmd = self._build_bwrap_args(launcher_path, script_path, extra_args=args)
+        cmd = self._build_bwrap_args(launcher_path, script_path, extra_args=args, extra_env=extra_env)
 
         start_time = time.monotonic()
         try:

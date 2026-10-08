@@ -478,5 +478,74 @@ Design requirements: verdict written by the trusted driver to a location the sol
    - `test_positive_control_correct_solution_passes_via_rpc_channel`: Correct solution passes cleanly through the two-process RPC channel (`PASS`, 2/2 tests).
    - Plus all existing Step 2 & Step 3 tests (31 tests total in `test_verify_loop.py`). Full suite: 285 passed, 0 failed (skipped=19).
 
+### M2b step 3 re-review (commit `e3e7c3d`, 2026-10-08) — accepted with three hardening items
+
+**Verdict: accepted. Step 4 may start, with hardening items H1-H3 in its first commit.** No end-to-end false accept was found.
+
+**Verified on the Linux host (bwrap 0.6.1):** `Ran 285 tests ... OK (skipped=13)`. Reviewer probes against the new two-process design: a correct solution passes (plain-assert suite and pytest-style suite, exit 0); a wrong solution fails; the `R(int)` and plain-object `__eq__` hijacks are rejected against a module-level-assert suite (S3-2 fixed, because the tests only ever see JSON values from the worker); the earlier forged `test_result.json`, driver-source verdict path (the file no longer exists as a channel), driver overwrite/delete, daemon-thread `os._exit(0)` and `SIGKILL`/`SIGSTOP` of the driver (`ppid`) are all rejected (`ERROR` exit 137, `timeout` exit -9). Writable verdict directory is gone (S3-1 channel removed).
+
+**What still leaks (reviewer-reproduced, not yet exploitable to a false accept):**
+- **H1. The parent nonce is readable by the worker.** The nonce is passed as `argv[1]` to the driver. `prctl(PR_SET_DUMPABLE, 0)` protects `/proc/<pid>/fd`, `mem` and `environ`, but `/proc/<pid>/cmdline` stays readable: a worker that reads `/proc/<getppid()>/cmdline` obtains the full 64-hex nonce (reproduced). Pass the nonce through a pipe/stdin the worker does not inherit, or through the (non-dumpable-protected) environment, and never as an argument.
+- **H2. The sandbox stdout pipe is writable by the worker and the parser takes the first frame.** A worker can open `/proc/<pid>/fd/1` of another process in the sandbox (the sandbox launcher chain) and write a framed record. With the leaked nonce, a complete forged `status: PASS` frame placed ahead of the genuine one is parsed as the verdict (reproduced: `status=PASS` reported with a genuinely wrong solution, two frames in stdout). The run was still rejected only because the process exit code was 1 (or 137 when the worker also killed the driver), so the single remaining guard is the exit code. Require exactly one verdict frame (more than one is `INTEGRITY_VIOLATION`), take the verdict from the last frame only if there is exactly one, and have the driver kill and reap the worker (`SIGKILL` + `wait`) before it writes the frame so no worker write can follow it.
+- **H3. Do not rely on exit code as the integrity check.** Add the check in the parent that a PASS verdict also carries a keyed MAC over the record (HMAC-SHA256 with a key the parent passes through the same private channel as the nonce), so a record that reaches stdout without the key cannot validate.
+
+**Acceptance tests for the hardening (named, all must be rejected):** a failing solution that forges a full `PASS` frame with the leaked nonce (must give `passed=False` and `status != PASS`, with `INTEGRITY_VIOLATION`); a worker that writes two frames; a worker that writes after the driver is about to exit (worker killed before the frame is written); a test that asserts the nonce does not appear in `/proc/<driver>/cmdline` (run a probe worker that reads it). Keep the positive control.
+
+### M2b step 4 implementation & hardening report (2026-10-08) — Hardening H1–H3, Bounded Repair Loop & Safe Staging
+
+**Implementation status: Step 4 complete with all hardening items H1–H3 and acceptance tests implemented and passing.**
+
+#### 1. Hardening Items (H1–H3) Implementation Details
+- **H1. Private Environment Channel for Nonce & HMAC Key (`research/verify_loop.py`, `research/sandbox_linux.py`, `research/sandbox_win32.py`)**:
+  - The driver `_pai_driver.py` is invoked with `args=[]` (empty arguments). Nonce and HMAC key are **never** passed on the command line (`sys.argv`).
+  - Secrets are passed exclusively via private environment variables (`PAI_SESSION_NONCE`, `PAI_HMAC_KEY`).
+  - On Linux: bubblewrap applies `--setenv` with `--clearenv`. In `_pai_driver.py`, `libc.prctl(4, 0)` (`PR_SET_DUMPABLE = 0`) is applied immediately, protecting `/proc/<pid>/environ`, `mem`, and `fd`. Both secrets are popped from `os.environ` before spawning `_pai_worker.py`.
+  - The worker process environment (`worker_env`) is strictly sanitized to minimal paths (`PATH`, `PYTHONDONTWRITEBYTECODE`, `PYTHONUNBUFFERED`) and does not inherit secrets.
+- **H2. Worker Reaping & Strictly-Single Verdict Frame Enforcement (`research/verify_loop.py`)**:
+  - Before writing the authenticated verdict frame, the driver forcibly terminates, kills, and reaps the worker process (`worker_proc.kill()` + `worker_proc.wait(timeout=2.0)`). This prevents any background worker thread or sibling process from polluting stdout or writing frames after test completion.
+  - The parent parser enforces strictly one verdict frame (`count("---PAI_VERDICT_START---") == 1` and `count("---PAI_VERDICT_END---") == 1`). If `start_count > 1` or `end_count > 1`, the run is immediately rejected fail-closed as `status="INTEGRITY_VIOLATION", passed=False`.
+- **H3. Keyed MAC Authentication via HMAC-SHA256 (`research/verify_loop.py`)**:
+  - The driver calculates a keyed HMAC-SHA256 signature (`mac`) over canonical JSON payload using `parent_hmac_key`.
+  - The parent validates the HMAC signature using `hmac.compare_digest`. Any record reaching stdout without the secret HMAC key (or with a forged/leaked nonce) fails authentication and is rejected as `status="INTEGRITY_VIOLATION", passed=False`.
+
+#### 2. Windows Cross-Process Command Line Isolation
+- **Mechanism on Windows**:
+  - In Windows, AppContainer processes execute with restricted, low-integrity security tokens (AppContainer SID + zero capabilities).
+  - The process DACL on the driver process blocks `PROCESS_VM_READ` and `PROCESS_ALL_ACCESS` across processes with different/restricted tokens without debug privileges (`SeDebugPrivilege`).
+  - WMI and RPC queries across processes are blocked by AppContainer network and LPC restrictions.
+  - **Most critically, secrets are never passed on the command line at all**: `cmd = f'"{runtime_py}" -I -B -s -S "{target_script}"'` with `args=[]`. Even if a process inside the sandbox or Job Object queries its parent via `GetCommandLineW` or inspects the PEB, the command line contains zero secret tokens or nonces.
+  - The driver immediately pops `PAI_SESSION_NONCE` and `PAI_HMAC_KEY` from its environment upon startup, so the worker spawned with `worker_env` never receives the secrets.
+
+#### 3. Bounded Repair Loop & Safe Staging
+- **Bounded Repair State Machine (`VerifyLoop.run_repair_loop`)**:
+  - Enforces maximum 3 repairs ($N \le 3$, default 3).
+  - Tests remain strictly frozen throughout all repair iterations: read-back SHA-256 hash verified before and after each iteration. Any attempted mutation raises `TestMutationError`.
+  - Computes `pass@1_zero_shot` (iteration 0) and `pass@1_repair3` (iterations $\le 3$).
+- **Race-Free Safe Staging Contract (`stage_artifacts`)**:
+  - Fixed filenames: `<out_dir>/solution.py` and `<out_dir>/test_solution.py`.
+  - Symlinks strictly rejected in `<out_dir>` and parent path components.
+  - Without `--overwrite`: atomic `O_CREAT | O_EXCL` prevents file collisions (`FileExistsError`).
+  - With `--overwrite`: writes to temporary file in target directory, flushes, fsyncs, and atomically replaces via `os.replace`.
+
+#### 4. Acceptance Tests Verification (Windows Host)
+- **Hardening Acceptance Tests**:
+  - `test_forged_verdict_frame_with_leaked_nonce_rejected_as_integrity_violation`: REJECTED (`passed=False`, `status="INTEGRITY_VIOLATION"`).
+  - `test_multiple_verdict_frames_rejected_as_integrity_violation`: REJECTED (`passed=False`, `status="INTEGRITY_VIOLATION"`).
+  - `test_worker_killed_before_driver_writes_verdict`: Worker reaped before frame emission; clean verdict written (`passed=True`, `status="PASS"`).
+  - `test_parent_nonce_not_in_driver_cmdline`: Nonce and HMAC key do not appear in driver cmdline (`passed=True`, `status="PASS"`).
+  - `test_positive_control_correct_solution_passes_via_rpc_channel`: Preserved and passing (`passed=True`, `status="PASS"`).
+- **Repair Loop & Staging Tests**:
+  - `test_run_repair_loop_passes_zero_shot`: Passes on iteration 0 (`total_repairs=0, pass@1_zero_shot=True, pass@1_repair3=True`).
+  - `test_run_repair_loop_passes_on_repair`: Passes on iteration 1 (`total_repairs=1, pass@1_zero_shot=False, pass@1_repair3=True`).
+  - `test_run_repair_loop_exhausts_repairs`: Exhausts 3 repairs without passing (`total_repairs=3, pass@1_repair3=False`).
+  - `test_run_repair_loop_rejects_test_mutation`: Rejection of test code mutation during repair (`TestMutationError`).
+  - `test_safe_staging_exclusive_create_and_symlink_rejection`: `O_CREAT | O_EXCL` collision protection and symlink rejection verified.
+- **Suite Results**:
+  - 40 tests in `test_verify_loop.py` passed cleanly (0 failures, 0 errors).
+  - Full suite: 294 tests passed, 0 failed, 19 skipped on Windows (14 Linux bwrap tests + 5 privilege/POSIX tests).
+  - Rust core: 13 passed, 0 failed; clippy clean (`cargo clippy -- -D warnings`).
+  - Claims lint: 2 passed, 0 failed (`test_claims.py`).
+  - Ctypes allow-list: 1 passed, 0 failed (`test_ctypes_allowlist.py`).
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.

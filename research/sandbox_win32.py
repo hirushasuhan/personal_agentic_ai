@@ -364,7 +364,12 @@ class Win32Sandbox:
 
         self._is_setup = True
 
-    def execute(self, script_path: str, args: Optional[List[str]] = None) -> SandboxResult:
+    def execute(
+        self,
+        script_path: str,
+        args: Optional[List[str]] = None,
+        extra_env: Optional[Dict[str, str]] = None,
+    ) -> SandboxResult:
         """
         Executes a Python script inside the configured AppContainer + Job Object sandbox.
         Stdout and stderr are captured via anonymous pipe and capped at 64 KB.
@@ -452,19 +457,35 @@ class Win32Sandbox:
             cmd += " " + " ".join(f'"{a}"' for a in args)
         flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED | CREATE_NO_WINDOW
 
+        # Inject extra environment variables into process environment block if provided
+        old_env_vals = {}
+        if extra_env:
+            for k, v in extra_env.items():
+                old_env_vals[k] = os.environ.get(k)
+                os.environ[k] = str(v)
+
         t0 = time.time()
-        created = self.k32.CreateProcessW(
-            None,
-            cmd,
-            None,
-            None,
-            True,  # bInheritHandles = True so hWriteOut is inherited
-            flags,
-            None,
-            self.scratch_dir,
-            ctypes.byref(si),
-            ctypes.byref(pi)
-        )
+        try:
+            created = self.k32.CreateProcessW(
+                None,
+                cmd,
+                None,
+                None,
+                True,  # bInheritHandles = True so hWriteOut is inherited
+                flags,
+                None,
+                self.scratch_dir,
+                ctypes.byref(si),
+                ctypes.byref(pi)
+            )
+        finally:
+            if extra_env:
+                for k, v in extra_env.items():
+                    if old_env_vals[k] is None:
+                        os.environ.pop(k, None)
+                    else:
+                        os.environ[k] = old_env_vals[k]
+
         if not created:
             err = ctypes.get_last_error()
             self.k32.CloseHandle(hWriteOut)

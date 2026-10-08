@@ -606,7 +606,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_code.add_argument("task", nargs="?", default="", help="Coding task prompt")
     p_code.add_argument("--tests", type=str, help="User-supplied test file (takes priority over model-written tests)")
     p_code.add_argument("--allow-weak-tests", action="store_true", help="Permit user-supplied tests that pass one or more stubs in the stub family")
-    p_code.add_argument("--out", type=str, help="Output staging directory")
+    p_code.add_argument("--out", type=str, help="Output staging directory (required for artifact generation)")
+    p_code.add_argument("--model", type=str, default=None, help="Explicit candidate model override")
+    p_code.add_argument("--max-repairs", type=int, default=3, help="Maximum repair iterations (1..5, default: 3)")
+    p_code.add_argument("--timeout", type=float, default=10.0, help="Timeout in seconds per execution (default: 10.0)")
+    p_code.add_argument("--memory-mb", type=float, default=512.0, help="Memory ceiling in MB (default: 512.0)")
+    p_code.add_argument("--overwrite", action="store_true", help="Permit overwriting existing files in --out")
+    p_code.add_argument("--json", action="store_true", help="Output execution diagnostics in JSON format")
 
     # Deferred execution commands (M2+)
     for deferred in ("generate", "analyze", "forecast"):
@@ -618,12 +624,22 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_code(args) -> int:
     enforce_sandbox_boundary()
-    print("Sandbox execution boundary verified fail-closed.")
+    if not getattr(args, "json", False):
+        print("Sandbox execution boundary verified fail-closed.")
 
-    from verify_loop import VerifyLoop, VacuousTestError, TestSyntaxError
+    from verify_loop import VerifyLoop, VacuousTestError, TestSyntaxError, stage_artifacts
 
-    loop = VerifyLoop()
+    timeout_sec = min(30.0, max(1.0, float(getattr(args, "timeout", 10.0) or 10.0)))
+    memory_mb = min(2048.0, max(64.0, float(getattr(args, "memory_mb", 512.0) or 512.0)))
+    max_repairs = min(5, max(1, int(getattr(args, "max_repairs", 3) or 3)))
 
+    loop = VerifyLoop(
+        memory_mb=memory_mb,
+        timeout_sec=timeout_sec,
+        max_repairs=max_repairs,
+    )
+
+    suite = None
     if getattr(args, "tests", None):
         tests_path = args.tests
         if not os.path.exists(tests_path):
@@ -635,16 +651,18 @@ def cmd_code(args) -> int:
             print(f"Error: Invalid test suite: {e}", file=sys.stderr)
             return 1
 
-        print(f"[TESTS FROZEN] Source: {suite.source} | Hash: {suite.test_hash} | Assertions: {suite.assertion_count}")
+        if not getattr(args, "json", False):
+            print(f"[TESTS FROZEN] Source: {suite.source} | Hash: {suite.test_hash} | Assertions: {suite.assertion_count}")
         allow_weak = getattr(args, "allow_weak_tests", False)
         probe_res = loop.run_stub_probe(suite, allow_weak_tests=allow_weak)
         if not probe_res.passed:
             print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
             return 1
-        print(f"[STUB PROBE OK] {probe_res.detail}")
+        if not getattr(args, "json", False):
+            print(f"[STUB PROBE OK] {probe_res.detail}")
 
     if not args.task and not getattr(args, "tests", None):
-        print("Notice: Full verify loop & 'pai code' execution pipeline is scheduled for Milestone M2b.")
+        print("Notice: Full verify loop & 'pai code' execution pipeline is active for Milestone M2b.")
         return 0
 
     return 0

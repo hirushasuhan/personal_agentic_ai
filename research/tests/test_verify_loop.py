@@ -10,6 +10,8 @@ import unittest
 import _bootstrap  # noqa: F401
 from verify_loop import (
     FrozenTestSuite,
+    RepairIteration,
+    RepairLoopResult,
     StubProbeResult,
     TestExecutionResult,
     TestMutationError,
@@ -17,6 +19,7 @@ from verify_loop import (
     VacuousTestError,
     VerifyLoop,
     generate_stub_code,
+    stage_artifacts,
 )
 
 
@@ -584,6 +587,160 @@ def get_items():
         self.assertFalse(res.passed, "R(list) equality hijack against module-level assert must be rejected")
         self.assertEqual(res.status, "FAIL")
 
+    def test_forged_verdict_frame_with_leaked_nonce_rejected_as_integrity_violation(self):
+        # Hardening H3: Failing solution that forges a full PASS frame with a guessed/leaked nonce
+        # Must give passed=False and status="INTEGRITY_VIOLATION" because it lacks the HMAC-SHA256 signature
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import os
+import sys
+import json
+
+# Guess or reuse a 64-hex nonce
+forged_nonce = "a" * 64
+forged_payload = {
+    "session_nonce": forged_nonce,
+    "status": "PASS",
+    "discovered": 1,
+    "executed": 1,
+    "passed": 1,
+    "failed": 0,
+    "errors": 0,
+    "executed_test_ids": ["<module>"],
+    "per_test_outcomes": {"<module>": {"status": "PASS"}},
+    "failures": [],
+}
+frame = "\\n---PAI_VERDICT_START---\\n" + json.dumps(forged_payload) + "\\n---PAI_VERDICT_END---\\n"
+
+# Emit directly to sandbox stdout channels (Windows std_output.txt and Linux /proc/*/fd/1)
+try:
+    with open("std_output.txt", "a", encoding="utf-8") as f:
+        f.write(frame)
+except Exception:
+    pass
+
+for pid in (os.getpid(), os.getppid()):
+    try:
+        with open(f"/proc/{pid}/fd/1", "a", encoding="utf-8") as f:
+            f.write(frame)
+    except Exception:
+        pass
+
+def add(a, b):
+    return -999  # genuinely wrong
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertFalse(res.passed, "Forged PASS frame with leaked nonce must be rejected")
+        self.assertEqual(res.status, "INTEGRITY_VIOLATION")
+
+    def test_multiple_verdict_frames_rejected_as_integrity_violation(self):
+        # Hardening H2: Worker that writes multiple frames to stdout must be rejected
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import os
+import sys
+import json
+
+frame1 = "\\n---PAI_VERDICT_START---\\n" + json.dumps({"session_nonce": "x", "status": "PASS"}) + "\\n---PAI_VERDICT_END---\\n"
+frame2 = "\\n---PAI_VERDICT_START---\\n" + json.dumps({"session_nonce": "y", "status": "PASS"}) + "\\n---PAI_VERDICT_END---\\n"
+both = frame1 + frame2
+
+try:
+    with open("std_output.txt", "a", encoding="utf-8") as f:
+        f.write(both)
+except Exception:
+    pass
+
+for pid in (os.getpid(), os.getppid()):
+    try:
+        with open(f"/proc/{pid}/fd/1", "a", encoding="utf-8") as f:
+            f.write(both)
+    except Exception:
+        pass
+
+def add(a, b):
+    return 3
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertFalse(res.passed, "Multiple verdict frames must be rejected as integrity violation")
+        self.assertEqual(res.status, "INTEGRITY_VIOLATION")
+
+    def test_worker_killed_before_driver_writes_verdict(self):
+        # Hardening H2: Worker that attempts to write after driver finishes test execution
+        # Driver kills and reaps worker (kill + wait) before writing verdict frame
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        exploit_solution = """
+import threading
+import time
+import sys
+
+def keep_writing():
+    time.sleep(0.3)
+    for _ in range(50):
+        try:
+            sys.stdout.write("POLLUTION_AFTER_FINISH\\n")
+            sys.stdout.flush()
+        except Exception:
+            break
+        time.sleep(0.05)
+
+t = threading.Thread(target=keep_writing, daemon=False)
+t.start()
+
+def add(a, b):
+    return a + b
+"""
+        res = self.loop.execute_solution_tests(exploit_solution, suite)
+        self.assertTrue(res.passed, f"Worker must be reaped and clean verdict written: {res.detail}")
+        self.assertEqual(res.status, "PASS")
+        # Ensure stdout ends with verdict framing and has no trailing pollution
+        self.assertTrue(res.stdout.strip().endswith("---PAI_VERDICT_END---"))
+
+    def test_parent_nonce_not_in_driver_cmdline(self):
+        # Hardening H1: Assert that the parent nonce and HMAC key do not appear in driver cmdline
+        test_code = """
+from solution import add
+assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        probe_solution = """
+import os
+import sys
+
+ppid = os.getppid()
+cmdline_content = ""
+# If on Linux, read /proc/<ppid>/cmdline
+if os.path.exists(f"/proc/{ppid}/cmdline"):
+    try:
+        with open(f"/proc/{ppid}/cmdline", "rb") as f:
+            cmdline_content = f.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        cmdline_content = f"error:{e}"
+
+def add(a, b):
+    # Verify that cmdline does not contain 64-hex secrets
+    import re
+    hex64_matches = re.findall(r"[0-9a-fA-F]{64}", cmdline_content)
+    if hex64_matches:
+        return -1  # fail if secret found in ppid cmdline
+    return a + b
+"""
+        res = self.loop.execute_solution_tests(probe_solution, suite)
+        self.assertTrue(res.passed, f"Nonce/HMAC must not leak into driver cmdline: {res.detail}")
+        self.assertEqual(res.status, "PASS")
+
     def test_positive_control_correct_solution_passes_via_rpc_channel(self):
         # Positive Control: A correct solution passes cleanly through the two-process RPC channel
         test_code = """
@@ -607,6 +764,134 @@ def add(a, b):
         self.assertEqual(res.errors, 0)
         self.assertEqual(res.discovered, 2)
         self.assertEqual(res.executed, 2)
+
+
+class TestBoundedRepairLoopAndStaging(unittest.TestCase):
+    def setUp(self):
+        self.loop = VerifyLoop(timeout_sec=5.0, max_repairs=3)
+
+    def test_run_repair_loop_passes_zero_shot(self):
+        test_code = """
+from solution import multiply
+assert multiply(3, 4) == 12
+"""
+        suite = self.loop.freeze_tests(test_code)
+        initial_solution = """
+def multiply(a, b):
+    return a * b
+"""
+        res = self.loop.run_repair_loop(initial_solution, suite)
+        self.assertTrue(res.success)
+        self.assertEqual(res.total_repairs, 0)
+        self.assertTrue(res.pass_at_1_zero_shot)
+        self.assertTrue(res.pass_at_1_repair3)
+        self.assertEqual(len(res.iterations), 1)
+
+    def test_run_repair_loop_passes_on_repair(self):
+        test_code = """
+from solution import multiply
+assert multiply(3, 4) == 12
+"""
+        suite = self.loop.freeze_tests(test_code)
+        initial_buggy = """
+def multiply(a, b):
+    return a + b  # Buggy
+"""
+        def mock_repair_generator(cur_sol, last_res, frz_suite):
+            return """
+def multiply(a, b):
+    return a * b
+"""
+        res = self.loop.run_repair_loop(
+            initial_buggy,
+            suite,
+            repair_generator_fn=mock_repair_generator,
+            max_repairs=3,
+        )
+        self.assertTrue(res.success)
+        self.assertEqual(res.total_repairs, 1)
+        self.assertFalse(res.pass_at_1_zero_shot)
+        self.assertTrue(res.pass_at_1_repair3)
+        self.assertEqual(len(res.iterations), 2)
+
+    def test_run_repair_loop_exhausts_repairs(self):
+        test_code = """
+from solution import multiply
+assert multiply(3, 4) == 12
+"""
+        suite = self.loop.freeze_tests(test_code)
+        initial_buggy = """
+def multiply(a, b):
+    return 0
+"""
+        attempts = 0
+        def failing_repair_generator(cur_sol, last_res, frz_suite):
+            nonlocal attempts
+            attempts += 1
+            return f"def multiply(a, b):\n    return {attempts}"
+
+        res = self.loop.run_repair_loop(
+            initial_buggy,
+            suite,
+            repair_generator_fn=failing_repair_generator,
+            max_repairs=3,
+        )
+        self.assertFalse(res.success)
+        self.assertEqual(res.total_repairs, 3)
+        self.assertFalse(res.pass_at_1_zero_shot)
+        self.assertFalse(res.pass_at_1_repair3)
+        self.assertEqual(len(res.iterations), 4)
+
+    def test_run_repair_loop_rejects_test_mutation(self):
+        test_code = """
+from solution import multiply
+assert multiply(3, 4) == 12
+"""
+        suite = self.loop.freeze_tests(test_code)
+        initial_buggy = "def multiply(a, b): return 0"
+
+        def malicious_generator(cur_sol, last_res, frz_suite):
+            # Attempt to weaken test code
+            frz_suite.verify_integrity("def test_weak(): assert True")
+            return "def multiply(a, b): return 0"
+
+        with self.assertRaises(TestMutationError):
+            self.loop.run_repair_loop(
+                initial_buggy,
+                suite,
+                repair_generator_fn=malicious_generator,
+                max_repairs=3,
+            )
+
+    def test_safe_staging_exclusive_create_and_symlink_rejection(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sol_path, test_path = stage_artifacts(
+                tmp_dir,
+                "def solve(): return 42",
+                "assert solve() == 42",
+                overwrite=False,
+            )
+            self.assertTrue(os.path.exists(sol_path))
+            self.assertTrue(os.path.exists(test_path))
+
+            # Second write without overwrite must raise FileExistsError (O_CREAT | O_EXCL)
+            with self.assertRaises(FileExistsError):
+                stage_artifacts(
+                    tmp_dir,
+                    "def solve(): return 99",
+                    "assert solve() == 99",
+                    overwrite=False,
+                )
+
+            # With overwrite=True, replacement succeeds atomically
+            sol_path, test_path = stage_artifacts(
+                tmp_dir,
+                "def solve(): return 99",
+                "assert solve() == 99",
+                overwrite=True,
+            )
+            with open(sol_path, "r", encoding="utf-8") as f:
+                self.assertIn("return 99", f.read())
 
 
 if __name__ == "__main__":

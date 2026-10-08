@@ -28,7 +28,7 @@ gantt
     M2 verify loop (restricted runner)                :2026-12-10, 2026-12-31
     M3 pai analyze (folders)                          :2026-12-31, 2027-01-14
     M4 docs, M5 forecast                              :2027-01-14, 2027-02-18
-    M6 local web interface, M7 Singlish front-end     :2027-02-18, 2027-04-01
+    M6 local web interface, M7 Singlish quality gate  :2027-02-18, 2027-03-18
     section Track M: Own model (gated research)
     Stage 0 tokenizer + tiny model (laptop)           :2026-11-15, 2027-01-15
     Self-play data engine + LoRA experiments          :2027-01-15, 2027-03-15
@@ -171,16 +171,35 @@ Windows Sandbox (networking disabled, one writable output folder) is primary; a 
 | M1d | Optional cloud providers (ADR-010, proposed) | Mock-server tests: off by default, key never leaks, card hosts only, spend caps, `--offline`, content cannot enable cloud |
 | M2a | Sandbox Runner & Capability Probe | Done — accepted by reviewer (M2a.4): Win32 AppContainer + Job Object and Linux bubblewrap runners, fail-closed behavioural probe, adversarial matrix A1-A11; Linux reproduced by reviewer (14 tests, 0 skips; matrix 10/10 on Ubuntu 22.04 / bwrap 0.6.1); Windows evidence owner-generated, not independently reproduced; carried item (A8 vacuous) resolved in M2b.1; WSL2 spec requirement met by CI + reviewer host |
 | M2b | Verify loop & `pai code` | Cleared to start (M2a accepted 2026-10-08): A8 fix first, then frozen tests, stub probe, result integrity channel, relaxed AST guard (≥50-task measurement), bounded repair loop, `pai code --out` staging, repeat-run evaluation |
+| M2c | Singlish bridge for `pai code` (owner idea 2026-10-08; adopted only if measured better) | A model that is strong in Singlish (for example gemma4:e2b or qwen3.5:4b, chosen by the router) rewrites the user's Singlish instruction into a structured English task spec; code blocks, identifiers, paths and numbers pass through byte-identical; the coder model (qwen2.5-coder) solves from the English spec plus the original text; one model is loaded at a time. Gate: on a Singlish-phrased copy of the 20 coding tasks (same hidden tests) the bridge must raise pass@1 over sending Singlish directly, with repeats and per-task flips reported, no significance claim at N=20; otherwise it is not enabled |
 | M3 | `pai analyze <folder>` | path-escape, injection-in-file, secret-file and size-cap tests pass |
 | M4 | `pai docs` (txt/md/csv; PDF after an ADR) | injection and oversize tests pass |
 | M5 | `pai forecast` | backtested forecast with interval; refuses on insufficient data; synthetic-series tests |
 | M6 | Local web interface | loopback-only, token, Origin/Host checks tested |
-| M7 | Singlish front-end | beats rule baseline on a frozen intent set |
+| M7 | ~~Singlish front-end~~ replaced (owner decision 2026-10-08): the interface stays English; no normalizer and no intent router. New scope: Singlish response-quality gate for models | Every task class (code, analyze, docs, forecast, chat) has Singlish prompts in a frozen set scored by hand 0-2; the router prefers a model that meets the Singlish threshold when the prompt is Singlish; a model that regresses the Singlish score is not promoted; replies follow the user's language |
 
 Every milestone needs: new tests (including hostile inputs), claims-lint green, CI green, and a threat-register update.
 
 ## 🛤️ Track M: Own model (gated research, ADR-008)
 Budget: no paid cloud GPU. Stages: **0** bilingual tokenizer + 10–25M-parameter model on the laptop (learn the pipeline, no quality claim); **1** LoRA fine-tune of a small pretrained open base on verified self-play trajectories, scheduled only when the machine is idle on AC power; **2+** only if the promotion gate in ADR-008 is passed (beats the router baseline on frozen evaluations, safety suites not worse, signed release, rollback). Until then the router uses open-weights models and no claim is made that an "own" model exists.
+
+---
+
+## 🚀 Two-week compression plan (owner request 2026-10-08)
+
+Goal: finish the Python assistant prototype's core in about two weeks without lowering the quality bar. Quality is protected by [DEFINITION_OF_DONE.md](DEFINITION_OF_DONE.md), not by extra review rounds. Reviewer estimate; the schedule depends on how many review rounds each report needs.
+
+| Days | Work | Notes |
+|---|---|---|
+| 1-3 | M2b finish: hardening H1-H3, bounded repair loop, staging and `pai code --out`, eval with repeats | Security boundary: reviewed at each step |
+| 4-6 | M3 `pai analyze`, M4 `pai docs` (txt/md/csv) | Share one safe-ingestion module (path escape, size caps, injection screening, secret files) written once |
+| 5-8 | M5 `pai forecast` | Can run in parallel with M3/M4 by a second agent; independent module |
+| 8-10 | M2c Singlish bridge, M7 Singlish quality gate | Reuse the M2b eval harness |
+| 11-14 | Integration: one `pai` entry point, `pai doctor` end to end, final evidence, docs freeze | Python freeze, then the Rust-scope decision |
+
+Deferred or reduced to fit: M1d cloud providers (design exists, build later), M6 local web interface (build only the minimal loopback server if time remains), PDF support, M1.3 leftovers except licence verification, second-machine calibration (needs the owner's second PC), Phases 3-5 and Track M. These are not cancelled; they come after the freeze.
+
+Speed rules: one report per milestone, reviewer checks the whole milestone at once; independent milestones run in parallel; the agent self-checks against the Definition of Done before submitting.
 
 ---
 
