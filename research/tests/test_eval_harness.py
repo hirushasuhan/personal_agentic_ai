@@ -145,11 +145,16 @@ class TestEvalHarness(unittest.TestCase):
         for tid, fns in HIDDEN_TESTS.items():
             for fn in fns:
                 src = inspect.getsource(fn)
-                # Find quoted string literals
+                # Find quoted string literals (4+ chars)
                 found_strings = re.findall(r'["\']([^"\']{4,})["\']', src)
                 for s in found_strings:
                     if s not in public_text and not s.startswith("__"):
                         secret_literals.add(s)
+                # Find non-trivial numeric literals (4+ digits)
+                found_numbers = re.findall(r'\b\d{4,}\b', src)
+                for n in found_numbers:
+                    if n not in public_text:
+                        secret_literals.add(n)
 
         self.assertGreaterEqual(len(secret_literals), 20, "Must extract non-trivial secret test literals")
 
@@ -194,6 +199,8 @@ class TestEvalHarness(unittest.TestCase):
         self.assertFalse(res.passed)
         self.assertEqual(res.passed_assertions, 2)
         self.assertEqual(res.total_assertions, 5)
+        self.assertIn("returned False", str(res.error))
+        self.assertNotIn("SystemExit", str(res.error))
 
     def test_negative_control_sandbox_sys_exit_in_solution(self):
         """

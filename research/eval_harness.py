@@ -124,13 +124,17 @@ def find_project_root() -> str:
 
 
 def query_model_digest(model_name: str, base_url: Optional[str] = None, timeout: float = 5.0) -> Optional[str]:
-    """Queries model digest from local model server /api/show or returns None."""
+    """
+    Queries model digest from local model server /api/show or /api/tags, or returns None.
+    Does not use parent_model as digest.
+    """
     url = base_url or os.environ.get("PAI_MODEL_URL", "http://127.0.0.1:11434")
     try:
         parts = urllib.parse.urlsplit(url)
         hostname = (parts.hostname or "").lower()
         if hostname not in ("127.0.0.1", "localhost", "::1", "[::1]"):
             return None
+        # 1. Try /api/show for explicit model digest
         req = urllib.request.Request(
             f"{url}/api/show",
             data=json.dumps({"name": model_name}).encode("utf-8"),
@@ -138,9 +142,30 @@ def query_model_digest(model_name: str, base_url: Optional[str] = None, timeout:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            return data.get("digest") or data.get("details", {}).get("parent_model") or None
+            digest = data.get("digest")
+            if digest:
+                return str(digest)
     except Exception:
-        return None
+        pass
+
+    try:
+        # 2. Try /api/tags which lists available models with their digests
+        req = urllib.request.Request(
+            f"{url}/api/tags",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for m in data.get("models", []):
+                name = m.get("name", "")
+                if name == model_name or name.split(":")[0] == model_name or model_name.split(":")[0] == name:
+                    digest = m.get("digest")
+                    if digest:
+                        return str(digest)
+    except Exception:
+        pass
+
+    return None
 
 
 def verify_eval_set_hashes(
@@ -291,13 +316,14 @@ passed_count = 0
 for idx, test_fn in enumerate(tests):
     try:
         ok = test_fn(fn_or_cls)
-        if ok:
-            passed_count += 1
-        else:
-            print(json.dumps({"passed": False, "total_assertions": len(tests), "passed_assertions": passed_count, "error": f"Assertion #{idx+1} returned False"}))
-            sys.exit(0)
     except BaseException as e:
         print(json.dumps({"passed": False, "total_assertions": len(tests), "passed_assertions": passed_count, "error": f"Assertion #{idx+1} raised {type(e).__name__}: {e}"}))
+        sys.exit(0)
+
+    if ok:
+        passed_count += 1
+    else:
+        print(json.dumps({"passed": False, "total_assertions": len(tests), "passed_assertions": passed_count, "error": f"Assertion #{idx+1} returned False"}))
         sys.exit(0)
 
 print(json.dumps({"passed": True, "total_assertions": len(tests), "passed_assertions": len(tests), "error": None}))

@@ -734,3 +734,38 @@ Real-model numbers; Windows run counts (owner's).
 - **Core Rust Workspace**: 13 unit tests passed, clippy clean (`cargo clippy -- -D warnings`).
 - **Singlish Tasks**: Status remains "agent-authored, owner-reviewed: 0/20" pending owner review. English `Example:` blocks were preserved unchanged so arms differ only in instruction prose.
 
+## M2b eval harness re-review (commit ebbed53)
+
+Reviewer environment: Ubuntu 22.04.5, bubblewrap 0.6.1, Python 3.10.12.
+
+### Result
+Accepted as the M2b close-out harness, with the follow-ups below. `python3 -m unittest discover -s tests` from `research/`: 324 tests, OK, 13 skipped (the owner reported 323; one extra test is present, no failure).
+
+### Verified
+- Hidden-test grading now runs in the OS sandbox (`get_sandbox`, timeout, memory limit). Reviewer probes: a wrong solution is graded as failed, a `sys.exit` in the main block no longer ends the harness, an infinite loop is killed by the timeout.
+- `pai.py` sends `temperature` and `seed` in the model request options when given; `compute_eval_metrics` groups by (arm, model) and reports `is_mixed`; the leak test derives literals from `inspect.getsource` for all 20 tasks.
+
+### Findings (non-blocking for the next work item)
+1. Misleading error text: the runner calls `sys.exit(0)` inside its own `try` block, so the `except BaseException` handler prints a second JSON verdict that wins, and every failed hidden assertion is logged as "raised SystemExit: 0" instead of "returned False". `passed` is correct, the `error` field in the raw JSONL is not. Fix before the real-model run.
+2. Grader integrity: the solution and the hidden tests run in the same sandbox process and the verdict is the last JSON line on stdout. Reviewer probes showed that a solution which rebinds `sys.stdout` after printing a forged verdict, or which edits `sys.modules['test_coding_tasks'].HIDDEN_TESTS`, is graded as passed. Through `pai code` such a solution is refused earlier by the AST allow-list (`sys` is not allowed), so the risk is limited to code that passes the guard by another route. The allow-list is a compensating control, not a boundary. Before the harness is used as a release gate, use the verify loop's driver/worker split and an HMAC-framed verdict for grading.
+3. `query_model_digest` reads `digest` or `details.parent_model` from `/api/show`. Not verified against a real Ollama server; `parent_model` is a model name, not a digest. Prefer the digest from `/api/tags`, and record `null` when absent.
+4. `host_ram_delta_mb` is `abs(free RAM before - free RAM after)` around the run. State in the report that it is a free-RAM difference, not the model `host_delta_mb` used by the router.
+5. The leak test extracts string literals of 4+ characters only; numeric literals are not checked, although the report says they are.
+
+### Not verified
+Real-model numbers (no model server on the reviewer host); Windows counts; owner review of Singlish tasks (0/20).
+
+### Required next
+Run the real-model evaluation on the owner's machine: English and Singlish arms, `qwen2.5-coder:7b`, at least 3 repeats each; commit the raw JSONL files in `docs/evidence/`. The reviewer recomputes metrics with `--compute-metrics`.
+
+## M2b eval harness follow-up resolutions (commit 9921e7f)
+
+### Applied Fixes
+1. **Runner Error Text**: Separated test invocation `try/except BaseException` from the `ok` check in `_pai_hidden_runner.py`. When an assertion returns `False`, it logs `"returned False"` and exits without being trapped as a `SystemExit` exception. Verified in `test_sandboxed_hidden_test_execution_clean`.
+2. **Grader Integrity Note (Compensating Control vs Kernel Boundary)**:
+   - Solution code and hidden reference tests currently execute within the same sandbox process, relying on `pai code`'s strict AST allow-list (`ast_guard.check_source`, disallowing `sys`, `os`, `__import__`, etc.) as a compensating control.
+   - For future release gate integrity, upgrading the grader to the driver/worker HMAC-framed verdict protocol (matching `verify_loop.py`) is scheduled for the integration phase.
+3. **Model Digest Query**: Updated `query_model_digest` to query `/api/show` for `digest`, falling back to `/api/tags` to match the model's digest, and returning `None` (`null` in JSON) if absent. Removed `parent_model`.
+4. **Host RAM Delta Distinction**: Formally documented in code and review that `host_ram_delta_mb` is task-execution free-RAM fluctuation `abs(avail_ram_before - avail_ram_after)`, distinct from the model cold-load `host_delta_mb` baseline in the M1 router.
+5. **Leak Test Numeric Literals**: Updated `test_hidden_tests_never_leaked_into_prompts_across_all_20_tasks` to extract both string literals (4+ characters) and non-trivial numeric literals (4+ digits, e.g., `1000000000`, `172800`, `7200`) across all 20 tasks, asserting zero prompt leakage.
+

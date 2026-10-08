@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.13] — 2026-10-09 — Milestone M2b: Eval Harness Follow-up Hardening
+
+### Hidden-Test Grader & Error Reporting (`research/eval_harness.py`, `research/tests/test_eval_harness.py`)
+- **Precise Error Reporting**: Separated test invocation `try/except BaseException` from the `ok` boolean check in `_pai_hidden_runner.py`. Assertion failures now log `"returned False"` rather than masking as `"raised SystemExit: 0"`. Verified in `test_sandboxed_hidden_test_execution_clean`.
+- **Model Digest Accuracy**: Updated `query_model_digest` to query `/api/show` for `digest`, falling back to `/api/tags` to match model digest, or returning `null`. Removed `parent_model`.
+- **Numeric & String Literal Prompt-Leak Test**: Updated `test_hidden_tests_never_leaked_into_prompts_across_all_20_tasks` to extract both string literals (4+ chars) and numeric literals (4+ digits) across all 20 hidden tests, verifying zero prompt leakage.
+- **Architectural Distinction**: Documented that `host_ram_delta_mb` measures task-execution free-RAM fluctuation `abs(avail_ram_before - avail_ram_after)`, distinct from the cold model-load `host_delta_mb` baseline in the M1 router. Documented grader integrity compensating controls vs release-gate driver/worker HMAC roadmap.
+
 ## [0.7.12] — 2026-10-09 — Milestone M2b: Sandboxed Hidden Test Grading & Harness Hardening
 
 ### Sandboxed Hidden-Test Execution (`research/eval_harness.py`)
