@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.7.11] — 2026-10-09 — Milestone M2b Close-Out: Evaluation Harness & Frozen Singlish Coding Dataset
+
+### Frozen Singlish Coding Dataset (`research/eval_sets/coding_tasks_singlish.json`)
+- **Structure Parity**: Created 20 coding tasks mirror copy preserving identical task IDs (`code_01`..`code_20`), function signatures, entry points, and grading contracts matching `coding_tasks.json`.
+- **Clean Instruction Phrasing**: Written in natural developer Singlish without hinting solutions or leaking test values.
+- **Hash Integrity (`docs/evidence/eval_sets_hashes.json`)**: Registered new SHA-256 hash (`0dac2393a659d9a6b32899ffb96ded361c6d9ea02e7c2111939a40295e63dc69`) while strictly preserving existing hashes untouched.
+
+### Production-Integrated Evaluation Harness (`research/eval_harness.py`)
+- **Production Pipeline Invocation**: Executes tasks exclusively through `pai code`'s actual entry point (`pai.main`), enforcing real sandboxing, boundary capability checks, AST validation, bounded repair loop, and atomic staging.
+- **Startup Integrity Guard**: Validates SHA-256 hashes of all frozen datasets at startup against `eval_sets_hashes.json`; refuses execution fail-closed on any mismatch or tampering.
+- **Hidden Reference Test Isolation**: Grades staged solutions against `research/eval_sets/hidden_tests/test_coding_tasks.py` in isolation. Hidden tests are never leaked into model prompts or execution logs.
+- **Standardized Metrics & Descriptiveness**: Computes `pass@1_zero_shot`, `pass@1_repair3`, per-task flips across repeats ($N \ge 3$), `false_accept_rate` (model passes self-tests but fails hidden tests), and `false_reject_rate`. Explicitly marks $N=20$ metrics as descriptive with no claims of statistical significance per ADR-011.
+- **Raw JSONL Records & Offline Recomputation**: Writes per-run records to JSONL allowing independent metric reproduction and offline analysis via `--compute-metrics` on environments without local LLMs.
+
+### Unit Tests & Negative Controls (`research/tests/test_eval_harness.py`)
+- Added 7 comprehensive unit tests against loopback mock server:
+  1. Hash verification clean pass.
+  2. Negative control: File byte mutation raises `EvalSetIntegrityError` and aborts.
+  3. Negative control: Prompt inspection verifies hidden tests never leak into model prompts.
+  4. End-to-end multi-repeat evaluation and JSONL recomputation parity.
+  5. Deterministic detection of per-task flips across repeats.
+  6. Detection of false-accepts (flawed self-test passes on bad solution, caught by hidden tests).
+  7. Resilient error handling on model server HTTP 500 / crash.
+
 ## [0.7.10] — 2026-10-08 — Milestone M2b Step 4: Linux Stdin Secret Channel Fix & Envelope Defanging
 
 ### Sandbox Linux Secret Channel Fix (`research/sandbox_linux.py`)

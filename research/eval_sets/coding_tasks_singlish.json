@@ -1,0 +1,122 @@
+[
+  {
+    "id": "code_01",
+    "name": "parse_simple_csv",
+    "entry_point": "parse_simple_csv",
+    "prompt": "CSV string ekak parse karala header names row values walata map wena list of dictionaries return karana Python function ekak `parse_simple_csv(csv_text: str) -> list[dict]` liyanna.\nPalaweni non-empty line eka header kiyala assume karanna. Empty lines ignore karanna ona.\nHeaders walai values walai depaththe whitespace strip karanna.\nField ekak double quotes walin enclose wela thiyenawa nam, eke athule thiyena commas thiyaganna, eliye quotes strip karanna.\n`csv_text` empty nam ho data rows nathi whitespace/header witharak thiyenawa nam `[]` return karanna.\n\nExample:\n    csv = \"name, age, city\\nAlice, 30, Colombo\\nBob, 25, \\\"Kandy, Central\\\"\"\n    parse_simple_csv(csv) -> [\n        {\"name\": \"Alice\", \"age\": \"30\", \"city\": \"Colombo\"},\n        {\"name\": \"Bob\", \"age\": \"25\", \"city\": \"Kandy, Central\"}\n    ]"
+  },
+  {
+    "id": "code_02",
+    "name": "safe_json_path_lookup",
+    "entry_point": "safe_json_path_lookup",
+    "prompt": "Dot notation use karala nested dictionary/list structure ekakin value hoyana Python function ekak `safe_json_path_lookup(data: dict | list, path: str, default: any = None) -> any` liyanna.\nPath component ekak non-negative integer string ekak (e.g. '0', '1') unoth, list ekakata index karanna ona.\nKey ekak ho index ekak nathnam, index out of bounds nam, nattam traverse karaddi end ekata kalin non-container ekak hambunoth `default` return karanna.\nEmpty path string ekak \"\" dunoth `data` return karanna.\n\nExample:\n    data = {\"users\": [{\"name\": \"Alice\", \"roles\": [\"admin\"]}]}\n    safe_json_path_lookup(data, \"users.0.name\") -> \"Alice\"\n    safe_json_path_lookup(data, \"users.0.roles.1\", default=\"guest\") -> \"guest\"\n    safe_json_path_lookup(data, \"users.5\", default=None) -> None"
+  },
+  {
+    "id": "code_03",
+    "name": "compact_number_formatter",
+    "entry_point": "compact_number_formatter",
+    "prompt": "Numbers metric suffixes walata format karana Python function ekak `compact_number_formatter(n: int | float) -> str` liyanna: thousands walata 'K' (>= 1,000), millions walata 'M' (>= 1,000,000), billions walata 'B' (>= 1,000,000,000).\n1,000 ta adu numbers integer (whole nam) ho 1 decimal place dakwa floats widiyata format wenna ona.\nSuffixes thiyena values walata 1 decimal place dakwa pennanna, habai decimal eka zero nam eka omit karanna (e.g. '1K', '1.0K' nemei).\nNegative numbers hariyata support karanna ona (e.g. -1500 -> '-1.5K').\n\nExample:\n    compact_number_formatter(950) -> \"950\"\n    compact_number_formatter(1000) -> \"1K\"\n    compact_number_formatter(1500) -> \"1.5K\"\n    compact_number_formatter(-2500000) -> \"-2.5M\""
+  },
+  {
+    "id": "code_04",
+    "name": "validate_password_strength",
+    "entry_point": "validate_password_strength",
+    "prompt": "Password complexity evaluate karana Python function ekak `validate_password_strength(pw: str) -> dict` liyanna.\nDict ekak return karanna ona: `{\"valid\": bool, \"score\": int, \"missing\": list[str]}`.\nCriteria (1 point each, max score 5):\n- length: characters 8k wath thiyenna ona (missing key: 'length')\n- uppercase: aduma tharame ek uppercase letter A-Z ekak thiyenna ona (missing key: 'uppercase')\n- lowercase: aduma tharame ek lowercase letter a-z ekak thiyenna ona (missing key: 'lowercase')\n- digit: aduma tharame ek digit 0-9 ekak thiyenna ona (missing key: 'digit')\n- special: '!@#$%^&*()-_=+[]{}' walin aduma tharame ek special character ekak thiyenna ona (missing key: 'special').\nPassword ekak valid wenne score == 5 (criteria okkoma satisfy) unoth witharai.\n`missing` list eke missing requirement names exact order ekata thiyenna ona: ['length', 'uppercase', 'lowercase', 'digit', 'special']."
+  },
+  {
+    "id": "code_05",
+    "name": "top_k_frequent_words",
+    "entry_point": "top_k_frequent_words",
+    "prompt": "`text` eken words extract karala, case-insensitive widiyata frequencies count karala, top `k` most frequent words return karana Python function ekak `top_k_frequent_words(text: str, k: int) -> list[str]` liyanna.\nWord ekak kiyanne alphanumeric characters [a-zA-Z0-9] contiguous sequence ekak. Punctuation okkoma strip wenna ona.\nWords return karanna ona lower-case walin.\nSorting order:\n1. Frequency descending\n2. Frequency samanai nam alphabetical (lexicographical) ascending.\n`k <= 0` nam ho `text` eke words nattam `[]` return karanna.\n\nExample:\n    top_k_frequent_words(\"The cat and the dog chased the cat.\", 2) -> [\"the\", \"cat\"]"
+  },
+  {
+    "id": "code_06",
+    "name": "time_diff_humanized",
+    "entry_point": "time_diff_humanized",
+    "prompt": "Non-negative elapsed seconds tika concise human-readable duration string ekakata format karana Python function ekak `time_diff_humanized(seconds: int) -> str` liyanna. Components: days ('d'), hours ('h'), minutes ('m'), seconds ('s').\nZero units ignore karanna ona, total elapsed time eka exactly 0 seconds unoth witharak '0s' return karanna.\nComponents space-separated wenna ona.\n\nExample:\n    time_diff_humanized(90) -> \"1m 30s\"\n    time_diff_humanized(3600) -> \"1h\"\n    time_diff_humanized(86461) -> \"1d 1m 1s\"\n    time_diff_humanized(0) -> \"0s\""
+  },
+  {
+    "id": "code_07",
+    "name": "clean_phone_number",
+    "entry_point": "clean_phone_number",
+    "prompt": "Messy telephone numbers normalize karana Python function ekak `clean_phone_number(raw: str, default_country_code: str = \"+94\") -> str | None` liyanna.\n1. Spaces, dashes, dots, parentheses okkoma remove karanna.\n2. Number eka '0' ekka thawa digits 9kin patan gannawa nam (e.g. 0771234567), leading '0' eka `default_country_code` walin replace karanna -> `+94771234567`.\n3. Number eka '00' walin patan gannawa nam, '00' eka '+' walin replace karanna (e.g. 0094771234567 -> +94771234567).\n4. Number eka danatath '+' walin patan gannawa nam, '+' eken passe total digits 10 idan 15 athara thiyeda kiyala verify karala return karanna.\n5. Length invalid nam ho unexpected non-digit characters thiyenawa nam (leading '+' hera), `None` return karanna.\n\nExample:\n    clean_phone_number(\"077-123-4567\") -> \"+94771234567\"\n    clean_phone_number(\"+94 77 123 4567\") -> \"+94771234567\"\n    clean_phone_number(\"123\") -> None"
+  },
+  {
+    "id": "code_08",
+    "name": "find_first_missing_positive",
+    "entry_point": "find_first_missing_positive",
+    "prompt": "`nums` list eke nathi podima positive integer eka (> 0) hoyana Python function ekak `find_first_missing_positive(nums: list[int]) -> int` liyanna.\nNegative numbers, zeroes, duplicate entries, unsorted lists handle karanna puluwan wenna ona.\n\nExample:\n    find_first_missing_positive([1, 2, 0]) -> 3\n    find_first_missing_positive([3, 4, -1, 1]) -> 2\n    find_first_missing_positive([7, 8, 9, 11, 12]) -> 1"
+  },
+  {
+    "id": "code_09",
+    "name": "generate_slug",
+    "entry_point": "generate_slug",
+    "prompt": "Article title ekak SEO-friendly URL slug ekakata convert karana Python function ekak `generate_slug(title: str, max_length: int = 50) -> str` liyanna.\nRules:\n1. ASCII characters okkoma lowercase karanna.\n2. Consecutive non-alphanumeric characters thiyena than single hyphen '-' ekakin replace karanna.\n3. Mulai agai thiyena hyphens trim karanna.\n4. Length eka `max_length` ekata wada wadi nam, at most `max_length` characters walata truncate karanna. Word ekak madata kadenne nathi wenna truncate karapu kotasa athule thiyena kalin hyphen ekata snap back karanna. Anthimata trailing hyphen thiyenawa nam strip karanna.\nTitle eka empty nam ho alphanumeric characters nathnam `\"\"` return karanna.\n\nExample:\n    generate_slug(\"Hello, World! 2026 Update\") -> \"hello-world-2026-update\"\n    generate_slug(\"This is a very long title that should be truncated cleanly\", 20) -> \"this-is-a-very-long\""
+  },
+  {
+    "id": "code_10",
+    "name": "calculate_tax_bracket",
+    "entry_point": "calculate_tax_bracket",
+    "prompt": "Progressive income tax compute karana Python function ekak `calculate_tax_bracket(income: float, brackets: list[tuple[float, float]]) -> float` liyanna.\n`brackets` kiyanne `(upper_limit, rate)` format eke sorted list ekak (`rate` decimal ekak, e.g. 10% ta 0.10).\nAnthima bracket eke `upper_limit = float('inf')` wenna puluwan.\nIncome <= 0 nam 0.0 tax wenna ona.\nTax calculate karanne hama segment ekakatama progressively.\nTotal tax eka 2 decimal places walata round karala return karanna.\n\nExample:\n    brackets = [(10000.0, 0.0), (30000.0, 0.10), (float('inf'), 0.20)]\n    calculate_tax_bracket(25000.0, brackets) -> 1500.0"
+  },
+  {
+    "id": "code_11",
+    "name": "fuzzy_search_score",
+    "entry_point": "fuzzy_search_score",
+    "prompt": "`pattern` eke characters `text` athule order ekata (subsequence match) thiyeda kiyala case-insensitive match score ekak calculate karana Python function ekak `fuzzy_search_score(pattern: str, text: str) -> int` liyanna.\nScoring rules:\n- `pattern` eke characters okkoma `text` athule order ekata match karanna bari nam 0 return karanna.\n- Base score: match wena hama character ekakatama +10 points.\n- Consecutive match bonus: kalin match una character ekata thadinma eha paththe character ekata +15 points.\n- Word-start bonus: match una character eka index 0 eke thiyenawa nam ho whitespace, underscore, hyphen ekakata passethiyenawa nam +20 points.\n\nExample:\n    fuzzy_search_score(\"pai\", \"personal_agentic_ai\") > 0\n    fuzzy_search_score(\"xyz\", \"hello world\") -> 0"
+  },
+  {
+    "id": "code_12",
+    "name": "simple_caesar_cipher",
+    "entry_point": "simple_caesar_cipher",
+    "prompt": "Caesar cipher use karala `text` encrypt ho decrypt karana Python function ekak `simple_caesar_cipher(text: str, shift: int) -> str` liyanna.\nAlphabetical characters ('a'-'z', 'A'-'Z') `shift` positions walin wraparound ekka shift wenna ona.\nLetter case preserve karanna.\nNon-alphabetical characters (numbers, spaces, punctuation) wenas nokara thiyenna ona.\n`shift` negative ho 26 ta wada wadi wenna puluwan.\n\nExample:\n    simple_caesar_cipher(\"Hello, World!\", 3) -> \"Khoor, Zruog!\"\n    simple_caesar_cipher(\"Khoor, Zruog!\", -3) -> \"Hello, World!\""
+  },
+  {
+    "id": "code_13",
+    "name": "matrix_transpose_ragged",
+    "entry_point": "matrix_transpose_ragged",
+    "prompt": "Rows wala lengths wenas wenna puluwan 2D list ekak transpose karana Python function ekak `matrix_transpose_ragged(matrix: list[list[any]], fill_value: any = None) -> list[list[any]]` liyanna.\nTransposed matrix eke columns ganana `matrix` eke rows ganana wenna ona.\nTransposed matrix eke rows ganana `matrix` eke ona row ekaka thiyena maximum length eka wenna ona.\nMissing elements `fill_value` walin pad karanna ona.\n`matrix` empty nam ho empty lists witharak thiyenawa nam `[]` return karanna.\n\nExample:\n    m = [[1, 2, 3], [4, 5]]\n    matrix_transpose_ragged(m, fill_value=0) -> [[1, 4], [2, 5], [3, 0]]"
+  },
+  {
+    "id": "code_14",
+    "name": "run_length_compress",
+    "entry_point": "run_length_compress",
+    "prompt": "Integers list ekak run-length pairs `(value, count)` widiyata compress karana Python function ekak `run_length_compress(data: list[int]) -> list[tuple[int, int]]` liyanna.\nEka langa thiyena saman integer values group wenna ona.\n`data` empty nam empty list `[]` return karanna.\n\nExample:\n    run_length_compress([1, 1, 1, 2, 2, 3, 1, 1]) -> [(1, 3), (2, 2), (3, 1), (1, 2)]"
+  },
+  {
+    "id": "code_15",
+    "name": "parse_duration_string",
+    "entry_point": "parse_duration_string",
+    "prompt": "Time duration string ekak parse karala total seconds return karana Python function ekak `parse_duration_string(s: str) -> int` liyanna.\nSupported units: 'd' (86400 seconds), 'h' (3600 seconds), 'm' (60 seconds), 's' (1 second).\nUnits spaces ekka ho nathuwa thiyenna puluwan, e.g. '1d 2h 30m' ho '1d2h30m'.\nString eka invalid nam, unsupported units thiyenawa nam, negative values nam, ho empty nam `ValueError` raise karanna.\n\nExample:\n    parse_duration_string(\"1h 30m\") -> 5400\n    parse_duration_string(\"45s\") -> 45\n    parse_duration_string(\"2d 12h\") -> 216000"
+  },
+  {
+    "id": "code_16",
+    "name": "sliding_window_median",
+    "entry_point": "sliding_window_median",
+    "prompt": "`nums` haraha left to right move wena size `k` sliding window ekaka median eka compute karana Python function ekak `sliding_window_median(nums: list[float], k: int) -> list[float]` liyanna.\nEven `k` ekakata median eka middle elements dekahi average eka wenna ona.\nOutput list eke hama median ekakma 2 decimal places walata round karanna.\n`k <= 0` nam ho `k > len(nums)` nam `[]` return karanna.\n\nExample:\n    sliding_window_median([1.0, 3.0, -1.0, -3.0, 5.0, 3.0, 6.0, 7.0], 3) -> [1.0, -1.0, -1.0, 3.0, 5.0, 6.0]"
+  },
+  {
+    "id": "code_17",
+    "name": "CircularBuffer",
+    "entry_point": "CircularBuffer",
+    "prompt": "Fixed-capacity FIFO circular queue ekak implement karana Python class ekak `CircularBuffer` liyanna:\n- `__init__(self, capacity: int)`: capacity <= 0 nam `ValueError` raise karanna.\n- `enqueue(self, item: any) -> bool`: item eka buffer ekata add karanna. Buffer full nam item add nokara `False` return karanna. Nattam `True` return karanna.\n- `dequeue(self) -> any`: parana ma item eka remove karala return karanna. Buffer empty nam `IndexError` raise karanna.\n- `peek(self) -> any`: remove nokara parana ma item eka return karanna. Empty nam `IndexError` raise karanna.\n- `is_full(self) -> bool`: size == capacity nam True return karanna.\n- `is_empty(self) -> bool`: size == 0 nam True return karanna.\n- `size(self) -> int`: danata thiyena items ganana return karanna."
+  },
+  {
+    "id": "code_18",
+    "name": "deep_merge_dicts",
+    "entry_point": "deep_merge_dicts",
+    "prompt": "Input dictionaries dekata mutation nokara `update` eka recursively `base` ekata merge karana Python function ekak `deep_merge_dicts(base: dict, update: dict) -> dict` liyanna.\nKey ekak dekema thiyenne dictionary widiyata nam, sub-dictionaries recursively merge karanna.\nNathnam `update` eke value eken `base` eke value eka overwrite wenna ona.\nAluth merged dictionary ekak return karanna.\n\nExample:\n    base = {\"a\": 1, \"b\": {\"x\": 10, \"y\": 20}}\n    update = {\"b\": {\"y\": 25, \"z\": 30}, \"c\": 3}\n    deep_merge_dicts(base, update) -> {\"a\": 1, \"b\": {\"x\": 10, \"y\": 25, \"z\": 30}, \"c\": 3}"
+  },
+  {
+    "id": "code_19",
+    "name": "retry_with_backoff_simulator",
+    "entry_point": "retry_with_backoff_simulator",
+    "prompt": "Sleep execute nokara retry timings calculate karana Python function ekak `retry_with_backoff_simulator(attempts_needed: int, max_retries: int, base_delay: float = 1.0, factor: float = 2.0, max_delay: float = 60.0) -> tuple[bool, float, list[float]]` liyanna.\n`attempts_needed` kiyanne succeed wenna ona attempts ganana (1 kiyanne initial call eke success, no retries).\n`attempts_needed <= max_retries + 1` nam operation eka succeed: `(True, total_delay, delays_list)` return karanna.\nNathnam `max_retries` fail unata passe `(False, total_delay, delays_list)` return karanna.\nRetry #k ekata (1-indexed, first retry ekata k=1), `delay = min(base_delay * (factor ** (k - 1)), max_delay)`.\nDelays okkoma 2 decimal places walata round karanna.\n\nExample:\n    retry_with_backoff_simulator(3, 3, base_delay=1.0, factor=2.0) -> (True, 3.0, [1.0, 2.0])"
+  },
+  {
+    "id": "code_20",
+    "name": "evaluate_simple_expression",
+    "entry_point": "evaluate_simple_expression",
+    "prompt": "Non-negative integers saha '+', '-', '*', '/' operators thiyena arithmetic string ekak parse karala integer result eka calculate karana Python function ekak `evaluate_simple_expression(expr: str) -> int` liyanna.\nRules:\n- Standard operator precedence: '+' saha '-' walata kalin '*' saha '/' execute wenna ona.\n- Division '/' kiyanne zero paththata truncate wena integer division (e.g. 5/2 = 2, -5/2 = -2).\n- Whitespace disregard karanna.\n- Python built-in `eval()` ho `exec()` kisiwita use karanna epa.\n- Expression eke division by zero thiyenawa nam `ZeroDivisionError` raise karanna.\n\nExample:\n    evaluate_simple_expression(\"3 + 2 * 2\") -> 7\n    evaluate_simple_expression(\" 3/2 \") -> 1\n    evaluate_simple_expression(\" 3 + 5 / 2 \") -> 5"
+  }
+]

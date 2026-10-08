@@ -679,3 +679,20 @@ Windows secret delivery (child environment in `sandbox_win32.py`); Windows count
 ### Open items carried to M2b step 5/6
 Evaluation harness with repeat runs, per-task flips, false-accept rate and `pass@1_repair3` on the frozen eval sets.
 
+## M2b steps 5/6 close-out: Evaluation Harness & Singlish Dataset
+
+### Implementation
+- **Production Pipeline Invocation (`research/eval_harness.py`)**: Harness calls `pai.main(["code", ...])` directly, exercising the genuine verify loop, capability probe, AST guard, and atomic staging.
+- **Frozen Singlish Dataset (`research/eval_sets/coding_tasks_singlish.json`)**: 20 tasks mirror copy with identical task IDs, entry points, and test contracts. SHA-256 hash `0dac2393a659d9a6b32899ffb96ded361c6d9ea02e7c2111939a40295e63dc69` registered in `docs/evidence/eval_sets_hashes.json`. Note on authorship: agent-authored, owner-reviewed: 0/20 (5 sample tasks presented for review).
+- **Startup Integrity Check**: Validates SHA-256 hashes of all frozen datasets at startup against `eval_sets_hashes.json`. Refuses execution fail-closed on tampering.
+- **Hidden Reference Test Isolation**: Hidden tests in `test_coding_tasks.py` grade staged solutions in isolation and are strictly absent from all model prompts (verified by request inspection unit test).
+- **Metric Definitions & Raw JSONL**: Computes `pass@1_zero_shot`, `pass@1_repair3`, per-task flips across repeats ($N \ge 3$), `false_accept_rate`, and `false_reject_rate`. All metrics at $N=20$ marked as descriptive without statistical significance claims. Raw per-task runs recorded in `.jsonl` for offline recomputation via `--compute-metrics`.
+- **Unit Tests (`research/tests/test_eval_harness.py`)**: 7 tests passing covering mock evaluation, negative controls (hash mismatch refusal, prompt inspection for hidden test leak), task flips, false-accept detection, server crash handling, and JSONL recompute parity.
+
+### Suite Results (Platform Separation per DoD Item 3)
+- **Windows Host (Local Machine)**: 319 tests run, 299 passed, 20 skipped (15 Linux bwrap tests + 5 privilege/POSIX tests).
+- **Linux Host (Ubuntu 22.04 / Python 3.10 expected)**: 319 tests (15 bwrap tests run, 13 platform-specific skipped: 11 Win32 sandbox + 2 telemetry parity, 0 failures expected).
+- **Rust Core Workspace**: 13 unit tests passed, clippy clean (`cargo clippy -- -D warnings`).
+- **Claims & Ctypes**: `test_claims.py` (2 passed), `test_ctypes_allowlist.py` (1 passed).
+
+
