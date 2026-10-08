@@ -561,7 +561,7 @@ def call_model_generate(
     model_name: str,
     prompt: str,
     base_url: Optional[str] = None,
-    timeout: float = 60.0,
+    timeout: Optional[float] = None,
     temperature: Optional[float] = None,
     seed: Optional[int] = None,
 ) -> str:
@@ -569,6 +569,11 @@ def call_model_generate(
     Invokes local model server via Ollama /api/generate over local loopback.
     Enforces Threat T21 / loopback binding invariants.
     """
+    if timeout is None:
+        try:
+            timeout = float(os.environ.get("PAI_MODEL_TIMEOUT", "120.0"))
+        except Exception:
+            timeout = 120.0
     url = base_url or os.environ.get("PAI_MODEL_URL", "http://127.0.0.1:11434")
     parts = urllib.parse.urlsplit(url)
     hostname = (parts.hostname or "").lower()

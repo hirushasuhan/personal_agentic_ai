@@ -481,12 +481,11 @@ symbols = []
 if solution is not None:
     symbols = [s for s in dir(solution) if not s.startswith("_")]
 
-sys.stdout.write(json.dumps({
+print(json.dumps({
     "status": "ready" if import_error is None else "import_error",
     "error": import_error,
     "symbols": symbols
-}) + "\\n")
-sys.stdout.flush()
+}), flush=True)
 
 while True:
     line = sys.stdin.readline()
@@ -495,8 +494,7 @@ while True:
     try:
         req = json.loads(line)
     except Exception as e:
-        sys.stdout.write(json.dumps({"status": "error", "error_type": "ValueError", "error": f"Invalid JSON: {e}"}) + "\\n")
-        sys.stdout.flush()
+        print(json.dumps({"status": "error", "error_type": "ValueError", "error": f"Invalid JSON: {e}"}), flush=True)
         continue
 
     op = req.get("op")
@@ -525,8 +523,7 @@ while True:
                         resp = {"status": "ok", "result": res}
                 except BaseException as ex:
                     resp = {"status": "error", "error_type": type(ex).__name__, "error": str(ex)}
-        sys.stdout.write(json.dumps(resp) + "\\n")
-        sys.stdout.flush()
+        print(json.dumps(resp), flush=True)
     elif op == "getattr":
         attr_name = req.get("name")
         if solution is None:
@@ -541,8 +538,7 @@ while True:
                 resp = {"status": "ok", "value": val}
             else:
                 resp = {"status": "error", "error_type": "TypeError", "error": f"TypeError: Attribute '{attr_name}' is not JSON serializable"}
-        sys.stdout.write(json.dumps(resp) + "\\n")
-        sys.stdout.flush()
+        print(json.dumps(resp), flush=True)
     elif op == "exit":
         break
 '''
@@ -648,7 +644,7 @@ def _call_worker(func_name, args, kwargs):
     if not worker_ready:
         raise RuntimeError(f"Candidate worker not available: {{worker_init_error}}")
     try:
-        req_json = json.dumps({{"op": "call", "func": func_name, "args": args, "kwargs": kwargs}}) + "\\n"
+        req_json = json.dumps({{"op": "call", "func": func_name, "args": args, "kwargs": kwargs}}) + chr(10)
     except TypeError as te:
         raise TypeError(f"pai code v1 only supports JSON-serializable arguments/results: {{te}}")
     try:
@@ -690,7 +686,7 @@ class SolutionProxyModule(types.ModuleType):
         if not worker_ready:
             raise RuntimeError(f"Candidate worker not available: {{worker_init_error}}")
         try:
-            worker_proc.stdin.write(json.dumps({{"op": "getattr", "name": name}}) + "\\n")
+            worker_proc.stdin.write(json.dumps({{"op": "getattr", "name": name}}) + chr(10))
             worker_proc.stdin.flush()
             line = worker_proc.stdout.readline()
             if not line:
@@ -842,7 +838,7 @@ else:
 try:
     if worker_proc.poll() is None:
         try:
-            worker_proc.stdin.write(json.dumps({{"op": "exit"}}) + "\\n")
+            worker_proc.stdin.write(json.dumps({{"op": "exit"}}) + chr(10))
             worker_proc.stdin.flush()
         except Exception:
             pass

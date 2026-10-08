@@ -303,7 +303,8 @@ class Win32Sandbox:
 
         mem_bytes = int(self.memory_mb * 1024 * 1024)
         eli.ProcessMemoryLimit = mem_bytes
-        eli.JobMemoryLimit = mem_bytes
+        # JobMemoryLimit bounds the aggregate memory across all active processes in the job
+        eli.JobMemoryLimit = int(mem_bytes * max(2, self.max_processes))
 
         # SAFETY: Passing pointer to JOBOBJECT_EXTENDED_LIMIT_INFORMATION struct with correct size.
         ok = self.k32.SetInformationJobObject(
@@ -400,7 +401,7 @@ class Win32Sandbox:
 
         hReadOut = wintypes.HANDLE()
         hWriteOut = wintypes.HANDLE()
-        self.k32.CreatePipe(ctypes.byref(hReadOut), ctypes.byref(hWriteOut), ctypes.byref(sa), 0)
+        self.k32.CreatePipe(ctypes.byref(hReadOut), ctypes.byref(hWriteOut), ctypes.byref(sa), max(65536, self.max_output_bytes))
         self.k32.SetHandleInformation(hReadOut, 1, 0)  # Read end non-inheritable
 
         # 1. Setup PROC_THREAD_ATTRIBUTE_LIST with PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES and HANDLE_LIST
@@ -506,11 +507,34 @@ class Win32Sandbox:
         # 4. Resume thread to begin execution
         self.k32.ResumeThread(pi.hThread)
 
-        # 5. Wait with timeout
-        timeout_ms = int(self.timeout_sec * 1000)
-        wait_res = self.k32.WaitForSingleObject(pi.hProcess, timeout_ms)
+        # 5. Wait with timeout while actively draining stdout/stderr pipe to prevent buffer deadlock
+        pipe_output = bytearray()
+        chunk = ctypes.create_string_buffer(4096)
+        bytes_read = wintypes.DWORD(0)
 
-        timed_out = (wait_res == WAIT_TIMEOUT)
+        timed_out = False
+        while True:
+            # Drain available bytes from pipe
+            while len(pipe_output) < self.max_output_bytes:
+                avail = wintypes.DWORD(0)
+                if not self.k32.PeekNamedPipe(hReadOut, None, 0, None, ctypes.byref(avail), None):
+                    break
+                if avail.value == 0:
+                    break
+                to_read = min(4096, avail.value, self.max_output_bytes - len(pipe_output))
+                if not self.k32.ReadFile(hReadOut, chunk, to_read, ctypes.byref(bytes_read), None) or bytes_read.value == 0:
+                    break
+                pipe_output.extend(chunk.raw[:bytes_read.value])
+
+            wait_res = self.k32.WaitForSingleObject(pi.hProcess, 50)
+            if wait_res != WAIT_TIMEOUT:
+                timed_out = False
+                break
+
+            if (time.time() - t0) >= self.timeout_sec:
+                timed_out = True
+                break
+
         if timed_out:
             self.k32.TerminateJobObject(self.hJob, 99)
             exit_code = 99
@@ -528,10 +552,7 @@ class Win32Sandbox:
         # Close parent write end so pipe hits EOF
         self.k32.CloseHandle(hWriteOut)
 
-        # Read pipe output
-        pipe_output = b""
-        chunk = ctypes.create_string_buffer(4096)
-        bytes_read = wintypes.DWORD(0)
+        # Final drain of any remaining pipe output
         while len(pipe_output) < self.max_output_bytes:
             avail = wintypes.DWORD(0)
             if not self.k32.PeekNamedPipe(hReadOut, None, 0, None, ctypes.byref(avail), None):
@@ -541,7 +562,7 @@ class Win32Sandbox:
             to_read = min(4096, avail.value, self.max_output_bytes - len(pipe_output))
             if not self.k32.ReadFile(hReadOut, chunk, to_read, ctypes.byref(bytes_read), None) or bytes_read.value == 0:
                 break
-            pipe_output += chunk.raw[:bytes_read.value]
+            pipe_output.extend(chunk.raw[:bytes_read.value])
 
         self.k32.CloseHandle(hReadOut)
         if pSD.value:
