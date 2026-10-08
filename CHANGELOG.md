@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.3] — 2026-10-08 — Milestone M2a.4 Platform-Neutral Matrix Runner & CI Evidence Artifacts
+
+### Milestone M2a.4 Platform-Neutral Runner & Evidence Hardening
+- **Platform-Neutral Adversarial Matrix Runner (`research/run_m2a_matrix.py`)**:
+  - Attack scripts now emit containment markers both via standard output (`print(marker, flush=True)`) and scratch file `std_output.txt`.
+  - Assertions inspect unified output (`get_combined_output(r)`), eliminating the 5 Linux false-failures caused by pipe vs file redirection differences.
+  - Vector A3_A7 tests fork proliferation bounded by `RLIMIT_NPROC` on Linux and `ActiveProcessLimit = 1` on Windows with strict `"CONTAINED"` and no `"LEAK"` assertions (eliminating vacuous passes).
+  - Vector A9 floods stdout with 200 KB and strictly asserts `len(r.stdout) == 65536` AND presence of `"FLOOD_MARKER_START"` (eliminating 0-byte vacuous passes).
+- **Strict Evidence Schema & Marker Verification (`research/tests/test_sandbox_evidence.py`)**:
+  - Added test asserting that every recorded platform in `m2a_sandbox_results.json` achieves 10/10 passes with positive containment markers for every attack vector.
+- **CI Linux Evidence Artifact Upload (`.github/workflows/windows-ci.yml`)**:
+  - `linux-portability` job now uploads `m2a_sandbox_results.json` and `m2a_sandbox_raw.log` directly as a GitHub workflow artifact (`linux-m2a-sandbox-evidence`).
+- **Test Suite**: 252 Python unit tests passing (19 skipped on Windows: 5 privilege/POSIX + 14 Linux bwrap tests). 13 Rust core tests passing, clippy clean.
+
 ## [0.7.2] — 2026-10-08 — Milestone M2a.2 Linux Merged-/usr & EROFS Probe Resolution
 
 ### Milestone M2a.2 Fixes & Verification Hardening

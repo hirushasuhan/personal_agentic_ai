@@ -187,6 +187,15 @@ jobs:
         run: |
           python run_m2a_matrix.py
 
+      - name: Upload Linux M2a Sandbox Evidence Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-m2a-sandbox-evidence
+          path: |
+            docs/evidence/m2a_sandbox_results.json
+            docs/evidence/m2a_sandbox_raw.log
+          if-no-files-found: error
+
       - name: Run Full Test Suite on Linux (Procfs Telemetry & Bubblewrap Sandbox)
         working-directory: research
         run: |

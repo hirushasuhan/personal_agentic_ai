@@ -108,6 +108,16 @@ class TestSandboxEvidenceSchema(unittest.TestCase):
                 self.assertGreater(vec_data["wall_time_ms"], 0)
                 self.assertTrue(len(vec_data["detail"]) > 0)
 
+                # Positive marker verification per vector (rejects vacuous passes)
+                if vec_id in ("A2", "A3_A7", "A4", "A5", "A6", "A8"):
+                    self.assertIn("CONTAINED", vec_data["stdout_sample"], f"Vector {vec_id} must have CONTAINED marker")
+                elif vec_id == "A9":
+                    self.assertIn("FLOOD_MARKER_START", vec_data["stdout_sample"], "Vector A9 must have FLOOD_MARKER_START")
+                elif vec_id == "A1":
+                    self.assertIn(vec_data["exit_code"], (99, -9, 137), "Vector A1 must terminate on timeout signal")
+                elif vec_id == "A11":
+                    self.assertNotEqual(vec_data["exit_code"], 0, "Vector A11 must record non-zero crash exit code")
+
     def test_raw_log_exists_and_contains_header(self):
         """Verifies that m2a_sandbox_raw.log exists and contains a valid harness banner."""
         self.assertTrue(os.path.exists(self.raw_log_path), f"Raw log not found at: {self.raw_log_path}")

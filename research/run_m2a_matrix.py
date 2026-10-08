@@ -129,6 +129,12 @@ def run_matrix() -> int:
     else:
         log(f"[FAIL] PROBE in {duration_ms} ms: {probe_msg}")
 
+    def get_combined_output(r) -> str:
+        out = r.stdout or ""
+        if hasattr(r, "output_files") and r.output_files and "std_output.txt" in r.output_files:
+            out += "\n" + r.output_files["std_output.txt"]
+        return out
+
     # Helper for running script in sandbox
     def exec_sandbox_test(
         vec_id: str,
@@ -152,9 +158,11 @@ def run_matrix() -> int:
         res = sb.execute(script_path)
         t_ms = round((time.perf_counter() - t_start) * 1000, 2)
 
+        comb_out = get_combined_output(res)
         log_lines.append(f"--- Raw Output for {vec_id} ---")
         log_lines.append(f"Status: {res.status} | Exit Code: {res.exit_code} | Time: {t_ms} ms")
         log_lines.append(f"Stdout:\n{res.stdout}")
+        log_lines.append(f"Combined Output:\n{comb_out}")
         log_lines.append(f"Stderr:\n{res.stderr}")
         log_lines.append("-" * 32)
 
@@ -172,7 +180,7 @@ def run_matrix() -> int:
             "containment_state": "CONTAINED" if ok else "LEAK_OR_ERROR",
             "exit_code": res.exit_code,
             "wall_time_ms": t_ms,
-            "stdout_sample": res.stdout[:500].strip(),
+            "stdout_sample": comb_out[:500].strip(),
             "stderr_sample": res.stderr[:500].strip(),
             "detail": detail,
         }
@@ -214,15 +222,18 @@ try:
     chunks = []
     for _ in range(100):
         chunks.append(bytearray(20 * 1024 * 1024)) # 2 GB total attempt
+    print('LEAK_ALLOCATED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('LEAK_ALLOCATED')
 except MemoryError:
+    print('CONTAINED_MEMORY_ERROR', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('CONTAINED_MEMORY_ERROR')
 """,
         assert_fn=lambda r: (
-            "CONTAINED_MEMORY_ERROR" in r.stdout or r.exit_code != 0 or r.status == "memory_limit",
-            f"Memory exhaustion enforced (exit_code={r.exit_code}, stdout={r.stdout.strip()[:60]})",
+            ("CONTAINED_MEMORY_ERROR" in get_combined_output(r) or r.exit_code != 0 or r.status == "memory_limit")
+            and ("LEAK_ALLOCATED" not in get_combined_output(r)),
+            f"Memory exhaustion enforced (exit_code={r.exit_code}, out={get_combined_output(r).strip()[:60]})",
         ),
         memory_mb=512.0,
     )
@@ -230,24 +241,42 @@ except MemoryError:
     # -------------------------------------------------------------------------
     # A3 / A7: Subprocess Proliferation
     # -------------------------------------------------------------------------
-    cmd_sub = "['cmd.exe', '/c', 'echo 1']" if sys.platform == "win32" else "['echo', '1']"
+    if sys.platform == "win32":
+        a3_code = """
+import subprocess
+try:
+    subprocess.run(['cmd.exe', '/c', 'echo 1'], capture_output=True, timeout=1.0)
+    print('LEAK_SPAWNED', flush=True)
+    with open('std_output.txt', 'w') as f: f.write('LEAK_SPAWNED')
+except Exception as e:
+    print(f'CONTAINED_SPAWN_BLOCKED: {type(e).__name__}', flush=True)
+    with open('std_output.txt', 'w') as f: f.write(f'CONTAINED_SPAWN_BLOCKED: {type(e).__name__}')
+"""
+    else:
+        a3_code = """
+import os, sys
+pids = []
+try:
+    for _ in range(50):
+        pid = os.fork()
+        if pid == 0:
+            os._exit(0)
+        pids.append(pid)
+    print('LEAK_FORK_UNBOUNDED', flush=True)
+    with open('std_output.txt', 'w') as f: f.write('LEAK_FORK_UNBOUNDED')
+except (BlockingIOError, OSError) as e:
+    print(f'CONTAINED_FORK_LIMIT: {type(e).__name__}', flush=True)
+    with open('std_output.txt', 'w') as f: f.write(f'CONTAINED_FORK_LIMIT: {type(e).__name__}')
+"""
+
     exec_sandbox_test(
         vec_id="A3_A7",
         name="Process proliferation / Subprocess execution",
         desc="Spawning external commands or fork bomb must be blocked/bounded",
-        code=f"""
-import subprocess
-try:
-    p = subprocess.run({cmd_sub}, capture_output=True, timeout=1.0)
-    with open('std_output.txt', 'w') as f:
-        f.write('LEAK_SPAWNED')
-except Exception as e:
-    with open('std_output.txt', 'w') as f:
-        f.write(f'CONTAINED_SPAWN_BLOCKED: {{type(e).__name__}}')
-""",
+        code=a3_code,
         assert_fn=lambda r: (
-            "CONTAINED" in r.stdout or "LEAK" not in r.stdout,
-            f"Subprocess proliferation blocked (stdout={r.stdout.strip()})",
+            "CONTAINED" in get_combined_output(r) and "LEAK" not in get_combined_output(r),
+            f"Subprocess proliferation bounded (out={get_combined_output(r).strip()[:60]})",
         ),
     )
 
@@ -269,24 +298,27 @@ except Exception as e:
 import os, errno
 try:
     os.remove({repr(canary_a4)})
+    print('LEAK_DELETED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('LEAK_DELETED')
 except (PermissionError, FileNotFoundError):
+    print('CONTAINED_PERMISSION_DENIED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('CONTAINED_PERMISSION_DENIED')
 except OSError as e:
     if e.errno in (errno.EROFS, errno.EACCES, errno.EPERM, errno.ENOENT):
+        print('CONTAINED_PERMISSION_DENIED', flush=True)
         with open('std_output.txt', 'w') as f:
             f.write('CONTAINED_PERMISSION_DENIED')
     else:
-        with open('std_output.txt', 'w') as f:
-            f.write(f'FAIL_UNEXPECTED: {{type(e).__name__}}')
+        print(f'FAIL_UNEXPECTED: {{type(e).__name__}}', flush=True)
 except Exception as e:
-    with open('std_output.txt', 'w') as f:
-        f.write(f'FAIL_UNEXPECTED: {{type(e).__name__}}')
+    print(f'FAIL_UNEXPECTED: {{type(e).__name__}}', flush=True)
 """,
             assert_fn=lambda r: (
-                "CONTAINED_PERMISSION_DENIED" in r.stdout and os.path.exists(canary_a4),
+                "CONTAINED_PERMISSION_DENIED" in get_combined_output(r)
+                and "LEAK" not in get_combined_output(r)
+                and os.path.exists(canary_a4),
                 "Canary file protected; os.remove raised PermissionError and file is intact on host",
             ),
         )
@@ -314,20 +346,20 @@ try:
     with open({repr(canary_a5)}, 'r', encoding='utf-8') as f:
         data = f.read()
     if data == 'SECRET_CONFIDENTIAL_TOKEN_A5':
+        print('LEAK_READ_SUCCESS', flush=True)
         with open('std_output.txt', 'w') as f:
             f.write('LEAK_READ_SUCCESS')
     else:
-        with open('std_output.txt', 'w') as f:
-            f.write('FAIL_TAMPERED')
+        print('FAIL_TAMPERED', flush=True)
 except (PermissionError, FileNotFoundError):
+    print('CONTAINED_READ_BLOCKED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('CONTAINED_READ_BLOCKED')
 except Exception as e:
-    with open('std_output.txt', 'w') as f:
-        f.write(f'FAIL_UNEXPECTED: {{type(e).__name__}}')
+    print(f'FAIL_UNEXPECTED: {{type(e).__name__}}', flush=True)
 """,
             assert_fn=lambda r: (
-                "CONTAINED_READ_BLOCKED" in r.stdout,
+                "CONTAINED_READ_BLOCKED" in get_combined_output(r) and "LEAK" not in get_combined_output(r),
                 "Read escape contained; host secret was not exposed to child",
             ),
         )
@@ -351,14 +383,16 @@ try:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(0.5)
     s.connect(('1.1.1.1', 80))
+    print('LEAK_NETWORK_CONNECTED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('LEAK_NETWORK_CONNECTED')
 except Exception as e:
+    print('CONTAINED_SOCKET_BLOCKED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('CONTAINED_SOCKET_BLOCKED')
 """,
         assert_fn=lambda r: (
-            "CONTAINED_SOCKET_BLOCKED" in r.stdout,
+            "CONTAINED_SOCKET_BLOCKED" in get_combined_output(r) and "LEAK" not in get_combined_output(r),
             "Network egress blocked at OS boundary layer",
         ),
     )
@@ -376,14 +410,18 @@ try:
     if hasattr(ctypes, 'windll'):
         u = ctypes.windll.user32
         u.MessageBeep(0)
+    else:
+        libc = ctypes.CDLL(None)
+    print('CONTAINED_NATIVE_ISOLATED', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write('CONTAINED_NATIVE_ISOLATED')
 except (ImportError, OSError, Exception) as e:
+    print(f'CONTAINED_CTYPES_BLOCKED: {type(e).__name__}', flush=True)
     with open('std_output.txt', 'w') as f:
         f.write(f'CONTAINED_CTYPES_BLOCKED: {type(e).__name__}')
 """,
         assert_fn=lambda r: (
-            "CONTAINED" in r.stdout,
+            "CONTAINED" in get_combined_output(r) and "LEAK" not in get_combined_output(r),
             "Ctypes execution isolated or DLL initialization denied inside sandbox",
         ),
     )
@@ -396,12 +434,31 @@ except (ImportError, OSError, Exception) as e:
         name="Stdout stream flood (pipe bomb)",
         desc="Flooding pipe streams with large data must be capped at 64 KB without deadlock",
         code="""
-with open('std_output.txt', 'w') as f:
-    f.write('A' * 200000)
+import sys
+prefix = "FLOOD_MARKER_START\\n"
+chunk = "A" * 1024
+
+try:
+    sys.stdout.write(prefix)
+    for _ in range(200):
+        sys.stdout.write(chunk)
+    sys.stdout.flush()
+except Exception:
+    pass
+
+try:
+    with open('std_output.txt', 'w', encoding='utf-8') as f:
+        f.write(prefix)
+        for _ in range(200):
+            f.write(chunk)
+except Exception:
+    pass
 """,
         assert_fn=lambda r: (
-            r.status == "ok" and len(r.stdout) <= 65536,
-            f"Stdout safely capped at {len(r.stdout)} bytes (ceiling=65536 bytes) with zero deadlock",
+            r.status == "ok"
+            and len(r.stdout) == 65536
+            and "FLOOD_MARKER_START" in r.stdout,
+            f"Stdout safely capped at exactly {len(r.stdout)} bytes (ceiling=65536) with flood marker verified",
         ),
     )
 
@@ -418,7 +475,7 @@ import ctypes
 ctypes.string_at(0)
 """,
         assert_fn=lambda r: (
-            r.exit_code != 0,
+            r.exit_code != 0 and r.status in ("error", "crash"),
             f"Process crash trapped cleanly (exit_code={r.exit_code}); parent runner intact",
         ),
     )
