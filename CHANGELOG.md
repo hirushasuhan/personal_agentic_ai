@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.14] — 2026-10-09 — Milestone M2b: Real-Model Evaluation Close-Out (`qwen2.5-coder:7b`)
+
+### Evaluation Artifacts & Evidence (`docs/evidence/`)
+- **English Arm Records (`docs/evidence/eval_qwen2.5_coder_7b_english.jsonl`)**: Evaluated 20 coding tasks across 3 repeats (60 runs) using `qwen2.5-coder:7b`. Pass@1 zero-shot: 20.0%, pass@1 repair<=3: 20.0%, False-accept rate: 0.0%, False-reject rate: 0.0%, 2 flipping tasks.
+- **Singlish Arm Records (`docs/evidence/eval_qwen2.5_coder_7b_singlish.jsonl`)**: Evaluated 20 coding tasks across 3 repeats (60 runs) using `qwen2.5-coder:7b`. Pass@1 zero-shot: 5.0%, pass@1 repair<=3: 10.0%, False-accept rate: 0.0%, False-reject rate: 0.0%, 0 flipping tasks.
+- **Verification Boundary Integrity**: 0.0% false-accept rate confirmed across all 120 live model runs, demonstrating 100% agreement between model self-tests and hidden reference test assertions.
+
+### Windows Sandbox IPC & Deadlock Resolution (`research/sandbox_win32.py`, `research/verify_loop.py`, `research/pai.py`)
+- **Pipe Buffer Saturation Deadlock**: Expanded Win32 anonymous pipe buffer to `max(65536, self.max_output_bytes)` and replaced blocking synchronous wait with active 50 ms polling and pipe draining in `Win32Sandbox`, eliminating deadlock on large test assertion diffs.
+- **Multi-Process Quota**: Scaled `JobMemoryLimit` by `max(2, self.max_processes)` to avoid `WinError 1816` when driver spawns child worker.
+- **Configurable Model Timeout**: Added `PAI_MODEL_TIMEOUT` environment variable support (defaulting to 120.0s).
+
 ## [0.7.13] — 2026-10-09 — Milestone M2b: Eval Harness Follow-up Hardening
 
 ### Hidden-Test Grader & Error Reporting (`research/eval_harness.py`, `research/tests/test_eval_harness.py`)
