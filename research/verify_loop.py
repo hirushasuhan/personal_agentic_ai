@@ -30,9 +30,12 @@ import hashlib
 import inspect
 import json
 import os
+import secrets
 import shutil
+import stat
 import sys
 import tempfile
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -86,10 +89,11 @@ class FrozenTestSuite:
     source: str  # "user" or "model"
     target_symbols: Tuple[str, ...] = field(default_factory=tuple)
     assertion_count: int = 0
+    expected_test_ids: Tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
     def create(cls, test_code: str, source: str = "model") -> FrozenTestSuite:
-        """Parses, counts assertions, extracts referenced symbols, and computes SHA-256 hash."""
+        """Parses, counts assertions, extracts referenced symbols and test IDs, and computes SHA-256 hash."""
         clean_code = test_code.strip()
         if not clean_code:
             raise VacuousTestError("Test suite is empty")
@@ -101,6 +105,24 @@ class FrozenTestSuite:
 
         symbols: Set[str] = set()
         assertions = 0
+        expected_ids: List[str] = []
+        has_module_assert = False
+
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test"):
+                expected_ids.append(node.name)
+            elif isinstance(node, ast.ClassDef):
+                is_tc = any(
+                    (isinstance(base, ast.Name) and base.id == "TestCase") or
+                    (isinstance(base, ast.Attribute) and base.attr == "TestCase")
+                    for base in node.bases
+                )
+                if is_tc:
+                    for sub in node.body:
+                        if isinstance(sub, ast.FunctionDef) and sub.name.startswith("test"):
+                            expected_ids.append(f"{node.name}.{sub.name}")
+            elif isinstance(node, ast.Assert):
+                has_module_assert = True
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Assert):
@@ -120,6 +142,11 @@ class FrozenTestSuite:
                     for alias in node.names:
                         symbols.add(alias.name)
 
+        if has_module_assert and not expected_ids:
+            expected_ids.append("<module>")
+        elif has_module_assert and expected_ids:
+            expected_ids.insert(0, "<module>")
+
         h = hashlib.sha256(clean_code.encode("utf-8")).hexdigest()
 
         return cls(
@@ -128,6 +155,7 @@ class FrozenTestSuite:
             source=source,
             target_symbols=tuple(sorted(symbols)),
             assertion_count=assertions,
+            expected_test_ids=tuple(sorted(expected_ids)),
         )
 
     def verify_integrity(self, test_code: str) -> None:
@@ -234,12 +262,17 @@ class VerifyLoop:
 
         raise ValueError("No test code provided: neither user_tests_path nor model_test_code was specified")
 
-    def run_stub_probe(self, suite: FrozenTestSuite) -> StubProbeResult:
+    def run_stub_probe(
+        self,
+        suite: FrozenTestSuite,
+        allow_weak_tests: bool = False,
+    ) -> StubProbeResult:
         """
         Executes the frozen test suite across the full stub family in the sandbox.
         - Must contain at least 1 assertion.
         - Must NOT crash, error, or time out on any stub (rejection: TEST_SUITE_INVALID).
-        - Must NOT pass against ANY stub in the stub family (rejection: VACUOUS_TESTS_REJECTED / WEAK).
+        - Must NOT pass against ANY stub in the stub family for model-written tests.
+        - For user-supplied tests, weak tests are flagged with WEAK_TESTS unless allow_weak_tests=True.
         - Must fail with substantive AssertionError on the stubs.
         """
         # Static check: 0 assertions is immediately vacuous
@@ -292,13 +325,24 @@ class VerifyLoop:
 
             # If the test suite PASSED against this stub (0 failures, 0 errors) -> WEAK / VACUOUS!
             if exec_res.passed:
-                return StubProbeResult(
-                    passed=False,
-                    detail=f"VACUOUS_TESTS_REJECTED: Test suite is weak: passed against stub '{stub_name}'",
-                    failing_stub=stub_name,
-                    stdout=exec_res.stdout,
-                    stderr=exec_res.stderr,
-                )
+                if suite.source == "user" and allow_weak_tests:
+                    continue
+                elif suite.source == "user":
+                    return StubProbeResult(
+                        passed=False,
+                        detail=f"WEAK_TESTS: User-supplied test suite is weak against stub '{stub_name}'. Pass --allow-weak-tests to proceed anyway.",
+                        failing_stub=stub_name,
+                        stdout=exec_res.stdout,
+                        stderr=exec_res.stderr,
+                    )
+                else:
+                    return StubProbeResult(
+                        passed=False,
+                        detail=f"VACUOUS_TESTS_REJECTED: Test suite is weak: passed against stub '{stub_name}'",
+                        failing_stub=stub_name,
+                        stdout=exec_res.stdout,
+                        stderr=exec_res.stderr,
+                    )
 
             # At least one substantive assertion failed on this stub
             if exec_res.failed == 0 and not (stub_name == "NotImplementedError" and err_type == "NotImplementedError"):
@@ -332,13 +376,27 @@ class VerifyLoop:
         frozen_suite: FrozenTestSuite,
     ) -> TestExecutionResult:
         """
-        Executes solution and frozen test suite inside the OS sandbox using an isolated discovery driver.
+        Executes solution and frozen test suite inside the OS sandbox using an isolated discovery driver
+        and dedicated out-of-scratch authenticated verdict channel (Milestone M2b Step 3 / ADR-011 v2.1).
         """
         if not is_sandbox_supported():
             raise RuntimeError(f"Sandbox execution not supported on platform: {sys.platform}")
 
-        sb = get_sandbox(memory_mb=self.memory_mb, timeout_sec=self.timeout_sec)
+        # Isolated verdict channel directory outside scratch
+        verdict_dir = tempfile.mkdtemp(prefix="pai_verdict_")
+        verdict_token = uuid.uuid4().hex
+        verdict_filename = f"verdict_{verdict_token}.json"
+        verdict_path = os.path.join(verdict_dir, verdict_filename)
+        verdict_path_norm = verdict_path.replace("\\", "/")
+
+        sb = get_sandbox(
+            memory_mb=self.memory_mb,
+            timeout_sec=self.timeout_sec,
+            extra_writable_dirs=[verdict_dir],
+        )
         sb.setup()
+
+        driver_path = os.path.join(sb.scratch_dir, "_pai_driver.py")
 
         try:
             # 1. Write solution.py into scratch
@@ -370,14 +428,19 @@ import hashlib
 import unittest
 import types
 import ast
+import secrets
+import stat
+import atexit
 
 scratch_dir = os.path.dirname(os.path.abspath(__file__))
 if scratch_dir not in sys.path:
     sys.path.insert(0, scratch_dir)
 
 sys.argv = ["test_suite.py"]
+verdict_file_path = "{verdict_path_norm}"
+expected_test_ids = {list(frozen_suite.expected_test_ids)}
 
-# In-sandbox read-back hash verification
+# In-sandbox read-back hash verification of test suite
 with open("test_suite.py", "r", encoding="utf-8") as f:
     test_source = f.read()
 
@@ -385,6 +448,7 @@ expected_hash = "{frozen_suite.test_hash}"
 actual_hash = hashlib.sha256(test_source.strip().encode("utf-8")).hexdigest()
 if actual_hash != expected_hash:
     res = {{
+        "session_nonce": "tampered",
         "status": "mutation_error",
         "error": f"Test hash mismatch inside sandbox: expected {{expected_hash}}, got {{actual_hash}}",
         "discovered": 0,
@@ -394,9 +458,12 @@ if actual_hash != expected_hash:
         "errors": 1,
         "failures": [{{"test_id": "<integrity>", "type": "TestMutationError", "message": "In-sandbox hash mismatch"}}],
     }}
-    with open("test_result.json", "w", encoding="utf-8") as f:
-        json.dump(res, f)
-    sys.exit(2)
+    try:
+        with open(verdict_file_path, "w", encoding="utf-8") as f:
+            json.dump(res, f)
+    except Exception:
+        pass
+    os._exit(2)
 
 # Load test suite into isolated module named 'test_suite'
 test_mod = types.ModuleType("test_suite")
@@ -414,20 +481,62 @@ except AssertionError as ae:
 except BaseException as ex:
     module_error = ex
 
+# NONCE GENERATION: Generated strictly AFTER candidate module import completes
+session_nonce = secrets.token_hex(32)
+
 if module_error is not None:
     is_assert = isinstance(module_error, AssertionError)
     res = {{
+        "session_nonce": session_nonce,
         "status": "FAIL" if is_assert else "ERROR",
         "discovered": 1,
         "executed": 1,
         "passed": 0,
         "failed": 1 if is_assert else 0,
         "errors": 0 if is_assert else 1,
+        "executed_test_ids": ["<module>"],
+        "per_test_outcomes": {{"<module>": {{"status": "FAIL" if is_assert else "ERROR", "type": type(module_error).__name__, "message": str(module_error)}}}},
         "failures": [{{"test_id": "<module>", "type": type(module_error).__name__, "message": str(module_error)}}],
     }}
-    with open("test_result.json", "w", encoding="utf-8") as f:
-        json.dump(res, f)
-    sys.exit(1)
+    try:
+        with open(verdict_file_path, "w", encoding="utf-8") as f:
+            json.dump(res, f)
+    except Exception:
+        pass
+    os._exit(1)
+
+# EQUALITY HIJACK GUARD: Wrap callable symbols to detect __eq__ hijacks & type spoofing
+_ANTI_SPOOF_CANARY = "__PAI_ANTI_SPOOF_CANARY_" + session_nonce[:8] + "__"
+
+def _guard_callable(fn):
+    def _guarded(*args, **kwargs):
+        ret = fn(*args, **kwargs)
+        # Check 1: Return object claims equality to arbitrary canary or raw object()
+        try:
+            if ret == _ANTI_SPOOF_CANARY:
+                raise AssertionError("Equality hijack detected: return object claimed equality to arbitrary canary")
+            if ret == object():
+                raise AssertionError("Equality hijack detected: return object claimed equality to raw object()")
+        except Exception as _ex:
+            if isinstance(_ex, AssertionError):
+                raise
+        # Check 2: Subclassed builtin type returning custom class
+        ret_type = type(ret)
+        if isinstance(ret, (int, float, str, list, dict, bool, tuple, bytes)):
+            if ret_type not in (int, float, str, list, dict, bool, tuple, bytes):
+                raise AssertionError(f"Non-builtin result type '{{ret_type.__name__}}' rejected for builtin return value")
+        return ret
+    return _guarded
+
+# Wrap solution callables imported into test_mod
+if "solution" in sys.modules:
+    sol_mod = sys.modules["solution"]
+    for attr_name, attr_val in list(sol_mod.__dict__.items()):
+        if inspect.isfunction(attr_val):
+            guarded_fn = _guard_callable(attr_val)
+            setattr(sol_mod, attr_name, guarded_fn)
+            if attr_name in test_mod.__dict__ and test_mod.__dict__[attr_name] is attr_val:
+                test_mod.__dict__[attr_name] = guarded_fn
 
 # Discover tests:
 # A. Standalone pytest-style functions starting with test
@@ -458,10 +567,12 @@ failed_count = 0
 error_count = 0
 failures_list = []
 discovered_tests = []
+per_test_outcomes = {{}}
 
 if has_module_level_assertions:
     discovered_tests.append("<module>")
     passed_count += 1
+    per_test_outcomes["<module>"] = {{"status": "PASS"}}
 
 # Execute standalone test functions
 for name, func in standalone_test_funcs:
@@ -469,12 +580,15 @@ for name, func in standalone_test_funcs:
     try:
         func()
         passed_count += 1
+        per_test_outcomes[name] = {{"status": "PASS"}}
     except AssertionError as ae:
         failed_count += 1
         failures_list.append({{"test_id": name, "type": "AssertionError", "message": str(ae)}})
+        per_test_outcomes[name] = {{"status": "FAIL", "type": "AssertionError", "message": str(ae)}}
     except BaseException as ex:
         error_count += 1
         failures_list.append({{"test_id": name, "type": type(ex).__name__, "message": str(ex)}})
+        per_test_outcomes[name] = {{"status": "ERROR", "type": type(ex).__name__, "message": str(ex)}}
 
 # Execute TestCase classes
 for cls_name, cls in test_case_classes:
@@ -487,16 +601,19 @@ for cls_name, cls in test_case_classes:
         test.run(result)
         if result.wasSuccessful():
             passed_count += 1
+            per_test_outcomes[test_id] = {{"status": "PASS"}}
         elif result.failures:
             failed_count += 1
             err_msg = result.failures[0][1]
             failures_list.append({{"test_id": test_id, "type": "AssertionError", "message": err_msg}})
+            per_test_outcomes[test_id] = {{"status": "FAIL", "type": "AssertionError", "message": err_msg}}
         elif result.errors:
             error_count += 1
             err_msg = result.errors[0][1]
             last_line = err_msg.strip().splitlines()[-1] if err_msg else ""
             err_type = last_line.split(":")[0].strip() if ":" in last_line else "RuntimeError"
             failures_list.append({{"test_id": test_id, "type": err_type, "message": err_msg}})
+            per_test_outcomes[test_id] = {{"status": "ERROR", "type": err_type, "message": err_msg}}
 
 total_discovered = len(discovered_tests)
 total_executed = passed_count + failed_count + error_count
@@ -516,29 +633,47 @@ elif failed_count > 0:
 else:
     overall_status = "PASS"
 
+# Neutralize any rogue atexit handlers registered by candidate solution
+try:
+    atexit._clear()
+except Exception:
+    pass
+
 result_data = {{
+    "session_nonce": session_nonce,
     "status": overall_status,
     "discovered": total_discovered,
     "executed": total_executed,
     "passed": passed_count,
     "failed": failed_count,
     "errors": error_count,
+    "executed_test_ids": discovered_tests,
+    "per_test_outcomes": per_test_outcomes,
     "failures": failures_list,
 }}
 
-with open("test_result.json", "w", encoding="utf-8") as f:
-    json.dump(result_data, f)
+try:
+    with open(verdict_file_path, "w", encoding="utf-8") as f:
+        json.dump(result_data, f)
+        f.flush()
+except Exception:
+    pass
 
 if overall_status == "PASS":
     print("PAI_TEST_ALL_PASSED", flush=True)
-    sys.exit(0)
+    os._exit(0)
 else:
     print(f"PAI_TEST_FAILED: failed={{failed_count}}, errors={{error_count}}", flush=True)
-    sys.exit(1)
+    os._exit(1)
 '''
-            driver_path = os.path.join(sb.scratch_dir, "_pai_driver.py")
             with open(driver_path, "w", encoding="utf-8") as f:
                 f.write(driver_code)
+
+            # Make _pai_driver.py read-only to prevent deletion or overwriting by candidate solution
+            try:
+                os.chmod(driver_path, stat.S_IREAD | stat.S_IRGRP | stat.S_IROTH)
+            except Exception:
+                pass
 
             # 5. Execute test driver inside sandbox
             res = sb.execute(driver_path)
@@ -548,32 +683,52 @@ else:
             if hasattr(res, "output_files") and res.output_files and "std_output.txt" in res.output_files:
                 comb_out += "\n" + res.output_files["std_output.txt"]
 
-            # Read structured result JSON if generated
-            res_json_path = os.path.join(sb.scratch_dir, "test_result.json")
-            data: Dict[str, Any] = {}
-            if os.path.exists(res_json_path):
+            # Read authenticated verdict record from dedicated verdict_path
+            verdict_data: Dict[str, Any] = {}
+            if os.path.exists(verdict_path):
                 try:
-                    with open(res_json_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
+                    with open(verdict_path, "r", encoding="utf-8") as f:
+                        verdict_data = json.load(f)
                 except Exception:
                     pass
 
-            if not data:
+            if not verdict_data:
+                # Driver did not produce authenticated verdict! (e.g. pre-empted by os._exit(0) at import)
                 discovered = 0
                 executed = 0
                 passed_c = 0
                 failed_c = 0
                 errors_c = 1
-                failures_l = [{"test_id": "<integrity>", "type": "DriverTerminatedError", "message": "Test driver terminated without writing results"}]
+                failures_l = [{"test_id": "<integrity>", "type": "DriverPreemptedError", "message": "Driver terminated early without writing authenticated verdict"}]
                 status_val = "ERROR"
+                session_nonce = None
+                executed_ids = []
             else:
-                discovered = data.get("discovered", 0)
-                executed = data.get("executed", 0)
-                passed_c = data.get("passed", 0)
-                failed_c = data.get("failed", 0)
-                errors_c = data.get("errors", 0)
-                failures_l = data.get("failures", [])
-                status_val = data.get("status", "ERROR" if res.exit_code != 0 else "PASS")
+                session_nonce = verdict_data.get("session_nonce")
+                discovered = verdict_data.get("discovered", 0)
+                executed = verdict_data.get("executed", 0)
+                passed_c = verdict_data.get("passed", 0)
+                failed_c = verdict_data.get("failed", 0)
+                errors_c = verdict_data.get("errors", 0)
+                failures_l = verdict_data.get("failures", [])
+                executed_ids = verdict_data.get("executed_test_ids", [])
+                status_val = verdict_data.get("status", "ERROR" if res.exit_code != 0 else "PASS")
+
+            # Check nonce validity
+            if not session_nonce or session_nonce == "tampered":
+                status_val = "ERROR"
+                errors_c = max(1, errors_c)
+                failures_l.append({"test_id": "<integrity>", "type": "InvalidNonceError", "message": "Missing or tampered session nonce"})
+
+            # Check expected test IDs match
+            if frozen_suite.expected_test_ids and set(executed_ids) != set(frozen_suite.expected_test_ids):
+                status_val = "ERROR"
+                errors_c = max(1, errors_c)
+                failures_l.append({
+                    "test_id": "<integrity>",
+                    "type": "TestIdMismatchError",
+                    "message": f"Expected test IDs {list(frozen_suite.expected_test_ids)} did not match executed {executed_ids}",
+                })
 
             if res.status == "timeout":
                 return TestExecutionResult(
@@ -614,6 +769,9 @@ else:
                 and errors_c == 0
                 and executed > 0
                 and executed == discovered
+                and session_nonce is not None
+                and session_nonce != "tampered"
+                and (not frozen_suite.expected_test_ids or set(executed_ids) == set(frozen_suite.expected_test_ids))
             )
             detail_msg = "All tests passed cleanly in sandbox" if is_pass else f"Test run failed: {failed_c} failures, {errors_c} errors"
 
@@ -632,4 +790,10 @@ else:
                 wall_time_sec=res.wall_time_sec,
             )
         finally:
+            # Restore driver write permissions for cleanup
+            try:
+                os.chmod(driver_path, stat.S_IWRITE)
+            except Exception:
+                pass
             sb.cleanup()
+            shutil.rmtree(verdict_dir, ignore_errors=True)

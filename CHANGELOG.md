@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.7.7] — 2026-10-08 — Milestone M2b Step 3 Result-Integrity Channel & Attack Vector Hardening
+
+### Milestone M2b Step 3 Result-Integrity Channel (ADR-011 v2.1)
+- **Dedicated Out-of-Scratch Authenticated Verdict Channel (`research/verify_loop.py`, `research/sandbox.py`)**:
+  - Implemented an isolated verdict channel in a separate directory (`verdict_dir`) outside the candidate's writable scratch directory.
+  - Multi-platform isolation: bound via separate `--bind` on Linux (`bwrap`) and granted dedicated AppContainer ACL on Windows (`Win32Sandbox`).
+  - Child writes verdict to a randomized file (`verdict_<token>.json`) rather than hardcoded scratch paths.
+  - Eliminates forged `test_result.json` attacks in scratch: parent reads strictly from the authenticated out-of-scratch verdict channel.
+- **Post-Import Session Nonce Generation (`research/verify_loop.py`)**:
+  - Session nonce (`secrets.token_hex(32)`) is generated strictly AFTER candidate solution module import completes.
+  - Defeats import-time pre-emption: any solution calling `os._exit(0)` at import terminates without the nonce, failing closed as `DriverPreemptedError`.
+- **Equality Hijack Guard (`research/verify_loop.py`)**:
+  - Injects callable symbol wrappers that probe return values against arbitrary anti-spoof canary values (`_ANTI_SPOOF_CANARY`) and raw `object()`.
+  - Solutions returning objects with hijacked `__eq__` (such as `class R(int): __eq__ = lambda s, o: True`) or non-builtin subtypes are rejected immediately with `AssertionError: Equality hijack detected`.
+- **Driver Read-Only Protection & Atexit Neutralization (`research/verify_loop.py`)**:
+  - Marks `_pai_driver.py` read-only (`stat.S_IREAD` on Windows, read-only bind on Linux), preventing candidate code from replacing or deleting the driver script.
+  - Calls `atexit._clear()` prior to exit, disarming rogue cleanup handlers registered by candidate solutions.
+- **Frozen AST Test ID Verification (`research/verify_loop.py`)**:
+  - Extracts full expected test-id list from frozen AST (`expected_test_ids`) and requires strict set equality against `executed_test_ids` in verdict record.
+- **User vs Model Weak Test Policy & CLI Integration (`research/verify_loop.py`, `research/pai.py`)**:
+  - Added `--allow-weak-tests` CLI flag to `pai code`.
+  - User-supplied test suites passing a stub are flagged with `WEAK_TESTS` naming the passing stub unless `--allow-weak-tests` is explicitly provided.
+  - Model-written tests remain strictly rejected fail-closed across all 11 stubs.
+- **Residual Risk Documentation**:
+  - Documented residual in-process attack surface (builtins/sys monkeypatching when candidate shares process with tests) in architecture documentation, with future higher-tier mitigation of child process execution per test.
+- **Test Suite**: 277 Python unit tests passing (19 skipped on Windows: 5 privilege/POSIX + 14 Linux bwrap tests). 13 Rust core tests passing, clippy clean.
+
 ## [0.7.6] — 2026-10-08 — Milestone M2b Step 2.1 Stub Family, Discovery Driver & Mandatory Freeze Enforcement
 
 ### Milestone M2b Step 2.1 Fixes & Verification (F1, F2, F4, F5)

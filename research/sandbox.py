@@ -44,6 +44,7 @@ def get_sandbox(
     timeout_sec: float = 5.0,
     scratch_dir: Optional[str] = None,
     max_output_bytes: int = 65536,
+    extra_writable_dirs: Optional[list] = None,
 ):
     """Returns the platform-specific sandbox instance."""
     if PlatformSandbox is None:
@@ -53,6 +54,7 @@ def get_sandbox(
         timeout_sec=timeout_sec,
         scratch_dir=scratch_dir,
         max_output_bytes=max_output_bytes,
+        extra_writable_dirs=extra_writable_dirs,
     )
 
 

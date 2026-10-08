@@ -605,6 +605,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_code = subparsers.add_parser("code", help="Sandbox-verified code generation (M2b)")
     p_code.add_argument("task", nargs="?", default="", help="Coding task prompt")
     p_code.add_argument("--tests", type=str, help="User-supplied test file (takes priority over model-written tests)")
+    p_code.add_argument("--allow-weak-tests", action="store_true", help="Permit user-supplied tests that pass one or more stubs in the stub family")
     p_code.add_argument("--out", type=str, help="Output staging directory")
 
     # Deferred execution commands (M2+)
@@ -635,7 +636,8 @@ def cmd_code(args) -> int:
             return 1
 
         print(f"[TESTS FROZEN] Source: {suite.source} | Hash: {suite.test_hash} | Assertions: {suite.assertion_count}")
-        probe_res = loop.run_stub_probe(suite)
+        allow_weak = getattr(args, "allow_weak_tests", False)
+        probe_res = loop.run_stub_probe(suite, allow_weak_tests=allow_weak)
         if not probe_res.passed:
             print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
             return 1

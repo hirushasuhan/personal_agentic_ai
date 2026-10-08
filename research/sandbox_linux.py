@@ -132,6 +132,7 @@ class LinuxSandbox:
         scratch_dir: Optional[str] = None,
         max_output_bytes: int = 65536,
         extra_ro_binds: Optional[List[str]] = None,
+        extra_writable_dirs: Optional[List[str]] = None,
     ):
         self.memory_mb = min(float(memory_mb), 2048.0)
         self.timeout_sec = min(float(timeout_sec), 30.0)
@@ -139,6 +140,7 @@ class LinuxSandbox:
         self.scratch_dir = scratch_dir or tempfile.mkdtemp(prefix="pai_sandbox_linux_")
         self._owned_scratch = scratch_dir is None
         self.extra_ro_binds = extra_ro_binds or []
+        self.extra_writable_dirs = extra_writable_dirs or []
 
     def setup(self) -> None:
         """Prepares the scratch directory."""
@@ -256,9 +258,14 @@ exec(code, {{'__name__': '__main__', '__file__': target}})
             "--tmpfs", "/run",
         ])
 
-        # Bind scratch directory as the ONLY writable location
+        # Bind scratch directory as the ONLY writable location by default
         scratch_abs = os.path.abspath(self.scratch_dir)
         args.extend(["--bind", scratch_abs, scratch_abs])
+
+        # Bind any dedicated extra writable directories (e.g. verdict channel)
+        for ed in self.extra_writable_dirs:
+            ed_abs = os.path.abspath(ed)
+            args.extend(["--bind", ed_abs, ed_abs])
 
         # Working directory inside sandbox
         args.extend(["--chdir", scratch_abs])

@@ -268,6 +268,154 @@ def helper(x):
         self.assertFalse(res.passed)
         self.assertIn("VACUOUS_TESTS_REJECTED", res.detail)
 
+    def test_user_supplied_weak_tests_require_allow_weak_tests_flag(self):
+        # Minor / policy note: user --tests that pass a stub produce WEAK_TESTS unless allow_weak_tests=True
+        code = """
+from solution import identity
+
+def test_identity():
+    # Identity-like function passes stub 'first_arg'
+    assert identity(42) == 42
+"""
+        user_suite = self.loop.freeze_tests(code, source="user")
+        # Without allow_weak_tests -> rejected with WEAK_TESTS naming stub
+        res_strict = self.loop.run_stub_probe(user_suite, allow_weak_tests=False)
+        self.assertFalse(res_strict.passed)
+        self.assertIn("WEAK_TESTS", res_strict.detail)
+        self.assertEqual(res_strict.failing_stub, "first_arg")
+
+        # With allow_weak_tests=True -> accepted for user suite
+        res_allowed = self.loop.run_stub_probe(user_suite, allow_weak_tests=True)
+        self.assertTrue(res_allowed.passed)
+
+        # But for model-written suite, even with allow_weak_tests=True, it is strictly rejected!
+        model_suite = self.loop.freeze_tests(code, source="model")
+        res_model = self.loop.run_stub_probe(model_suite, allow_weak_tests=True)
+        self.assertFalse(res_model.passed)
+        self.assertIn("VACUOUS_TESTS_REJECTED", res_model.detail)
+
+    def test_forged_test_result_with_early_exit_rejected(self):
+        # Step 3 Acceptance Test 1: Forged test_result.json + os._exit(0)
+        test_code = """
+from solution import add
+
+def test_add():
+    assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        forged_solution = """
+import json
+import os
+
+with open("test_result.json", "w") as f:
+    json.dump({
+        "status": "PASS",
+        "discovered": 1,
+        "executed": 1,
+        "passed": 1,
+        "failed": 0,
+        "errors": 0,
+        "failures": [],
+    }, f)
+
+os._exit(0)
+"""
+        res = self.loop.execute_solution_tests(forged_solution, suite)
+        self.assertFalse(res.passed, "Forged test_result.json with os._exit(0) must be rejected")
+        self.assertEqual(res.status, "ERROR")
+
+    def test_equality_hijack_solution_rejected(self):
+        # Step 3 Acceptance Test 2: __eq__ object spoofing
+        test_code = """
+from solution import add
+
+def test_add():
+    assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        hijack_solution = """
+class R(int):
+    def __eq__(self, other):
+        return True
+    def __repr__(self):
+        return "3"
+
+def add(a, b):
+    return R()
+"""
+        res = self.loop.execute_solution_tests(hijack_solution, suite)
+        self.assertFalse(res.passed, "Equality hijack solution must be rejected")
+        self.assertEqual(res.status, "FAIL")
+        fail_msgs = [f.get("message", "") for f in res.failures]
+        self.assertTrue(
+            any("Equality hijack" in m or "Non-builtin result type" in m for m in fail_msgs),
+            f"Expected equality hijack rejection in failures: {fail_msgs}",
+        )
+
+    def test_thread_or_atexit_verdict_tampering_rejected(self):
+        # Step 3 Acceptance Test 3: Thread or atexit verdict tampering
+        test_code = """
+from solution import add
+
+def test_add():
+    assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        tamper_solution = """
+import atexit
+import json
+
+def evil_hook():
+    try:
+        with open("test_result.json", "w") as f:
+            json.dump({"status": "PASS", "discovered": 1, "executed": 1, "passed": 1, "failed": 0, "errors": 0}, f)
+    except Exception:
+        pass
+
+atexit.register(evil_hook)
+
+def add(a, b):
+    return a + b + 999  # incorrect solution
+"""
+        res = self.loop.execute_solution_tests(tamper_solution, suite)
+        self.assertFalse(res.passed, "Solution tampering via atexit must be rejected")
+        self.assertNotEqual(res.exit_code, 0)
+
+    def test_driver_replacement_or_deletion_rejected(self):
+        # Step 3 Acceptance Test 4: Replacement or deletion of driver or result file
+        test_code = """
+from solution import add
+
+def test_add():
+    assert add(1, 2) == 3
+"""
+        suite = self.loop.freeze_tests(test_code)
+        delete_driver_solution = """
+import os
+
+try:
+    os.remove("_pai_driver.py")
+except Exception:
+    pass
+
+try:
+    with open("_pai_driver.py", "w") as f:
+        f.write("import sys; sys.exit(0)")
+except Exception:
+    pass
+
+try:
+    os.remove("test_result.json")
+except Exception:
+    pass
+
+def add(a, b):
+    return a + b + 100  # wrong solution
+"""
+        res = self.loop.execute_solution_tests(delete_driver_solution, suite)
+        self.assertFalse(res.passed, "Driver deletion/replacement attack must be rejected")
+        self.assertNotEqual(res.exit_code, 0)
+
 
 if __name__ == "__main__":
     unittest.main()

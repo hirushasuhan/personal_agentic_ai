@@ -237,6 +237,7 @@ class Win32Sandbox:
         timeout_sec: float = 10.0,
         scratch_dir: Optional[str] = None,
         max_output_bytes: int = 65536,
+        extra_writable_dirs: Optional[List[str]] = None,
     ):
         self.memory_mb = min(float(memory_mb), 2048.0)
         self.timeout_sec = min(float(timeout_sec), 30.0)
@@ -251,6 +252,7 @@ class Win32Sandbox:
         self.sid_str = None
         self.hJob = None
         self.scratch_dir = scratch_dir
+        self.extra_writable_dirs = list(extra_writable_dirs) if extra_writable_dirs else []
         self._owned_scratch = scratch_dir is None
         self._is_setup = False
 
@@ -339,6 +341,15 @@ class Win32Sandbox:
         )
         if res.returncode != 0:
             raise OSError(f"icacls failed to grant scratch dir ACL: {res.stderr.decode()}")
+
+        # Grant access to any dedicated extra writable directories (e.g. verdict channel)
+        for ed in self.extra_writable_dirs:
+            if os.path.exists(ed):
+                subprocess.run(
+                    [icacls_bin, ed, "/grant", f"*{self.sid_str}:(OI)(CI)F"],
+                    capture_output=True,
+                    check=False
+                )
 
         self._is_setup = True
 

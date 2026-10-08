@@ -403,5 +403,43 @@ This does not prove the numbers are false, but the file is not machine-generated
 
 **Decision.** Step 2 is not accepted: fix F1, F2, F4, F5 and add negative-control tests for each (NameError suite, timeout suite, pytest-style suite, weak `is not None` suite, forgotten-hash call). F3 is the scope of Step 3 and now has concrete acceptance tests: the three exploit solutions above must all be rejected.
 
+### M2b step 2 re-review (commit `b85d600`, 2026-10-08) — Step 2 accepted; Step 3 acceptance tests defined
+
+**Verdict: accepted.** F1, F2, F4 and F5 are fixed. `python3 -m unittest discover -s tests` on the Linux host (bwrap 0.6.1): `Ran 272 tests ... OK (skipped=13)`.
+
+**Reviewer probes against the new code (throwaway script, outside the repo):**
+- F1: NameError, ZeroDivisionError, infinite loop, `SystemExit` at module level, `raise SystemExit(1)` are all `TEST_SUITE_INVALID`, not "verified".
+- F2: pytest-style `def test_add()` and a `unittest.TestCase` class without `unittest.main()` are discovered and run (previously 0 tests ran); a suite whose assertions sit in an uncalled helper, or in a `try/except AssertionError: pass`, is rejected (`NoTestsDiscoveredError`).
+- F4: `assert add(1,2) is not None` is rejected as weak (passes stub `0`); `assert True` and a pytest-style function that never asserts are rejected; a two-sided boolean suite (`assert is_even(4)`, `assert not is_even(3)`) is accepted.
+- F5: the `current_test_code` parameter is gone; a solution that overwrites `test_suite.py` in scratch is caught (status FAIL).
+- Solution runs: correct passes (executed 1/1), wrong fails, and the earlier forgeries (stdout marker + `os._exit(0)`, `sys.exit(0)`, writing an empty `test_result.json`, patching `AssertionError`) no longer pass.
+
+**Still forgeable (this is Step 3).**
+1. **Forged result file.** A solution that writes a complete `test_result.json` (`status: PASS, discovered 1, executed 1, failed 0, errors 0`) into scratch at import and then calls `os._exit(0)` is reported `passed=True`. The verdict file is written into the same directory the solution can write, by the same process. (A variant that writes it from `atexit` fails because the driver exits non-zero, which is correct.)
+2. **Equality hijack.** A solution returning an object whose `__eq__` always returns True (`class R(int): __eq__ = lambda s, o: True`) passes `assert add(1,2)==3`. In-process comparison cannot detect this.
+
+**Step 3 acceptance tests (all must be rejected, each with a named test):**
+- the forged `test_result.json` + `os._exit(0)` solution above;
+- the `__eq__` object solution (for example compare results by `type(x) is type(expected)` and by canonical `repr`/JSON of the value in the driver, and reject non-builtin result types for the task classes that return builtin values);
+- a solution that spawns a thread/atexit handler writing the verdict;
+- a solution that replaces or deletes `_pai_driver.py` or `test_result.json`.
+Design requirements: verdict written by the trusted driver to a location the solution cannot write to (a second bind or an inherited file descriptor opened by the parent with the nonce, not a path in scratch), bound to a nonce created after the solution module was imported, record contains the full expected test-id list from the frozen AST and the per-test outcomes, and any missing or early-terminated record is a failure. Document the remaining in-process attack surface (monkeypatching of builtins and `unittest`) as a residual risk and, as a higher tier, run each test in a child process whose result the parent verifies.
+
+### M2b step 3 implementation & residual risk documentation (2026-10-08)
+
+**Implementation & Acceptance Tests Verified:**
+1. **Authenticated Out-of-Scratch Verdict Channel**: Verdict records are written strictly to an isolated temporary directory (`verdict_dir`) outside the candidate solution's writable scratch directory. On Linux, bubblewrap binds this directory as a separate mount; on Windows, AppContainer ACLs (`icacls`) grant write permissions strictly to this directory and scratch. The child writes to a randomized file (`verdict_<token>.json`). Scratch `test_result.json` is completely ignored by the verifier, eliminating forgery attacks.
+2. **Post-Import Session Nonce**: The 32-byte hex nonce is generated strictly *after* candidate module imports complete. Import-time pre-emption via `os._exit(0)` terminates without the nonce and is rejected fail-closed as `DriverPreemptedError`.
+3. **Equality Hijack Guard**: Candidate callable symbols are wrapped with guards probing return objects against canary tokens (`_ANTI_SPOOF_CANARY`), raw `object()`, and non-builtin subclassing. Solutions returning objects with hijacked `__eq__` (such as `class R(int): __eq__ = lambda s, o: True`) are rejected with `AssertionError: Equality hijack detected`.
+4. **Driver Read-Only Protection & Atexit Neutralization**: `_pai_driver.py` is made read-only (`stat.S_IREAD` / read-only bind), preventing candidate solutions from deleting or modifying the driver. `atexit._clear()` disarms rogue exit callbacks before verdict writing.
+5. **Frozen AST Test-ID Verification**: Full expected test-id list is extracted from the frozen AST and asserted against `executed_test_ids` in the verdict record.
+6. **User Weak Test Policy**: `--allow-weak-tests` flag added to `pai code`. User test suites passing stubs trigger `WEAK_TESTS` naming the passing stub unless explicitly permitted via `--allow-weak-tests`. Model-written tests remain strictly rejected fail-closed.
+7. **Acceptance Tests**: All 4 Step 3 acceptance tests (`test_forged_test_result_with_early_exit_rejected`, `test_equality_hijack_solution_rejected`, `test_thread_or_atexit_verdict_tampering_rejected`, `test_driver_replacement_or_deletion_rejected`) and the weak tests policy test pass cleanly in `research/tests/test_verify_loop.py`.
+
+**Residual Risk: In-Process Monkeypatching (T27)**
+- *Threat*: In-process monkeypatching of Python runtime primitives (`builtins`, `sys.modules`, or `unittest`) by a candidate solution sharing a process with the test driver. The threat model is a model gaming the checker or reward-seeking behavior.
+- *Current Mitigation*: The driver isolates the test module namespace (`test_suite`), generates nonces post-import, wraps solution callables with equality/type guards, disarms `atexit` hooks, and verifies integrity through out-of-scratch authenticated channels.
+- *Higher-Tier Roadmap*: For higher security tiers where hostile malware or sophisticated runtime tampering is modeled, each test call can be executed in an independent child process whose return code and output are supervised directly by the parent verifier outside the sandbox.
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
