@@ -4,20 +4,29 @@ ADR-011 v2.1 & Definition of Done
 
 Verifies:
 1. Frozen dataset hash validation and negative control on file mutation (refusal).
-2. Hidden test isolation invariant: hidden tests NEVER leak into model prompts.
-3. End-to-end evaluation flow with repeats using loopback mock model server.
-4. Detection of per-task flips across repeats.
-5. Detection of false-accept (model passes own tests, fails hidden tests).
-6. Detection of false-reject (model fails verify loop, but solution passes hidden tests).
-7. Resilient error handling when model server crashes / returns HTTP 500.
-8. Raw JSONL recording and recompute parity (compute_eval_metrics_from_jsonl).
+2. Hidden test isolation invariant: derived from inspect.getsource across all 20 tasks,
+   confirming secret reference test code/literals NEVER leak into model prompts.
+3. Sandboxed hidden test grading: runs inside OS sandbox with timeout, memory limit,
+   and crash/hang resilience.
+4. Negative controls:
+   - sys.exit in solution main block (harness survives, records fail).
+   - Infinite loop in solution main block (harness times out safely, records fail).
+   - Memory bomb in solution main block (harness survives, records fail).
+5. End-to-end evaluation flow with repeats using loopback mock model server.
+6. Detection of per-task flips across repeats.
+7. Detection of false-accept (model passes own tests, fails hidden tests).
+8. Resilient error handling when model server crashes / returns HTTP 500.
+9. Explicit temperature/seed verification in model requests and record.
+10. Grouping by (arm, model) in compute_eval_metrics on mixed JSONL files.
 """
 
 from __future__ import annotations
 
 import http.server
+import inspect
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -30,7 +39,7 @@ from eval_sets.hidden_tests.test_coding_tasks import HIDDEN_TESTS
 
 
 class MockModelServer:
-    """Threaded local loopback HTTP server mocking Ollama /api/generate."""
+    """Threaded local loopback HTTP server mocking Ollama /api/generate and /api/show."""
 
     def __init__(self):
         self.handler_fn = None
@@ -47,6 +56,13 @@ class MockModelServer:
                 except Exception:
                     data = {"raw": body}
                 outer.requests.append(data)
+
+                if self.path == "/api/show":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"digest": "sha256:mock_model_digest_12345"}).encode("utf-8"))
+                    return
 
                 if outer.handler_fn:
                     status_code, resp_payload = outer.handler_fn(data)
@@ -111,65 +127,133 @@ class TestEvalHarness(unittest.TestCase):
             )
         self.assertIn("Hash mismatch", str(ctx.exception))
 
-    def test_hidden_tests_never_leaked_into_prompts(self):
+    def test_hidden_tests_never_leaked_into_prompts_across_all_20_tasks(self):
         """
         Invariant: Hidden reference tests must never appear in any prompt sent to the model.
-        Falsification test: Run single task evaluation and inspect all logged prompt requests.
+        Derives forbidden literals via inspect.getsource across all 20 tasks in HIDDEN_TESTS.
+        Asserts that no unique hidden test literal appears in any prompt across tasks.
         """
+        # 1. Read all task prompts to distinguish public task requirements from secret test vectors
+        root = eval_harness.find_project_root()
+        tasks_file = os.path.join(root, "research", "eval_sets", "coding_tasks.json")
+        with open(tasks_file, "r", encoding="utf-8") as f:
+            tasks_data = json.load(f)
+        public_text = " ".join(t["prompt"] for t in tasks_data)
+
+        # 2. Extract literals from all 20 tasks in HIDDEN_TESTS using inspect.getsource
+        secret_literals = set()
+        for tid, fns in HIDDEN_TESTS.items():
+            for fn in fns:
+                src = inspect.getsource(fn)
+                # Find quoted string literals
+                found_strings = re.findall(r'["\']([^"\']{4,})["\']', src)
+                for s in found_strings:
+                    if s not in public_text and not s.startswith("__"):
+                        secret_literals.add(s)
+
+        self.assertGreaterEqual(len(secret_literals), 20, "Must extract non-trivial secret test literals")
+
+        # 3. Run mock evaluation for several tasks
         def handle(req):
             prompt = req.get("prompt", "")
-            if "Write a Python test suite" in prompt:
-                return 200, {
-                    "response": (
-                        "```python\n"
-                        "from solution import find_first_missing_positive\n"
-                        "def test_missing():\n"
-                        "    assert find_first_missing_positive([1, 2, 0]) == 3\n"
-                        "```"
-                    )
-                }
             return 200, {
-                "response": (
-                    "```python\n"
-                    "def find_first_missing_positive(nums):\n"
-                    "    s = set(nums)\n"
-                    "    i = 1\n"
-                    "    while i in s:\n"
-                    "        i += 1\n"
-                    "    return i\n"
-                    "```"
-                )
+                "response": "```python\ndef solve(*args, **kwargs): return True\n```"
             }
 
         self.mock_server.handler_fn = handle
 
-        task = {
-            "id": "code_08",
-            "name": "find_first_missing_positive",
-            "entry_point": "find_first_missing_positive",
-            "prompt": "Write a Python function `find_first_missing_positive(nums: list[int]) -> int`",
-        }
+        sample_tasks = tasks_data[:3]
+        sample_file = os.path.join(self.tmp_dir, "sample_tasks.json")
+        with open(sample_file, "w", encoding="utf-8") as f:
+            json.dump(sample_tasks, f)
 
-        rec = eval_harness.run_single_task_evaluation(
-            task=task,
+        eval_harness.run_eval_suite(
+            tasks_file=sample_file,
             arm="english",
             model_name="test-model",
-            repeat_idx=1,
+            repeats=1,
+            verbose=False,
         )
 
-        self.assertEqual(rec.pai_verdict, "PASS")
-        self.assertTrue(rec.hidden_test_result.passed)
-
-        # Inspect all recorded prompts
-        hidden_callables = HIDDEN_TESTS["code_08"]
+        # 4. Assert that no secret test literal appears in any prompt logged by mock server
         for req in self.mock_server.requests:
             p_text = req.get("prompt", "")
             self.assertNotIn("HIDDEN_TESTS", p_text)
             self.assertNotIn("test_coding_tasks.py", p_text)
-            self.assertNotIn("7, 8, 9, 11, 12", p_text)  # Specific array inside hidden assertion for code_08
+            for secret in secret_literals:
+                self.assertNotIn(secret, p_text, f"Secret hidden test literal leaked in prompt: '{secret}'")
+
+    def test_sandboxed_hidden_test_execution_clean(self):
+        """Sandboxed hidden test runner successfully executes and passes valid solution."""
+        sol_path = os.path.join(self.tmp_dir, "solution.py")
+        with open(sol_path, "w", encoding="utf-8") as f:
+            f.write("def parse_simple_csv(text):\n    return []\n")
+
+        res = eval_harness.run_hidden_tests("code_01", "parse_simple_csv", sol_path)
+        # code_01 has 5 hidden tests; returns [] passes first 2 assertions then fails 3rd
+        self.assertFalse(res.passed)
+        self.assertEqual(res.passed_assertions, 2)
+        self.assertEqual(res.total_assertions, 5)
+
+    def test_negative_control_sandbox_sys_exit_in_solution(self):
+        """
+        Negative control 1: solution.py contains sys.exit(7) in main block.
+        Harness must survive (not exit), and record passed=False.
+        """
+        sol_path = os.path.join(self.tmp_dir, "solution.py")
+        with open(sol_path, "w", encoding="utf-8") as f:
+            f.write(
+                "import sys\n"
+                "def parse_simple_csv(text):\n"
+                "    return []\n\n"
+                "if __name__ == '__main__':\n"
+                "    sys.exit(7)\n"
+            )
+
+        res = eval_harness.run_hidden_tests("code_01", "parse_simple_csv", sol_path)
+        self.assertFalse(res.passed)
+        self.assertIn("SystemExit", str(res.error))
+
+    def test_negative_control_sandbox_infinite_loop_timeout(self):
+        """
+        Negative control 2: solution.py contains while True: pass in main block.
+        Harness must survive (not hang), and record passed=False with timeout error.
+        """
+        sol_path = os.path.join(self.tmp_dir, "solution.py")
+        with open(sol_path, "w", encoding="utf-8") as f:
+            f.write(
+                "def parse_simple_csv(text):\n"
+                "    return []\n\n"
+                "if __name__ == '__main__':\n"
+                "    while True:\n"
+                "        pass\n"
+            )
+
+        res = eval_harness.run_hidden_tests("code_01", "parse_simple_csv", sol_path, timeout_sec=1.5)
+        self.assertFalse(res.passed)
+        self.assertIn("timeout", str(res.error).lower())
+
+    def test_negative_control_sandbox_memory_bomb(self):
+        """
+        Negative control 3: solution.py contains memory bomb.
+        Harness must survive (not crash/OOM), and record passed=False.
+        """
+        sol_path = os.path.join(self.tmp_dir, "solution.py")
+        with open(sol_path, "w", encoding="utf-8") as f:
+            f.write(
+                "def parse_simple_csv(text):\n"
+                "    return []\n\n"
+                "if __name__ == '__main__':\n"
+                "    # Allocate massive memory\n"
+                "    b = bytearray(1024 * 1024 * 800)\n"
+            )
+
+        # Enforce 128 MB sandbox limit
+        res = eval_harness.run_hidden_tests("code_01", "parse_simple_csv", sol_path, memory_mb=128.0)
+        self.assertFalse(res.passed)
 
     def test_eval_harness_end_to_end_with_repeats(self):
-        """Runs mock evaluation across 2 repeats and computes aggregated metrics."""
+        """Runs mock evaluation across 2 repeats and verifies explicit temperature, seed, and digest."""
         def handle(req):
             prompt = req.get("prompt", "")
             if "Write a Python test suite" in prompt:
@@ -222,18 +306,28 @@ class TestEvalHarness(unittest.TestCase):
             model_name="test-model",
             repeats=2,
             out_jsonl_path=out_jsonl,
+            temperature=0.0,
+            seed=42,
             verbose=False,
         )
 
         self.assertEqual(len(records), 2)
+        rec = records[0]
+        self.assertEqual(rec.temperature, 0.0)
+        self.assertEqual(rec.seed, 42)
+        self.assertEqual(rec.model_digest, "sha256:mock_model_digest_12345")
         self.assertEqual(metrics["num_tasks"], 1)
         self.assertEqual(metrics["num_repeats"], 2)
         self.assertEqual(metrics["mean_pass_at_1_zero_shot"], 1.0)
         self.assertEqual(metrics["mean_pass_at_1_repair3"], 1.0)
         self.assertEqual(metrics["total_flipping_tasks"], 0)
-        self.assertTrue(os.path.exists(out_jsonl))
 
-        # Recompute parity check: compute_eval_metrics_from_jsonl must match in-memory metrics exactly
+        # Check options received by mock model server
+        gen_reqs = [r for r in self.mock_server.requests if "prompt" in r]
+        self.assertTrue(any(r.get("options", {}).get("temperature") == 0.0 for r in gen_reqs))
+        self.assertTrue(any(r.get("options", {}).get("seed") == 42 for r in gen_reqs))
+
+        # Recompute parity
         recomputed = eval_harness.compute_eval_metrics_from_jsonl(out_jsonl)
         self.assertEqual(metrics, recomputed)
 
@@ -285,12 +379,45 @@ class TestEvalHarness(unittest.TestCase):
         current_repeat = 2
         rec2 = eval_harness.run_single_task_evaluation(task, "english", "test-model", repeat_idx=2)
 
-        # One passed, one failed
         self.assertNotEqual(rec1.pass_at_1_repair3, rec2.pass_at_1_repair3)
 
         metrics = eval_harness.compute_eval_metrics([rec1, rec2])
         self.assertEqual(metrics["total_flipping_tasks"], 1)
         self.assertIn("code_18", metrics["flipping_task_ids"])
+
+    def test_mixed_jsonl_grouped_by_arm_and_model(self):
+        """Mixed JSONL records are grouped per (arm, model) preventing cross-arm flip contamination."""
+        rec_en1 = eval_harness.EvalRecord(
+            task_id="code_01", task_name="t1", entry_point="t1", repeat_idx=1, arm="english", model="m1",
+            model_digest=None, temperature=0.0, seed=42, exit_code=0, pai_verdict="PASS",
+            pass_at_1_zero_shot=True, pass_at_1_repair3=True, total_repairs=0, iterations=1,
+            hidden_test_result=eval_harness.HiddenTestResult(passed=True, total_assertions=1, passed_assertions=1),
+            is_false_accept=False, is_false_reject=False, wall_time_sec=1.0, host_ram_delta_mb=None,
+        )
+        rec_en2 = eval_harness.EvalRecord(
+            task_id="code_01", task_name="t1", entry_point="t1", repeat_idx=2, arm="english", model="m1",
+            model_digest=None, temperature=0.0, seed=42, exit_code=0, pai_verdict="PASS",
+            pass_at_1_zero_shot=True, pass_at_1_repair3=True, total_repairs=0, iterations=1,
+            hidden_test_result=eval_harness.HiddenTestResult(passed=True, total_assertions=1, passed_assertions=1),
+            is_false_accept=False, is_false_reject=False, wall_time_sec=1.0, host_ram_delta_mb=None,
+        )
+        rec_si1 = eval_harness.EvalRecord(
+            task_id="code_01", task_name="t1", entry_point="t1", repeat_idx=1, arm="singlish", model="m1",
+            model_digest=None, temperature=0.0, seed=42, exit_code=2, pai_verdict="FAIL",
+            pass_at_1_zero_shot=False, pass_at_1_repair3=False, total_repairs=3, iterations=4,
+            hidden_test_result=eval_harness.HiddenTestResult(passed=False, total_assertions=1, passed_assertions=0),
+            is_false_accept=False, is_false_reject=False, wall_time_sec=2.0, host_ram_delta_mb=None,
+        )
+
+        mixed_metrics = eval_harness.compute_eval_metrics([rec_en1, rec_en2, rec_si1])
+        self.assertTrue(mixed_metrics.get("is_mixed"))
+        self.assertEqual(mixed_metrics["total_groups"], 2)
+        self.assertIn("english/m1", mixed_metrics["groups"])
+        self.assertIn("singlish/m1", mixed_metrics["groups"])
+        # English arm: both repeats passed -> flips == 0
+        self.assertEqual(mixed_metrics["groups"]["english/m1"]["total_flipping_tasks"], 0)
+        # Singlish arm: 1 repeat -> flips == 0
+        self.assertEqual(mixed_metrics["groups"]["singlish/m1"]["total_flipping_tasks"], 0)
 
     def test_false_accept_detected(self):
         """

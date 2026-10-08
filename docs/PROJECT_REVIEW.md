@@ -695,4 +695,42 @@ Evaluation harness with repeat runs, per-task flips, false-accept rate and `pass
 - **Rust Core Workspace**: 13 unit tests passed, clippy clean (`cargo clippy -- -D warnings`).
 - **Claims & Ctypes**: `test_claims.py` (2 passed), `test_ctypes_allowlist.py` (1 passed).
 
+## M2b eval harness review (commit a5f7807)
+
+Reviewer environment: Ubuntu 22.04.5, bubblewrap 0.6.1, Python 3.10.12.
+
+### Result
+Not accepted yet. Test suite on Linux: 319 tests, OK, 13 skipped (matches the owner's counts). Four defects need a fix commit before the harness numbers can be used.
+
+### Verified
+- `eval_sets/coding_tasks_singlish.json` has 20 tasks; compared with `coding_tasks.json`, ids, names and entry points are identical and only `prompt` differs. SHA-256 of both files matches `eval_sets_hashes.json`; the English hash is unchanged.
+- Harness calls `pai.main(["code", ...])`, the production path. Startup hash check covers the English set, the hidden tests and the Singlish set.
+- The Singlish prompts keep the English `Example:` blocks unchanged, so the Singlish arm differs from the English arm only in the instruction prose. That is a valid comparison; it should be stated in the report.
+
+### Defects
+1. **Blocker.** `run_hidden_tests` runs the staged model-written `solution.py` with `exec()` inside the harness process, outside the sandbox, with no timeout, with `__name__ == "__main__"`. The verify loop imports the module, so code under `if __name__ == "__main__":` never ran in the sandbox but does run here. Reproduced in the reviewer environment: a solution whose main block calls `sys.exit(7)` ends the harness process with exit code 7; a main block with `while True: pass` hangs the harness (killed by an 8 s external timeout). Hidden-test grading must run inside the same OS sandbox as verification, with a timeout, and a solution that crashes or hangs must be recorded as a hidden-test failure.
+2. Record fields that are constants but look measured: `model_digest` is always `"local"`, `seed_or_temperature` is always `0.0`, `host_ram_delta_mb` is always `0.0`. `call_model_generate` in `pai.py` sends no temperature or seed, so the model runs at its server default and the logged 0.0 is false. Set temperature and seed explicitly in the request, record the values actually sent, read the model digest from the model server, and record measured RAM delta or write `null`.
+3. `compute_eval_metrics` does not group by arm and model. A JSONL file containing two arms or two models would be treated as extra repeats of the same tasks and the flip count would be wrong. Refuse mixed files or group per (arm, model).
+4. `test_hidden_tests_never_leaked_into_prompts` checks one hard-coded string for one task. Derive the check from the hidden test source (`inspect.getsource` of each hidden callable, for all 20 tasks) and assert that no non-trivial literal from it appears in any prompt sent in a full run.
+
+### Owner review of Singlish tasks
+Owner-reviewed: 0/20 at the time of this review. Status in the report must stay "agent-authored, owner-reviewed: n/20" until the owner reviews at least 5.
+
+### Not verified
+Real-model numbers; Windows run counts (owner's).
+
+## M2b eval harness defect resolution (commit b56ddf8)
+
+### Changes
+1. **Sandboxed Hidden Test Grading**: `run_hidden_tests` in `research/eval_harness.py` executes staged candidate solutions inside the OS sandbox (`get_sandbox(memory_mb=..., timeout_sec=...)`) via `_pai_hidden_runner.py` with strict timeout, memory limits, and `BaseException` trapping. Main-block aborts (`sys.exit`), hangs (`while True`), and memory bombs are safely caught as `passed=False` without impacting the harness process. Added 3 negative control unit tests.
+2. **Measured Record Fields**: `call_model_generate` and `pai code` now accept explicit `temperature` and `seed` options sent to model server `/api/generate` under `options: {"temperature": ..., "seed": ...}`. `query_model_digest` queries model server `/api/show` over loopback or records `None` (`null` in JSON). Hardware telemetry records measured host RAM delta or `None` (`null` in JSON).
+3. **Group Metrics by (Arm, Model)**: `compute_eval_metrics` groups evaluation records strictly by `(arm, model)` tuple; multi-arm/multi-model JSONL files are partitioned cleanly into sub-metrics, preventing cross-arm flip contamination. Added unit test.
+4. **Comprehensive Prompt Leak Detection**: `test_hidden_tests_never_leaked_into_prompts_across_all_20_tasks` uses `inspect.getsource` across all 20 hidden test callables, asserting no non-trivial literals appear in prompts sent to the model.
+
+### Test Verification
+- **Windows**: 323 tests passed (303 OK, 20 skipped). Skipped tests are Linux-only sandbox and platform specific tests.
+- **Linux expected**: 323 tests (310 OK, 13 skipped platform specific).
+- **Claims & Ctypes**: `test_claims.py` (2 passed), `test_ctypes_allowlist.py` (1 passed).
+- **Core Rust Workspace**: 13 unit tests passed, clippy clean (`cargo clippy -- -D warnings`).
+- **Singlish Tasks**: Status remains "agent-authored, owner-reviewed: 0/20" pending owner review. English `Example:` blocks were preserved unchanged so arms differ only in instruction prose.
 

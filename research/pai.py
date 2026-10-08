@@ -562,6 +562,8 @@ def call_model_generate(
     prompt: str,
     base_url: Optional[str] = None,
     timeout: float = 60.0,
+    temperature: Optional[float] = None,
+    seed: Optional[int] = None,
 ) -> str:
     """
     Invokes local model server via Ollama /api/generate over local loopback.
@@ -573,12 +575,21 @@ def call_model_generate(
     if hostname not in ("127.0.0.1", "localhost", "::1", "[::1]"):
         raise ValueError(f"Model server endpoint must be local loopback, got '{url}'")
 
-    req_data = json.dumps({
+    req_payload: Dict[str, Any] = {
         "model": model_name,
         "prompt": prompt,
         "stream": False,
         "think": False,
-    }).encode("utf-8")
+    }
+    options: Dict[str, Any] = {}
+    if temperature is not None:
+        options["temperature"] = float(temperature)
+    if seed is not None:
+        options["seed"] = int(seed)
+    if options:
+        req_payload["options"] = options
+
+    req_data = json.dumps(req_payload).encode("utf-8")
 
     req = urllib.request.Request(
         f"{url}/api/generate",
@@ -664,6 +675,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_code.add_argument("--timeout", type=float, default=10.0, help="Timeout in seconds per execution (default: 10.0)")
     p_code.add_argument("--memory-mb", type=float, default=512.0, help="Memory ceiling in MB (default: 512.0)")
     p_code.add_argument("--overwrite", action="store_true", help="Permit overwriting existing files in --out")
+    p_code.add_argument("--temperature", type=float, default=None, help="Generation temperature (e.g. 0.0)")
+    p_code.add_argument("--seed", type=int, default=None, help="Generation seed for determinism (e.g. 42)")
     p_code.add_argument("--json", action="store_true", help="Output execution diagnostics in JSON format")
 
     # Deferred execution commands (M2+)
@@ -771,6 +784,9 @@ def cmd_code(args) -> int:
         print(f"Executing verified code generation with model '{model_name}'...")
 
     # 6. If model-written tests needed: generate, freeze, and probe
+    temperature = getattr(args, "temperature", None)
+    seed = getattr(args, "seed", None)
+
     if suite is None:
         test_prompt = (
             f"Write a Python test suite for the following task:\n{args.task}\n\n"
@@ -780,7 +796,7 @@ def cmd_code(args) -> int:
             "- Return ONLY the Python test code enclosed in ```python ... ``` without explanations.\n"
         )
         try:
-            raw_tests = call_model_generate(model_name, test_prompt)
+            raw_tests = call_model_generate(model_name, test_prompt, temperature=temperature, seed=seed)
         except Exception as e:
             if getattr(args, "json", False):
                 print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e)}, indent=2))
@@ -822,7 +838,7 @@ def cmd_code(args) -> int:
         "- Return ONLY the Python solution code enclosed in ```python ... ``` without explanations.\n"
     )
     try:
-        raw_sol = call_model_generate(model_name, sol_prompt)
+        raw_sol = call_model_generate(model_name, sol_prompt, temperature=temperature, seed=seed)
     except Exception as e:
         if getattr(args, "json", False):
             print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e)}, indent=2))
@@ -854,7 +870,7 @@ def cmd_code(args) -> int:
             "- Modify the solution so that all tests pass.\n"
             "- Return ONLY the Python code enclosed in ```python ... ``` without explanations.\n"
         )
-        raw_rep = call_model_generate(model_name, rep_prompt)
+        raw_rep = call_model_generate(model_name, rep_prompt, temperature=temperature, seed=seed)
         rep_code = extract_python_code(raw_rep)
         if not rep_code or not rep_code.strip():
             raise ValueError("Model returned empty code during repair")
@@ -916,6 +932,8 @@ def cmd_code(args) -> int:
                 "pass_at_1_repair3": repair_result.pass_at_1_repair3,
                 "total_repairs": repair_result.total_repairs,
                 "iterations": len(repair_result.iterations),
+                "temperature": temperature,
+                "seed": seed,
                 "detail": repair_result.detail,
             }, indent=2))
         else:
@@ -936,6 +954,8 @@ def cmd_code(args) -> int:
                 "pass_at_1_repair3": repair_result.pass_at_1_repair3,
                 "total_repairs": repair_result.total_repairs,
                 "iterations": len(repair_result.iterations),
+                "temperature": temperature,
+                "seed": seed,
                 "detail": repair_result.detail,
             }, indent=2))
         else:

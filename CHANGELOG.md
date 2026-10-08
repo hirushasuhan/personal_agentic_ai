@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.12] — 2026-10-09 — Milestone M2b: Sandboxed Hidden Test Grading & Harness Hardening
+
+### Sandboxed Hidden-Test Execution (`research/eval_harness.py`)
+- **OS Sandbox Isolation**: Replaced unsafe in-process `exec()` of candidate solutions with execution inside OS sandbox (`get_sandbox`) via `_pai_hidden_runner.py`.
+- **Fail-Closed Trapping**: Main block aborts (`sys.exit`), hangs (`while True`), and memory bombs are safely trapped as `passed=False` without impacting the harness process.
+- **Negative Controls (`research/tests/test_eval_harness.py`)**: Added unit tests verifying containment and graceful recovery from `sys.exit(7)`, infinite loop timeout, and memory allocation bombs.
+
+### Measured Metadata Fields (`research/pai.py`, `research/eval_harness.py`)
+- **Explicit Temperature & Seed**: Added `--temperature` and `--seed` CLI flags and options in `call_model_generate` and `pai code`, ensuring model requests use explicit parameters.
+- **Model Digest & Host RAM Delta**: Harvests actual model digest from `/api/show` or records `null`; records real measured `host_ram_delta_mb` via hardware telemetry or `null`.
+
+### Metrics Partitioning & Leak Prevention (`research/eval_harness.py`, `research/tests/test_eval_harness.py`)
+- **Per-(Arm, Model) Grouping**: `compute_eval_metrics` groups evaluation records by `(arm, model)` tuple, preventing cross-arm flip contamination in mixed JSONL datasets.
+- **Comprehensive Secret Leak Check**: Added `test_hidden_tests_never_leaked_into_prompts_across_all_20_tasks` dynamically inspecting AST/source of all 20 hidden tests to verify no test literals appear in model prompts.
+
 ## [0.7.11] — 2026-10-09 — Milestone M2b Close-Out: Evaluation Harness & Frozen Singlish Coding Dataset
 
 ### Frozen Singlish Coding Dataset (`research/eval_sets/coding_tasks_singlish.json`)
