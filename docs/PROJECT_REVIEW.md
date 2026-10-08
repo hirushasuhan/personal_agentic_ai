@@ -347,5 +347,21 @@ This does not prove the numbers are false, but the file is not machine-generated
 2. Remove or mark as unverified the current Linux block until then; CHANGELOG wording "verified benchmark results ... Linux" must be corrected.
 3. Add a test that the evidence file's recorded platform fields match the runner's schema (for example every platform block has `bwrap_version` read from `bwrap --version`).
 
+### M2a.3 review (commits `4d4ea13`, `8d59e60`, 2026-10-08)
+
+**Verdict: provenance defect fixed and disclosed honestly; sandbox code accepted; the evidence runner is not portable to Linux, so the Linux CI step will fail and the matrix needs one more fix before M2a is closed.**
+
+**Accepted.** The owner stated that the earlier Linux block was hand-written and removed it. `run_m2a_matrix.py` now reads `platform.release()`, `/etc/os-release` and `bwrap --version` itself. The committed JSON/log contain a Windows block only (Windows 11, build 10.0.26300, Python 3.14.0, 10/10), consistent with the runner schema. Full suite on the reviewer's Linux host: `Ran 252 tests ... OK (skipped=13)`; `tests.test_sandbox_linux` 14 tests, 0 skips. The Windows numbers are still not independently reproduced by the reviewer.
+
+**Reviewer's own Linux run of the committed runner** (copy of the repo in a scratch directory, nothing committed; Ubuntu 22.04.5, kernel 6.8.0-138-generic, bubblewrap 0.6.1, Python 3.10.12): `5/10 vectors PASSED`, exit code 1, and `test_sandbox_evidence` fails 2 tests on that output. Cause: the attack scripts write their result to a file named `std_output.txt` and the assertions read `r.stdout`. On Windows `sandbox_win32.py` redirects the child's stdout into `std_output.txt`, so this works there; on Linux stdout is the real pipe and the file lands in `output_files`, so stdout is empty and A2, A4, A5, A6, A8 fail.
+
+**Vacuous passes on Linux (same class of problem as the old probe).** With empty stdout, A3_A7 passes (`"CONTAINED" in stdout or "LEAK" not in stdout`), A9 passes ("capped at 0 bytes") and A11 passes (exit 139). A matrix cell must not pass when the script did not demonstrably run to its marker. The unit tests in `test_sandbox_linux.py` are the real Linux evidence because they assert on the marker; the matrix runner is the weak one.
+
+**Required to close M2a:**
+1. Make the attack scripts platform-neutral: print the marker to stdout (and keep the Windows capture working), or read the marker from `output_files` and stdout both, but require the marker to be present for every vector. Remove all "`or LEAK not in stdout`" style conditions and the `0 bytes` pass for A9 (require the flood marker and a length of exactly the cap).
+2. Run the fixed runner on a real Linux host and commit the resulting Linux block only if it is machine-generated and 10/10 with markers. The reviewer can run it on the reviewer host and report numbers, but the committed block must come from the owner's own CI artefact or host.
+3. Make `test_sandbox_evidence` accept one platform block per OS but require that every present block has `passed == 10` and a marker per vector, and that CI uploads the Linux JSON as a workflow artefact instead of committing hand edits.
+4. Do not push again until the Linux CI step has been run locally on a Linux host or WSL2 (install WSL2 Ubuntu on the Windows machine; it is the stated target platform).
+
 ### Not verified
 Licence and size statements for candidate models (`qwen2.5-coder`, `qwen3.5`, `gemma4`) were taken from the Ollama library pages and secondary articles on 2026-10-07; they are to be re-read on official model cards before any model is added. No candidate model has been run on the owner's hardware yet. CI run results on the repository host; performance or accuracy of any model beyond the owner's recorded measurements; Windows-specific behaviour beyond the owner's reports.
