@@ -661,4 +661,21 @@ Fix both defects, add a Linux-runnable test that a nonce passed through `extra_e
   - **Rust Core**: 13 passed, clippy clean (`cargo clippy -- -D warnings`).
   - **Claims & Ctypes**: `test_claims.py` (2 passed), `test_ctypes_allowlist.py` (1 passed).
 
+## M2b step 4 sign-off review (commit 988f054)
+
+Reviewer environment: Ubuntu 22.04.5, kernel 6.8.0-138-generic, bubblewrap 0.6.1, Python 3.10.12.
+
+### Result
+Accepted for the Linux sandbox secret channel, diagnostics defanging and the `pai code` pipeline wiring. `python3 -m unittest discover -s tests` from `research/` gives 312 tests, OK, 13 skipped (11 Win32-only sandbox tests, 2 Windows telemetry parity tests). The owner's report stated 2 skipped on Linux; the actual count is 13. The counts differ in the report only; no test fails.
+
+### Checked
+- Diff of `sandbox_linux.py`: `import json` added; the manual stdin write/close removed; payload goes through `communicate(input=...)`. Matches the root cause found in the previous review.
+- New test `test_extra_env_secret_passed_via_stdin_not_in_bwrap_argv` checks the argv does not contain the key or value, and that the secret arrives inside the sandbox. The previous commit (d339316) fails the dependent verify-loop tests on this host, so the fix is exercised by an existing negative control.
+- `sanitize_untrusted_diagnostics` replaces both envelope markers with `[STRIPPED_MARKER]` before truncation; the test asserts exactly one END marker remains.
+
+### Not verified
+Windows secret delivery (child environment in `sandbox_win32.py`); Windows counts are the owner's. Real-model behaviour: the e2e tests use a loopback mock server. Evidence files were not regenerated.
+
+### Open items carried to M2b step 5/6
+Evaluation harness with repeat runs, per-task flips, false-accept rate and `pass@1_repair3` on the frozen eval sets.
 
