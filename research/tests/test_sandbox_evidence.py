@@ -111,6 +111,8 @@ class TestSandboxEvidenceSchema(unittest.TestCase):
                 # Positive marker verification per vector (rejects vacuous passes)
                 if vec_id in ("A2", "A3_A7", "A4", "A5", "A6", "A8"):
                     self.assertIn("CONTAINED", vec_data["stdout_sample"], f"Vector {vec_id} must have CONTAINED marker")
+                    if vec_id == "A8":
+                        self.assertIn("POSITIVE_CONTROL_NATIVE_OK", vec_data["stdout_sample"], "Vector A8 must verify positive control")
                 elif vec_id == "A9":
                     self.assertIn("FLOOD_MARKER_START", vec_data["stdout_sample"], "Vector A9 must have FLOOD_MARKER_START")
                 elif vec_id == "A1":

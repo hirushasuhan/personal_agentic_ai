@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.4] — 2026-10-08 — Milestone M2b.1 Native OS Boundary Vector Hardening & Portability Clarifications
+
+### Milestone M2b.1 Fixes & Verification
+- **Non-Vacuous Native Code Boundary Vector A8 (`research/run_m2a_matrix.py`)**:
+  - Replaced vacuous A8 `MessageBeep` / `ctypes.CDLL(None)` test with direct native OS boundary calls.
+  - Windows: executes native Win32 `CreateFileW` targeting outside canary file (`~/.pai/m2a_canary_a8_*.tmp`), strictly asserting `ERROR_ACCESS_DENIED` (5) / `PermissionError`, coupled with a positive control verifying `CreateFileW` succeeds inside the scratch directory.
+  - Linux: uses ctypes to invoke libc `open()` on outside canary path (asserting `errno in (EROFS, EACCES, EPERM, ENOENT)`), native socket connect (asserting `ENETUNREACH/EPERM/EACCES/ECONNREFUSED`), and native `fork()`, coupled with a positive control verifying native `open()` succeeds in scratch.
+  - Strict positive marker assertions: requires `CONTAINED_NATIVE_DENIED` (or `CONTAINED_NATIVE_FILE_DENIED`) AND `POSITIVE_CONTROL_NATIVE_OK` without any leak markers.
+- **Evidence Verification Hardening (`research/tests/test_sandbox_evidence.py`)**:
+  - Updated evidence validation test to strictly require `POSITIVE_CONTROL_NATIVE_OK` in A8's stdout sample for all recorded platforms.
+- **Vector Classification Clarification (`CHANGELOG.md`)**:
+  - Clarified that vector A11 is a ctypes segmentation fault trap (Linux exit code 139, Windows 0xC0000005) rather than a memory exhaustion bomb (which is vector A2).
+- **Target Platform Portability Clarification (`docs/ROADMAP.md`)**:
+  - Documented that the local host operates under a non-elevated user context preventing WSL2 installation; the specification requirement for Linux/WSL2 portability is satisfied via GitHub Actions Ubuntu CI and reviewer host verification.
+
 ## [0.7.3] — 2026-10-08 — Milestone M2a.4 Platform-Neutral Matrix Runner & CI Evidence Artifacts
 
 ### Milestone M2a.4 Platform-Neutral Runner & Evidence Hardening

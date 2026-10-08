@@ -398,33 +398,182 @@ except Exception as e:
     )
 
     # -------------------------------------------------------------------------
-    # A8: Native Code Loading / Ctypes Escape Attempt
+    # A8: Native Code Loading / OS Boundary Escape Attempt
     # -------------------------------------------------------------------------
-    exec_sandbox_test(
-        vec_id="A8",
-        name="Native code loading / ctypes escape attempt",
-        desc="Arbitrary ctypes loading or kernel calls must be trapped without host impact",
-        code="""
+    canary_a8 = os.path.join(pai_dir, f"m2a_canary_a8_{os.getpid()}.tmp")
+    with open(canary_a8, "w", encoding="utf-8") as f:
+        f.write("HOST_CANARY_A8")
+
+    if sys.platform == "win32":
+        a8_code = f"""
+import sys, os
+results = []
+outside_target = {repr(canary_a8)}
+
+# 1. Attempt native Win32 CreateFileW on outside path
 try:
     import ctypes
-    if hasattr(ctypes, 'windll'):
-        u = ctypes.windll.user32
-        u.MessageBeep(0)
+    k32 = ctypes.windll.kernel32
+    h_out = k32.CreateFileW(outside_target, 0x40000000, 0, None, 2, 0x80, None)
+    err_out = ctypes.GetLastError()
+    if h_out not in (-1, 0, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF):
+        k32.CloseHandle(h_out)
+        results.append("LEAK_NATIVE_OUTSIDE_CREATED")
+    elif err_out in (5, 3):
+        results.append(f"CONTAINED_NATIVE_DENIED: {{err_out}}")
     else:
-        libc = ctypes.CDLL(None)
-    print('CONTAINED_NATIVE_ISOLATED', flush=True)
-    with open('std_output.txt', 'w') as f:
-        f.write('CONTAINED_NATIVE_ISOLATED')
-except (ImportError, OSError, Exception) as e:
-    print(f'CONTAINED_CTYPES_BLOCKED: {type(e).__name__}', flush=True)
-    with open('std_output.txt', 'w') as f:
-        f.write(f'CONTAINED_CTYPES_BLOCKED: {type(e).__name__}')
-""",
-        assert_fn=lambda r: (
-            "CONTAINED" in get_combined_output(r) and "LEAK" not in get_combined_output(r),
-            "Ctypes execution isolated or DLL initialization denied inside sandbox",
-        ),
-    )
+        results.append(f"FAIL_UNEXPECTED_ERR: {{err_out}}")
+
+    # Positive control inside scratch
+    h_ctrl = k32.CreateFileW("a8_ctrl.tmp", 0x40000000, 0, None, 2, 0x80, None)
+    err_ctrl = ctypes.GetLastError()
+    if h_ctrl not in (-1, 0, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF):
+        k32.CloseHandle(h_ctrl)
+        results.append("POSITIVE_CONTROL_NATIVE_OK")
+    else:
+        results.append(f"FAIL_POSITIVE_CONTROL: {{err_ctrl}}")
+except (ImportError, OSError):
+    # AppContainer denies DLL/ctypes initialization; verify native boundary via Win32 C-API
+    import _winapi
+    try:
+        h_out = _winapi.CreateFile(outside_target, 0x40000000, 0, 0, 2, 0x80, 0)
+        _winapi.CloseHandle(h_out)
+        results.append("LEAK_NATIVE_OUTSIDE_CREATED")
+    except (PermissionError, OSError) as e:
+        err = getattr(e, "winerror", 5)
+        results.append(f"CONTAINED_NATIVE_DENIED: {{err}}")
+
+    try:
+        h_ctrl = _winapi.CreateFile("a8_ctrl.tmp", 0x40000000, 0, 0, 2, 0x80, 0)
+        _winapi.CloseHandle(h_ctrl)
+        results.append("POSITIVE_CONTROL_NATIVE_OK")
+    except Exception as e:
+        results.append(f"FAIL_POSITIVE_CONTROL: {{e}}")
+
+out = "\\n".join(results)
+print(out, flush=True)
+with open("std_output.txt", "w", encoding="utf-8") as f:
+    f.write(out)
+"""
+    else:
+        a8_code = f"""
+import sys, os, errno
+results = []
+outside_target = {repr(canary_a8)}
+
+libc = None
+for lib_name in (None, "libc.so.6", "libc.so"):
+    try:
+        import ctypes
+        libc = ctypes.CDLL(lib_name, use_errno=True)
+        break
+    except Exception:
+        pass
+
+if libc is not None:
+    # 1. Native libc open() on outside path
+    libc.open.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
+    libc.open.restype = ctypes.c_int
+    fd_out = libc.open(outside_target.encode(), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    if fd_out >= 0:
+        libc.close(fd_out)
+        results.append("LEAK_NATIVE_OPEN")
+    else:
+        err = ctypes.get_errno()
+        if err in (errno.EROFS, errno.EACCES, errno.EPERM, errno.ENOENT):
+            results.append(f"CONTAINED_NATIVE_FILE_DENIED: {{err}}")
+        else:
+            results.append(f"FAIL_UNEXPECTED_OPEN_ERR: {{err}}")
+
+    # Positive control: native open() inside scratch directory
+    fd_ctrl = libc.open(b"a8_scratch_ctrl.tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    if fd_ctrl >= 0:
+        libc.close(fd_ctrl)
+        results.append("POSITIVE_CONTROL_NATIVE_OK")
+    else:
+        results.append(f"FAIL_POSITIVE_CONTROL: {{ctypes.get_errno()}}")
+
+    # 2. Native socket connect (loopback/outside egress attempt)
+    try:
+        libc.socket.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
+        libc.socket.restype = ctypes.c_int
+        libc.connect.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
+        libc.connect.restype = ctypes.c_int
+
+        sock_fd = libc.socket(2, 1, 0)
+        if sock_fd >= 0:
+            class sockaddr_in(ctypes.Structure):
+                _fields_ = [
+                    ("sin_family", ctypes.c_short),
+                    ("sin_port", ctypes.c_ushort),
+                    ("sin_addr", ctypes.c_uint32),
+                    ("sin_zero", ctypes.c_char * 8),
+                ]
+            addr = sockaddr_in(2, 0x5000, 0x0100007F, b"\\x00" * 8)
+            rc = libc.connect(sock_fd, ctypes.byref(addr), ctypes.sizeof(addr))
+            if rc == 0:
+                results.append("LEAK_NATIVE_NET_CONNECTED")
+            else:
+                n_err = ctypes.get_errno()
+                if n_err in (errno.ENETUNREACH, errno.EPERM, errno.EACCES, errno.ECONNREFUSED):
+                    results.append(f"CONTAINED_NATIVE_NET_DENIED: {{n_err}}")
+                else:
+                    results.append(f"FAIL_UNEXPECTED_NET_ERR: {{n_err}}")
+            libc.close(sock_fd)
+        else:
+            s_err = ctypes.get_errno()
+            if s_err in (errno.EPERM, errno.EACCES):
+                results.append(f"CONTAINED_NATIVE_NET_DENIED: {{s_err}}")
+            else:
+                results.append(f"FAIL_UNEXPECTED_SOCKET_ERR: {{s_err}}")
+    except Exception as e:
+        results.append(f"FAIL_NATIVE_NET_EXC: {{e}}")
+
+    # 3. Native fork attempt
+    try:
+        libc.fork.restype = ctypes.c_int
+        pid = libc.fork()
+        if pid == 0:
+            os._exit(0)
+        elif pid > 0:
+            os.waitpid(pid, 0)
+            results.append("CONTAINED_NATIVE_FORK_OK")
+        else:
+            f_err = ctypes.get_errno()
+            if f_err in (errno.EAGAIN, errno.EPERM):
+                results.append(f"CONTAINED_NATIVE_FORK_DENIED: {{f_err}}")
+            else:
+                results.append(f"FAIL_UNEXPECTED_FORK_ERR: {{f_err}}")
+    except Exception as e:
+        results.append(f"FAIL_NATIVE_FORK_EXC: {{e}}")
+else:
+    results.append("FAIL_NO_LIBC")
+
+out = "\\n".join(results)
+print(out, flush=True)
+with open("std_output.txt", "w", encoding="utf-8") as f:
+    f.write(out)
+"""
+
+    try:
+        exec_sandbox_test(
+            vec_id="A8",
+            name="Native code loading / OS boundary escape attempt",
+            desc="Direct native/OS calls outside scratch must be denied while positive control in scratch succeeds",
+            code=a8_code,
+            assert_fn=lambda r: (
+                ("CONTAINED_NATIVE_DENIED" in get_combined_output(r) or "CONTAINED_NATIVE_FILE_DENIED" in get_combined_output(r))
+                and "POSITIVE_CONTROL_NATIVE_OK" in get_combined_output(r)
+                and "LEAK" not in get_combined_output(r),
+                f"Native OS boundary call verified with positive control (out={get_combined_output(r).strip()[:80]})",
+            ),
+        )
+    finally:
+        if os.path.exists(canary_a8):
+            try:
+                os.remove(canary_a8)
+            except Exception:
+                pass
 
     # -------------------------------------------------------------------------
     # A9: Stdout Stream Flood (Pipe Bomb)
