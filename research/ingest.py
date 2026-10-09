@@ -61,6 +61,7 @@ DEFAULT_SECRET_DENY_PATTERNS: Tuple[str, ...] = (
     "*.kdbx",
     "credentials.json",
     "service_account*.json",
+    "service-account*.json",
     ".npmrc",
     ".netrc",
     ".git-credentials",
@@ -70,6 +71,12 @@ DEFAULT_SECRET_DENY_PATTERNS: Tuple[str, ...] = (
     "*.tfstate.*",
     "terraform.tfstate*",
     "credentials",
+    "config.json",
+    "secrets.yaml",
+    "secrets.yml",
+    "secrets.json",
+    "token.txt",
+    "*.enc",
 )
 
 DEFAULT_SENSITIVE_DIRS: Tuple[str, ...] = (
@@ -77,6 +84,8 @@ DEFAULT_SENSITIVE_DIRS: Tuple[str, ...] = (
     ".ssh",
     ".gnupg",
     ".docker",
+    "docker",
+    ".kube",
 )
 
 DEFAULT_JUNK_DIR_PATTERNS: Tuple[str, ...] = (
@@ -467,13 +476,14 @@ def ingest_folder(
     max_line_length: int = DEFAULT_MAX_LINE_LENGTH,
     deny_patterns: Tuple[str, ...] = DEFAULT_SECRET_DENY_PATTERNS,
     junk_patterns: Tuple[str, ...] = DEFAULT_JUNK_DIR_PATTERNS,
+    include_junk: bool = False,
     max_rejections_per_reason: int = DEFAULT_MAX_REJECTIONS_PER_REASON,
     max_total_rejections: int = DEFAULT_MAX_TOTAL_REJECTIONS,
 ) -> IngestionReport:
     """
     Recursively scans and safely ingests all text files within a folder boundary.
     Enforces total file count, total byte budget, max depth, symlink escapes, secrets denial,
-    junk directory pruning, and capped rejection tracking.
+    junk directory pruning (unless include_junk=True), and capped rejection tracking.
     """
     canonical_root = os.path.realpath(os.path.abspath(folder_path))
     limits = {
@@ -482,6 +492,7 @@ def ingest_folder(
         "max_file_count": max_file_count,
         "max_depth": max_depth,
         "max_line_length": max_line_length,
+        "include_junk": include_junk,
         "max_rejections_per_reason": max_rejections_per_reason,
         "max_total_rejections": max_total_rejections,
         "secret_deny_patterns": list(deny_patterns),
@@ -573,7 +584,7 @@ def ingest_folder(
                 continue
 
             # Check if directory is a junk / cache / build directory
-            if is_junk_dir(d, junk_patterns=junk_patterns):
+            if not include_junk and is_junk_dir(d, junk_patterns=junk_patterns):
                 pruned_dirs.append(d)
                 add_rejection(
                     IngestionRejection(

@@ -203,6 +203,12 @@ class TestSafeIngestModule(unittest.TestCase):
             "truststore.jks",
             "terraform.tfstate",
             "terraform.tfstate.backup",
+            "service-account-key.json",
+            "service-account.json",
+            "secrets.yaml",
+            "secrets.json",
+            "token.txt",
+            "db_passwords.enc",
         ]
 
         for sname in extended_secrets:
@@ -228,6 +234,47 @@ class TestSafeIngestModule(unittest.TestCase):
         self.assertIsNotNone(rej)
         self.assertEqual(rej.reason_code, "SECRET_FILE")
         self.assertNotIn("AKIAEXAMPLE", rej.message)
+
+        # Sensitive directory test: .kube/config
+        kube_dir = os.path.join(self.test_dir, ".kube")
+        os.makedirs(kube_dir, exist_ok=True)
+        kube_conf = os.path.join(kube_dir, "config")
+        with open(kube_conf, "w", encoding="utf-8") as f:
+            f.write("apiVersion: v1\nclusters: []")
+
+        item, rej = ingest_file(kube_conf, root_path=self.test_dir)
+        self.assertIsNone(item)
+        self.assertIsNotNone(rej)
+        self.assertEqual(rej.reason_code, "SECRET_FILE")
+
+        # Sensitive directory test: docker/config.json
+        docker_dir = os.path.join(self.test_dir, "docker")
+        os.makedirs(docker_dir, exist_ok=True)
+        docker_conf = os.path.join(docker_dir, "config.json")
+        with open(docker_conf, "w", encoding="utf-8") as f:
+            f.write('{"auths": {}}')
+
+        item, rej = ingest_file(docker_conf, root_path=self.test_dir)
+        self.assertIsNone(item)
+        self.assertIsNotNone(rej)
+        self.assertEqual(rej.reason_code, "SECRET_FILE")
+
+    def test_include_junk_flag_allows_pruned_dirs(self):
+        """When include_junk=True, directories like build/ or target/ are scanned rather than pruned."""
+        build_dir = os.path.join(self.test_dir, "build")
+        os.makedirs(build_dir, exist_ok=True)
+        with open(os.path.join(build_dir, "artifact.txt"), "w", encoding="utf-8") as f:
+            f.write("build output content")
+
+        # Default (include_junk=False): build directory is pruned
+        rep_default = ingest_folder(self.test_dir, include_junk=False)
+        self.assertIn("JUNK_DIRECTORY", rep_default.rejection_counts)
+        self.assertFalse(any("artifact.txt" in it.path for it in rep_default.items))
+
+        # include_junk=True: build directory is scanned
+        rep_included = ingest_folder(self.test_dir, include_junk=True)
+        self.assertNotIn("JUNK_DIRECTORY", rep_included.rejection_counts)
+        self.assertTrue(any("artifact.txt" in it.path for it in rep_included.items))
 
     # -------------------------------------------------------------------------
     # 4. Binary Detection & Text Normalization
