@@ -100,13 +100,13 @@ class TestPaiCLI(unittest.TestCase):
         self.assertIn("Error: Unknown or invalid command", f_err.getvalue())
 
     def test_deferred_commands_notice(self):
-        """Direct execution commands (generate, analyze, forecast) print deferred notice."""
-        for cmd in ("generate", "analyze", "forecast"):
+        """Direct execution commands (generate, forecast) print deferred notice."""
+        for cmd in ("generate", "forecast"):
             f_out = io.StringIO()
             with redirect_stdout(f_out):
                 code = main([cmd, "test argument"])
             self.assertEqual(code, 0)
-            self.assertIn(f"deferred to Milestone M2+", f_out.getvalue())
+            self.assertIn("deferred to Milestone M4+", f_out.getvalue())
             self.assertIn(f"pai route {cmd}", f_out.getvalue())
 
     def test_probe_ollama_server_rejects_non_loopback(self):

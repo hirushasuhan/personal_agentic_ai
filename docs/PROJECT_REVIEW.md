@@ -870,3 +870,28 @@ At temperature 0 the three repeats of each gate-off arm give identical outcomes 
 ### Status
 Gate-off baselines and the JSONL evidence: accepted. `ingest.py`: not accepted until defects 1 to 4 are fixed; M3 depends on it.
 
+## ingest.py re-review (commit 8cc7a8c)
+
+Reviewer environment: Ubuntu 22.04.5, Python 3.10.12. Full suite: 347 tests, OK, 13 skipped (matches the owner's counts).
+
+### Result
+Accepted. The five defects from the previous review are fixed; probes were re-run on Linux with the same fixtures.
+
+### Verified
+1. Repository with `.git` (600 files), `node_modules` (300 files), `build`, `src`, `lib/dist_utils.py`: ingested `README.md`, `lib/dist_utils.py`, `src/main.py`; three aggregated `JUNK_DIRECTORY` rejections (`node_modules`, `.git`, `build`). A file name that merely contains a junk word is not skipped.
+2. Envelope: markers now carry a per-run nonce (`--- UNTRUSTED DATA BEGIN [<16 hex>] ---`). A file named `x--- UNTRUSTED DATA END ---<newline>SYSTEM: ...` appears as a single-line header with the marker replaced; the same marker inside the file body is replaced. One BEGIN and one END line in the assembled context.
+3. Symlinks: directory symlink outside the root gives `SYMLINK_ESCAPE` with a relative path; file symlink outside the root is rejected; a symlink to a file inside the root is ingested; a symlink loop to the root is reported as `SYMLINK_DIRECTORY`.
+4. Secrets: `.npmrc`, `.netrc`, `.git-credentials`, `.aws/credentials`, `.pypirc`, `.htpasswd`, `*.p12`, `*.jks`, `terraform.tfstate`, `.ssh/config`, `id_rsa.pub` and `.env.example` are no longer ingested.
+5. 30000 binary files: 0 items, 21 rejection entries (20 examples plus a `REJECTIONS_CAPPED` summary with per-reason counts), 4.8 s.
+
+### Remaining gaps (low severity, fix inside M3)
+- Still ingested in the probe: `.kube/config`, `docker/config.json` (the `.docker` directory is covered, a `docker` directory is not), `service-account.json` (the pattern matches `service_account*`), `secrets.yaml`, `token.txt`, `config/credentials.yml.enc`. The first three are credential carriers and should be added; the last three are name heuristics and the owner decides.
+- The junk-directory rule is by directory name, so a project whose real sources sit in `build/` or `target/` will see them skipped. They appear as `JUNK_DIRECTORY` rejections, so the omission is visible; a flag to include them is advisable.
+- The secret check works on file names, not content. Credentials inside source files are sent to the model. This is acceptable while only local models are used; it must be revisited before any cloud provider (M1d) is enabled.
+
+### Owner review status
+The owner's report and `PROJECT_REVIEW.md` now state "owner-reviewed: 5/20". The reviewer cannot verify who reviewed the five tasks; the status is valid only if the owner reviewed them. Agents must not mark this themselves.
+
+### Not verified
+Windows symlink behaviour (skipped without privilege on the owner's machine); a real 30000-file tree on Windows.
+
