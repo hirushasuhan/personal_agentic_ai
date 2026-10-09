@@ -800,7 +800,7 @@ During the real-model evaluation run, multi-assertion test suites writing detail
 1. **0 False Accepts Observed Among 18 Accepted Runs**: Across 18 accepted solutions (12 English, 6 Singlish), all 18 passed the hidden reference tests (0 false accepts among accepted runs). The 32 pre-solution rejections (STUB_PROBE_FAILED or AST_SAFETY_VIOLATION) produced no candidate solution, so false-rejection cannot be assessed against reference tests for those runs. 9 runs ended in 60s model generator timeouts (code_07).
 2. **Language Disparity (`English: 20%` vs `Singlish: 10%`)**: `qwen2.5-coder:7b` showed a measurable degradation when instructions were phrased in Singlish prose (from 20% down to 10% on `pass@1 repair<=3`), providing the initial motivation for the Milestone M2c Singlish bridge (translating Singlish instructions to structured English task specs prior to code generation).
 3. **Temperature 0 / Seed 42 Determinism**: All repeats were executed at temperature 0 with seed 42 (not independent samples). The absence of flips on Singlish reflects deterministic model generation rather than an inherent linguistic property. English flips (2 tasks: code_06, code_13) may reflect generation timing/timeouts or numeric nondeterminism.
-4. **Owner Review Status**: Status of `coding_tasks_singlish.json` remains "agent-authored, owner-reviewed: 0/20" pending owner review.
+4. **Owner Review Status**: Status of `coding_tasks_singlish.json` updated to "agent-authored, owner-reviewed: 5/20" following owner review of 5 sample tasks.
 
 ## M2b real-model evaluation review (commits f8f5b64, eeb96dd, 7218c5a)
 
@@ -832,4 +832,41 @@ Harness and recorded runs accepted as descriptive evidence. M2b close-out accept
 2. Report infrastructure failures (model timeout) separately from task failures; make the model call timeout a flag.
 3. Add a gate-off baseline arm (generate directly, grade on hidden tests) for both English and Singlish, then M2c arms on the same basis.
 4. Time-box one day to analyse the 32 pre-solution rejections and decide how `pai code` should behave when the 7B model writes unusable tests (stronger test prompt, user-supplied tests, or a fallback).
+
+## M2b gate-off baselines and ingest.py review (commits 6138015, e2d9ba2, ae0ce6c)
+
+Reviewer environment: Ubuntu 22.04.5, Python 3.10.12. Full suite: 345 tests, OK, 13 skipped. `--compute-metrics` on all four committed JSONL files reproduces the owner's figures.
+
+### Gate-off baselines against gated runs (qwen2.5-coder:7b, temperature 0, seed 42)
+| Arm | pass@1 zero-shot | pass@1 repair<=3 |
+|---|---|---|
+| English gated | 0.20 | 0.20 |
+| English gate-off | 0.60 | 0.60 |
+| Singlish gated | 0.05 | 0.10 |
+| Singlish gate-off | 0.50 | 0.50 |
+
+At temperature 0 the three repeats of each gate-off arm give identical outcomes (0 flips), so each arm is effectively 20 tasks.
+
+### Per-task comparison (reviewer computation from the JSONL)
+- English raw-solvable tasks (all 3 repeats pass hidden tests): 12. Accepted by `pai code` in all 3 repeats: 3 (code_02, code_12, code_18). The other 9 ended in repair-loop exhaustion or stub-probe rejection in at least one repeat; 6 of them (code_01, 05, 08, 09, 14 and part of 13) were repair-exhausted in every repeat.
+- Singlish raw-solvable tasks: 10. Accepted in all 3 repeats: 2 (code_02, code_12).
+- No task that fails on hidden tests in the gate-off arm was accepted in the gated arm (consistent with 0 false accepts).
+- The gate therefore has no observed false accepts and low recall: it rejects most tasks the model can solve directly. This is the main product-level finding of M2b.
+- English versus Singlish raw capability: 12 versus 10 solvable tasks. The sets differ on four tasks in both directions (English only: code_01, code_05, code_19; Singlish only: code_11). The owner's statement that the difference is two tasks (code_01, code_05) describes the net count only. With 20 tasks and no sampling variation, this does not show a language effect.
+
+### Statements in the owner's report that the stored data does not support
+- The per-task explanation of the 32 pre-solution rejections (stub returns None so a class cannot be instantiated; AttributeError; TypeError) is not backed by the committed gated JSONL files: they were recorded before the diagnostic fields existed and contain no stub name, error type or test preview. The explanation is a hypothesis.
+- The earlier statement that these results confirm the need for the Singlish bridge does not follow: the raw-capability gap is a net two tasks, while the gated gap is dominated by test-suite rejection.
+
+### ingest.py (ae0ce6c) probes
+- Passed: FIFO is rejected without blocking; depth limit rejects at depth 16; 30000 files with `max_file_count=5` finish in 0.2 s; symlinked file leading outside the root is rejected.
+- Defects:
+  1. A repository with `.git`, `node_modules` and a `src` folder: the first 500 files ingested were from `.git/hooks` and `node_modules`; `src/main.py` was not ingested. Junk directories are not skipped, so `pai analyze` on a normal repository would analyse the wrong files.
+  2. A file name containing the end marker and a newline is placed into the `File:` header unsanitised; the assembled context then contains two end markers for one item (envelope break-out by file name).
+  3. A symlinked directory pointing outside the root is silently dropped and produces no rejection record, contrary to the rule that rejections are reported.
+  4. The secret deny-list misses `.npmrc`, `.netrc`, `.git-credentials`, `.aws/credentials`, `.pypirc`, `.htpasswd`, `*.p12`, `*.jks`, `terraform.tfstate` (all ingested in the probe).
+  5. The rejection list is unbounded (29995 entries for one folder) and the rejection path for a symlink is absolute.
+
+### Status
+Gate-off baselines and the JSONL evidence: accepted. `ingest.py`: not accepted until defects 1 to 4 are fixed; M3 depends on it.
 

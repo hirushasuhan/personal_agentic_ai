@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.15] — 2026-10-09 — Safe Ingestion Hardening & Gate-Off Baseline Analysis
+
+### Safe Ingestion Module Hardening (`research/ingest.py`, `research/tests/test_ingest.py`)
+- **Junk Directory Pruning**: Prunes known build/cache/vcs directories (`.git`, `node_modules`, `__pycache__`, `.venv`, `venv`, `dist`, `build`, `.tox`, `.idea`, `.vscode`, `target`, etc.) in-place, emitting single aggregated `JUNK_DIRECTORY` rejections with relative paths rather than exhausting file quotas on uninteresting files.
+- **Unforgeable Cryptographic Nonce Envelopes**: Replaced static envelope delimiters with per-call / per-run random cryptographic nonces (`--- UNTRUSTED DATA BEGIN [{nonce}] ---`). Sanitized `File:` and `Source:` headers to strip carriage returns, newlines, control characters, and embedded markers.
+- **Extended Secrets Deny-List**: Added `.npmrc`, `.netrc`, `.git-credentials`, `.aws/credentials`, `.pypirc`, `.htpasswd`, `*.p12`, `*.jks`, and `terraform.tfstate*` to the secret deny-list, and added detection for sensitive parent directories (`.aws`, `.ssh`, `.gnupg`, `.docker`).
+- **Directory Symlink Escape Tracking**: Explicitly checks directory symlinks during recursive scan, emitting relative-path `SYMLINK_ESCAPE` and `SYMLINK_DIRECTORY` rejections without traversing into them.
+- **Bounded Rejection Tracking**: Caps memory growth for rejections on massive trees with `rejection_counts` per reason code, bounded example lists, and summary record emission when capped.
+- **Adversarial Probe Unit Tests**: Added 20 tests in `research/tests/test_ingest.py` covering all probe scenarios and negative controls.
+
+### Gate-Off Baseline Evaluation & Gate Recall Findings (`research/eval_harness.py`, `docs/evidence/`)
+- **Gate-Off Baselines Recorded**: Evaluated direct generation graded against sandboxed hidden tests for English (`eval_qwen2.5_coder_7b_gate_off_english.jsonl`: 60.0%, 12/20) and Singlish (`eval_qwen2.5_coder_7b_gate_off_singlish.jsonl`: 50.0%, 10/20) with 0 flips across 3 repeats at temperature 0.
+- **Gate Recall Finding**: Established that the model's raw solution ability (60% English, 50% Singlish) is substantially higher than gated acceptance (20% English, 10% Singlish) due to test-generation rejections (stub probe failures, invalid syntax, AST safety) and repair loop exhaustion on weak model-written tests. 0 false accepts observed. M2c bridge held pending gate recall resolution.
+
 ## [0.7.14] — 2026-10-09 — Milestone M2b: Real-Model Evaluation Close-Out (`qwen2.5-coder:7b`)
 
 ### Evaluation Artifacts & Evidence (`docs/evidence/`)
