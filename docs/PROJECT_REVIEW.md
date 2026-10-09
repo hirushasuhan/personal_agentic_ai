@@ -919,3 +919,37 @@ Quality of real-model summaries (no model on the reviewer host, and no frozen qu
 2. **Terminal output sanitization**: Implemented shared helper `sanitize_terminal_output` in `ingest.py` which strips ANSI escape sequences (CSI color codes, OSC window titles) and ASCII control characters (including BEL `\x07` and ESC `\x1b`) while preserving newlines and tabs. All model responses and untrusted paths are sanitized before printing in text mode.
 3. **Heuristic risk labeling**: Labeled pattern matches as `heuristic_dangerous_patterns` and `heuristic_injection_patterns` in JSON output and console text.
 
+## M4 `pai docs` implementation and verification
+
+### Implementation
+- Subcommand `pai docs <file>` wired into CLI (`research/pai.py`, `cmd_docs`) supporting `.txt`, `.md`, `.csv`, `.text`, `.markdown`.
+- Explicit PDF deferral: PDF files trigger exit code 3 (`UNSUPPORTED_DOCUMENT_TYPE`) pending future ADR review.
+- Safe ingestion: uses `ingest_file` from `ingest.py`, checking path boundaries, symlinks, file existence, and sensitive/secret deny patterns (exit code 1 on missing/empty/secret files).
+- CSV processing & formula defense:
+  - Malformed row resilience: handles uneven rows without crashing.
+  - Formula injection defense: neutralizes formula prefixes (`=`, `+`, `-`, `@`) as plain text in analysis prompts; reports `formula_cells_neutralized` and `total_rows` in `csv_metadata`.
+  - Export escaping: `--export <path>` writes table data safely escaping dangerous formula characters with a leading single quote (`'`).
+  - Large CSV sampling: `--sample-size` with `--sampling-method` (`head` default, or `random_seed` using `--seed`).
+- Security directives & nonce envelope: wraps document in unforgeable cryptographic nonce envelope `--- UNTRUSTED DATA BEGIN [{nonce}] ---`, defanging internal markers and enforcing strict anti-injection directives.
+- Terminal output sanitization: model output and file paths sanitized via `sanitize_terminal_output` before printing to terminal in text mode.
+- Coverage tracking: reports `total_bytes`, `included_bytes`, `truncated`, and `char_budget` (24,000 characters).
+
+### Verification
+- E2E acceptance test suite: `research/tests/test_pai_docs_e2e.py` (13 tests):
+  1. `test_docs_e2e_clean_markdown` (Markdown analysis with nonce envelope framing).
+  2. `test_targeted_question_reflected_in_prompt` (User question routing).
+  3. `test_planted_prompt_injection_contained_and_not_followed` (Prompt injection containment).
+  4. `test_csv_formula_injection_defense_and_export_escaping` (Formula neutralization, metadata counts, single-quote escaping on export).
+  5. `test_large_csv_sampling_reported` (Head and random-seed sampling).
+  6. `test_oversize_document_truncation_and_coverage` (Budget truncation & coverage reporting).
+  7. `test_pdf_file_deferred_returns_3` (PDF exit code 3).
+  8. `test_unsupported_file_extension_returns_3` (Unsupported extension exit code 3).
+  9. `test_router_refusal_returns_5` (Router refusal exit code 5).
+  10. `test_terminal_output_sanitization_in_text_mode` (Stripping ANSI & control characters).
+  11. `test_negative_control_missing_file_returns_1` (Exit 1).
+  12. `test_negative_control_empty_file_returns_1` (Exit 1).
+  13. `test_negative_control_secret_file_denied_returns_1` (Exit 1).
+- Full test discovery: 371 tests pass (0 failures, 0 errors, 23 skipped on Windows).
+- Claims lint: zero unfalsifiable claims (`test_claims.py` passed cleanly).
+
+

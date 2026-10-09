@@ -106,7 +106,7 @@ class TestPaiCLI(unittest.TestCase):
             with redirect_stdout(f_out):
                 code = main([cmd, "test argument"])
             self.assertEqual(code, 0)
-            self.assertIn("deferred to Milestone M4+", f_out.getvalue())
+            self.assertIn("deferred to Milestone M5+", f_out.getvalue())
             self.assertIn(f"pai route {cmd}", f_out.getvalue())
 
     def test_probe_ollama_server_rejects_non_loopback(self):

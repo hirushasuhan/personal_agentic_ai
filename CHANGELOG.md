@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.7.16] — 2026-10-09 — Milestone M4: Safe Document Analysis (`pai docs`) & M3 Follow-Up Resolution
+
+### Safe Document Analysis (`research/pai.py`, `research/tests/test_pai_docs_e2e.py`)
+- **CLI Subcommand `pai docs <file>`**: Added safe document analysis command supporting `.txt`, `.md`, `.csv`, `.text`, and `.markdown`.
+- **Exit Code Specification**: Explicit exit codes strictly enforced: `0` (success), `1` (input/file/secrets error), `2` (generator error), `3` (unsupported input type, e.g. PDF), `5` (router refusal).
+- **Explicit PDF Deferral**: PDF documents trigger exit code 3 (`UNSUPPORTED_DOCUMENT_TYPE`) pending future ADR review.
+- **Safe Ingestion & Secret Hygiene**: Files ingested via `ingest_file` with boundary verification and secret deny patterns (`is_secret_file`).
+- **CSV Formula Injection Defense**: Neutralizes formula execution triggers (`=`, `+`, `-`, `@`) as plain text in analysis prompts; metadata records neutralized formula counts.
+- **Safe CSV Export Escaping**: `--export <path>` neutralizes dangerous formula trigger cells with a leading single quote (`'`), preventing client-side spreadsheet execution.
+- **Large CSV Sampling**: Supports configurable `--sample-size` with `--sampling-method` (`head` or deterministic `random_seed`).
+- **Unforgeable Nonce Envelope**: Wraps untrusted file text in delimiters with per-call cryptographic nonce (`--- UNTRUSTED DATA BEGIN [{nonce}] ---`).
+- **Terminal Output Sanitization**: Strips ANSI escape sequences and non-printable control characters before terminal display in text mode.
+- **E2E Acceptance Suite**: 13 comprehensive end-to-end acceptance tests added in `research/tests/test_pai_docs_e2e.py`.
+
+### M3 Codebase Analysis Follow-ups (`research/ingest.py`, `research/pai.py`, `research/tests/test_pai_analyze_e2e.py`)
+- **Manifest & Coverage Reporting**: Inserted complete file manifest in model prompt and explicit `context_coverage` tracking in JSON and text output.
+- **Shared Terminal Output Sanitization**: Implemented `sanitize_terminal_output` utility in `ingest.py`.
+- **Heuristic Risk Labeling**: Labeled heuristic patterns as `heuristic_dangerous_patterns` and `heuristic_injection_patterns`.
+
 ## [0.7.15] — 2026-10-09 — Safe Ingestion Hardening & Gate-Off Baseline Analysis
 
 ### Safe Ingestion Module Hardening (`research/ingest.py`, `research/tests/test_ingest.py`)
