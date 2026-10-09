@@ -193,10 +193,50 @@ class IngestionReport:
         }
 
 
+@dataclasses.dataclass(frozen=True)
+class UntrustedContextAssembly:
+    text: str
+    included_files: List[str]
+    omitted_files: List[str]
+    included_bytes: int
+    omitted_bytes: int
+    char_budget: int
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total_files": len(self.included_files) + len(self.omitted_files),
+            "included_files_count": len(self.included_files),
+            "omitted_files_count": len(self.omitted_files),
+            "included_files": list(self.included_files),
+            "omitted_files": list(self.omitted_files),
+            "included_bytes": self.included_bytes,
+            "omitted_bytes": self.omitted_bytes,
+            "char_budget": self.char_budget,
+        }
+
+
 # -----------------------------------------------------------------------------
 # Sanitation & Normalization Helpers
 # -----------------------------------------------------------------------------
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_ANSI_ESCAPE_RE = re.compile(
+    r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\))"
+)
+
+
+def sanitize_terminal_output(text: str) -> str:
+    """
+    Sanitizes text intended for terminal display (model outputs, file paths, diagnostic text):
+    - Strips ANSI escape sequences (CSI color codes, OSC title changes, etc.).
+    - Strips non-printable ASCII control characters (including BEL, ESC, etc.), preserving '\n' and '\t'.
+    - Normalizes carriage returns '\r\n' -> '\n'.
+    """
+    if not text:
+        return ""
+    t = text.replace("\r\n", "\n").replace("\r", "\n")
+    t = _ANSI_ESCAPE_RE.sub("", t)
+    t = _CONTROL_CHAR_RE.sub("", t)
+    return t
 
 
 def sanitize_text_content(raw_bytes: bytes, max_line_length: int = DEFAULT_MAX_LINE_LENGTH) -> str:
@@ -304,17 +344,36 @@ def wrap_untrusted_envelope(
     return "\n".join(lines)
 
 
-def format_untrusted_context(
+def assemble_untrusted_context(
     report: IngestionReport,
     char_budget: int = 32_000,
     nonce: Optional[str] = None,
-) -> str:
+    include_manifest: bool = True,
+) -> UntrustedContextAssembly:
     """
     Assembles ingested items into an untrusted-data envelope block respecting a character budget.
-    Applies per-run random nonce to all envelopes and sanitizes item headers.
+    Includes a complete file manifest so the model has visibility into the entire codebase layout,
+    tracks included vs omitted files and bytes, and applies cryptographic nonces.
     """
     run_nonce = nonce or generate_envelope_nonce()
+    manifest_lines = []
+    if include_manifest and report.items:
+        manifest_lines.append(f"=== COMPLETE FILE MANIFEST ({len(report.items)} files) ===")
+        for it in report.items:
+            clean_p = sanitize_header(it.path)
+            manifest_lines.append(f"- {clean_p} ({it.bytes_read} bytes)")
+        manifest_lines.append("=== END MANIFEST ===\n")
+
+    manifest_block = "\n".join(manifest_lines)
+
     sections = []
+    included_files = []
+    omitted_files = []
+    included_bytes = 0
+    omitted_bytes = 0
+
+    manifest_cost = len(manifest_block)
+    effective_budget = max(0, char_budget - manifest_cost)
     current_chars = 0
 
     for item in report.items:
@@ -322,18 +381,51 @@ def format_untrusted_context(
         item_header = f"File: {clean_item_path} (SHA-256: {item.sha256[:16]}...)"
         wrapped = wrap_untrusted_envelope(item.text, header=item_header, nonce=run_nonce)
 
-        if current_chars + len(wrapped) > char_budget:
-            remaining = char_budget - current_chars
-            if remaining > 200:
+        if current_chars + len(wrapped) > effective_budget:
+            remaining = effective_budget - current_chars
+            if remaining > 200 and not included_files:
                 truncated_text = item.text[: max(0, remaining - 150)] + "\n... [CONTEXT_BUDGET_TRUNCATED]"
-                wrapped = wrap_untrusted_envelope(truncated_text, header=item_header, nonce=run_nonce)
-                sections.append(wrapped)
-            break
+                wrapped_trunc = wrap_untrusted_envelope(truncated_text, header=item_header, nonce=run_nonce)
+                sections.append(wrapped_trunc)
+                current_chars += len(wrapped_trunc)
+                included_files.append(item.path)
+                included_bytes += len(truncated_text.encode("utf-8"))
+            omitted_files.append(item.path)
+            omitted_bytes += item.bytes_read
+            continue
 
         sections.append(wrapped)
         current_chars += len(wrapped)
+        included_files.append(item.path)
+        included_bytes += item.bytes_read
 
-    return "\n\n".join(sections)
+    if omitted_files:
+        omitted_summary = (
+            f"\n[NOTICE: Context budget ({char_budget} chars) reached. "
+            f"Full text included for {len(included_files)}/{len(report.items)} files. "
+            f"{len(omitted_files)} files omitted from body (refer to manifest above).]"
+        )
+        sections.append(omitted_summary)
+
+    full_text = (manifest_block + "\n\n".join(sections)).strip()
+
+    return UntrustedContextAssembly(
+        text=full_text,
+        included_files=included_files,
+        omitted_files=omitted_files,
+        included_bytes=included_bytes,
+        omitted_bytes=omitted_bytes,
+        char_budget=char_budget,
+    )
+
+
+def format_untrusted_context(
+    report: IngestionReport,
+    char_budget: int = 32_000,
+    nonce: Optional[str] = None,
+) -> str:
+    """Convenience helper returning assembled context text."""
+    return assemble_untrusted_context(report, char_budget=char_budget, nonce=nonce).text
 
 
 # -----------------------------------------------------------------------------

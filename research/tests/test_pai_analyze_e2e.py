@@ -338,7 +338,97 @@ class TestPaiAnalyzeE2E(unittest.TestCase):
         self.assertNotIn("FILE_COUNT_EXCEEDED", data2["risks"]["rejection_counts"])
 
     # -------------------------------------------------------------------------
-    # 7. Negative Controls: Non-Existent and Empty Targets
+    # 7. Context Coverage and File Manifest Reporting (Fix 1)
+    # -------------------------------------------------------------------------
+    def test_context_coverage_and_omission_reporting(self):
+        """
+        Verifies that:
+        1. Complete file manifest is sent to the model in the prompt even when budget is exceeded.
+        2. Files omitted due to character budget are tracked and reported in JSON context_coverage.
+        3. Plain text output reports context coverage clearly.
+        """
+        import io
+        import contextlib
+
+        repo_dir = os.path.join(self.tmp_dir, "coverage_repo")
+        os.makedirs(repo_dir, exist_ok=True)
+        # Create 15 files with large repetitive content (~2500 chars each = ~37,500 chars total)
+        for i in range(15):
+            with open(os.path.join(repo_dir, f"file_{i:02d}.py"), "w", encoding="utf-8") as f:
+                f.write(f"# File {i:02d}\n" + ("def dummy_logic(): return 1234567890\n" * 60))
+
+        # Run with JSON output
+        buf_json = io.StringIO()
+        with contextlib.redirect_stdout(buf_json):
+            ret = pai.main(["analyze", repo_dir, "--model", "test-model", "--json"])
+        self.assertEqual(ret, 0)
+        data = json.loads(buf_json.getvalue())
+
+        self.assertIn("context_coverage", data)
+        cov = data["context_coverage"]
+        self.assertEqual(cov["total_files"], 15)
+        self.assertGreater(cov["omitted_files_count"], 0)
+        self.assertGreater(cov["included_files_count"], 0)
+        self.assertEqual(cov["included_files_count"] + cov["omitted_files_count"], 15)
+        self.assertTrue(len(cov["omitted_files"]) > 0)
+
+        # Inspect prompt received by mock server
+        prompt = self.mock_server.requests[-1].get("prompt", "")
+        self.assertIn("=== COMPLETE FILE MANIFEST (15 files) ===", prompt)
+        self.assertIn("file_00.py", prompt)
+        self.assertIn("file_14.py", prompt)
+        self.assertIn("NOTICE: Context budget", prompt)
+
+        # Run with text output to verify console reporting
+        buf_txt = io.StringIO()
+        with contextlib.redirect_stdout(buf_txt):
+            ret_txt = pai.main(["analyze", repo_dir, "--model", "test-model"])
+        self.assertEqual(ret_txt, 0)
+        txt = buf_txt.getvalue()
+        self.assertIn("Context Coverage", txt)
+        self.assertIn("omitted due to budget", txt)
+
+    # -------------------------------------------------------------------------
+    # 8. Terminal Output Sanitization (Fix 2)
+    # -------------------------------------------------------------------------
+    def test_terminal_output_sanitization_removes_ansi_and_control_chars(self):
+        """
+        Adversarial probe:
+        Simulates model producing hostile escape sequences:
+        - ANSI color code ESC[31m ... ESC[0m
+        - OSC window title injection ESC]0;Pwned BEL
+        - Raw ASCII BEL character \\x07
+        Asserts terminal output strips all ESC (\\x1b) and BEL (\\x07) bytes before display.
+        """
+        import io
+        import contextlib
+
+        repo_dir = self._create_sample_repo()
+
+        def hostile_handler(req):
+            hostile_resp = (
+                "\x1b[31m[CRITICAL]\x1b[0m Architectural review complete. "
+                "\x1b]0;HOST_COMPROMISED\x07Alert sound:\x07 Clean execution."
+            )
+            return 200, {"response": hostile_resp}
+
+        self.mock_server.handler_fn = hostile_handler
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            ret = pai.main(["analyze", repo_dir, "--model", "test-model"])
+        self.assertEqual(ret, 0)
+
+        out = buf.getvalue()
+        # Verify hostile escape bytes are completely gone
+        self.assertNotIn("\x1b", out, "ANSI escape byte \\x1b found in terminal output")
+        self.assertNotIn("\x07", out, "BEL control byte \\x07 found in terminal output")
+        # Verify clean text is preserved
+        self.assertIn("Architectural review complete.", out)
+        self.assertIn("Clean execution.", out)
+
+    # -------------------------------------------------------------------------
+    # 9. Negative Controls: Non-Existent and Empty Targets
     # -------------------------------------------------------------------------
     def test_negative_control_non_existent_folder_returns_1(self):
         bogus_dir = os.path.join(self.tmp_dir, "non_existent_folder_12345")

@@ -895,3 +895,27 @@ The owner reviewed sample tasks `code_01` through `code_05` on 2026-10-09 and co
 ### Not verified
 Windows symlink behaviour (skipped without privilege on the owner's machine); a real 30000-file tree on Windows.
 
+## M3 `pai analyze` review (commit ec93e78)
+
+Reviewer environment: Ubuntu 22.04.5, Python 3.10.12. Full suite: 356 tests, OK, 13 skipped (matches the owner's totals).
+
+### Result
+Accepted with two required fixes (below). M4 may start in parallel.
+
+### Verified
+- `cmd_analyze` reads through `ingest_folder`, takes the model from `ModelRouter.route("analyze")` (exit 5 on refusal), builds the prompt with the per-run nonce envelope, and returns exit 1 for a missing folder or no ingestible files and exit 2 for a generator error.
+- Static facts (structure, entry points, dependency files, imports, rejections) are computed in Python, not by the model.
+
+### Probes and findings
+1. Context coverage is not reported. A folder of 60 Python files (about 119 KB) was ingested in full (`structure.total_files` = 60), but `format_untrusted_context` stops at the 24000-character budget: the prompt contained 12 files, and the other 48 were dropped without any field or notice in the JSON or text output. The model summary then describes the whole codebase from the first 12 files in alphabetical order. The JSON and text output must state how many files and bytes were included in the prompt and how many were omitted, and the prompt should carry the full file list so the model knows the layout.
+2. Model output reaches the terminal unfiltered in text mode. With a mock model returning `ESC[31m ... ESC]0;title BEL`, stdout contained 3 ESC bytes and 1 BEL. Model output is influenced by untrusted files, so control characters other than newline and tab must be removed from model text and from file paths before printing. JSON mode escapes them.
+3. Minor: `dangerous_patterns` matches substrings (`eval(` also matches `model.eval(`); `injection_patterns` is a fixed list of four phrases. Both are heuristics and should be labelled so in the output.
+
+### Not verified
+Quality of real-model summaries (no model on the reviewer host, and no frozen question set for `pai analyze`); Windows behaviour of the new tests.
+
+### Resolution of required fixes
+1. **Context coverage**: `assemble_untrusted_context` inserts a complete file manifest (`=== COMPLETE FILE MANIFEST ({count} files) ===`) in the model prompt, and tracks coverage in `context_coverage` (`included_files_count`, `omitted_files_count`, `omitted_files`, `included_bytes`, `omitted_bytes`, `char_budget`) reported in both JSON output and plain text console summary (`Context Coverage: X / Y files included`).
+2. **Terminal output sanitization**: Implemented shared helper `sanitize_terminal_output` in `ingest.py` which strips ANSI escape sequences (CSI color codes, OSC window titles) and ASCII control characters (including BEL `\x07` and ESC `\x1b`) while preserving newlines and tabs. All model responses and untrusted paths are sanitized before printing in text mode.
+3. **Heuristic risk labeling**: Labeled pattern matches as `heuristic_dangerous_patterns` and `heuristic_injection_patterns` in JSON output and console text.
+

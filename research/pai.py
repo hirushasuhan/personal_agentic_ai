@@ -1031,9 +1031,11 @@ def cmd_analyze(args) -> int:
         print("Sandbox execution boundary verified fail-closed.")
 
     from ingest import (
+        assemble_untrusted_context,
         format_untrusted_context,
         generate_envelope_nonce,
         ingest_folder,
+        sanitize_terminal_output,
     )
     from router import ModelRouter
 
@@ -1156,9 +1158,10 @@ def cmd_analyze(args) -> int:
     if not getattr(args, "json", False):
         print(f"Analyzing codebase with model '{model_name}'...")
 
-    # 4. Prompt assembly with unforgeable nonce envelope
+    # 4. Prompt assembly with complete file manifest and unforgeable nonce envelope
     nonce = generate_envelope_nonce()
-    context_text = format_untrusted_context(report, char_budget=24000, nonce=nonce)
+    assembly = assemble_untrusted_context(report, char_budget=24000, nonce=nonce)
+    context_text = assembly.text
     user_question = getattr(args, "question", None)
 
     analysis_prompt = (
@@ -1218,6 +1221,7 @@ def cmd_analyze(args) -> int:
                 "extensions": ext_counts,
                 "directories": sorted(list(dirs_set)),
             },
+            "context_coverage": assembly.to_dict(),
             "entry_points": detected_entry_points,
             "dependencies": {
                 "config_files": detected_deps,
@@ -1226,8 +1230,8 @@ def cmd_analyze(args) -> int:
             "risks": {
                 "secret_rejections": secret_rejections,
                 "symlink_escapes": symlink_escapes,
-                "dangerous_patterns": dangerous_patterns,
-                "injection_patterns": injection_patterns,
+                "heuristic_dangerous_patterns": dangerous_patterns,
+                "heuristic_injection_patterns": injection_patterns,
                 "rejection_counts": report.rejection_counts,
                 "rejections_capped": report.rejections_capped,
             },
@@ -1235,22 +1239,29 @@ def cmd_analyze(args) -> int:
             "summary": raw_analysis.strip(),
         }, indent=2))
     else:
+        clean_target = sanitize_terminal_output(os.path.abspath(target_folder))
         print("=" * 64)
         print("                PAI CODEBASE ANALYSIS REPORT")
         print("=" * 64)
-        print(f"Target Folder        : {os.path.abspath(target_folder)}")
+        print(f"Target Folder        : {clean_target}")
         print(f"Analyzed Files       : {len(report.items)} files ({report.total_bytes} bytes)")
+        if assembly.omitted_files:
+            print(f"Context Coverage     : {len(assembly.included_files)} / {len(report.items)} files included ({len(assembly.omitted_files)} omitted due to budget)")
+        else:
+            print(f"Context Coverage     : {len(assembly.included_files)} / {len(report.items)} files included (100%)")
         if report.rejection_counts:
             print(f"Ingestion Rejections : {report.rejection_counts}")
             if "FILE_COUNT_EXCEEDED" in report.rejection_counts or "TOTAL_BYTES_EXCEEDED" in report.rejection_counts:
                 print("Notice: Folder content was truncated by ingestion limits.")
-        print(f"Identified Entrypoints: {detected_entry_points}")
+        clean_entry_points = [sanitize_terminal_output(p) for p in detected_entry_points]
+        print(f"Identified Entrypoints: {clean_entry_points}")
         print(f"Config Dependencies  : {detected_deps}")
-        if secret_rejections or symlink_escapes or injection_patterns:
-            print(f"Identified Risks     : Secrets={len(secret_rejections)}, SymlinkEscapes={len(symlink_escapes)}, Injections={len(injection_patterns)}")
+        if secret_rejections or symlink_escapes or dangerous_patterns or injection_patterns:
+            print(f"Identified Risks     : Secrets={len(secret_rejections)}, SymlinkEscapes={len(symlink_escapes)}, Heuristics(Dangerous={len(dangerous_patterns)}, Injections={len(injection_patterns)})")
         print("-" * 64)
         print("MODEL ARCHITECTURAL ANALYSIS:")
-        print(raw_analysis.strip())
+        sanitized_summary = sanitize_terminal_output(raw_analysis.strip())
+        print(sanitized_summary)
         print("=" * 64)
 
     return 0
