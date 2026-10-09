@@ -85,6 +85,12 @@ class EvalRecord:
     host_ram_delta_mb: Optional[float]
     staged_solution_path: Optional[str] = None
     error_detail: Optional[str] = None
+    termination_stage: Optional[str] = None
+    is_infra_failure: bool = False
+    generated_test_hash: Optional[str] = None
+    generated_test_preview: Optional[str] = None
+    stub_probe_failure: Optional[Dict[str, Any]] = None
+    ast_violations: Optional[List[str]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -110,6 +116,12 @@ class EvalRecord:
             "host_ram_delta_mb": round(self.host_ram_delta_mb, 2) if self.host_ram_delta_mb is not None else None,
             "staged_solution_path": self.staged_solution_path,
             "error_detail": self.error_detail,
+            "termination_stage": self.termination_stage,
+            "is_infra_failure": self.is_infra_failure,
+            "generated_test_hash": self.generated_test_hash,
+            "generated_test_preview": self.generated_test_preview,
+            "stub_probe_failure": self.stub_probe_failure,
+            "ast_violations": self.ast_violations,
         }
 
 
@@ -382,6 +394,7 @@ def run_single_task_evaluation(
     timeout_sec: float = 10.0,
     memory_mb: float = 512.0,
     max_repairs: int = 3,
+    model_timeout: Optional[float] = None,
     temperature: Optional[float] = 0.0,
     seed: Optional[int] = 42,
 ) -> EvalRecord:
@@ -407,6 +420,8 @@ def run_single_task_evaluation(
         "--memory-mb", str(memory_mb),
         "--json",
     ]
+    if model_timeout is not None:
+        cmd_args.extend(["--model-timeout", str(model_timeout)])
     if temperature is not None:
         cmd_args.extend(["--temperature", str(temperature)])
     if seed is not None:
@@ -472,6 +487,41 @@ def run_single_task_evaluation(
     else:
         err_detail = err_msg
 
+    # Determine termination stage and infra failure
+    is_timeout = bool(parsed_json.get("is_timeout", False)) or ("timed out" in str(err_detail or "").lower())
+    is_infra_failure = (err_type == "GENERATOR_ERROR" and is_timeout) or ("http error 5" in str(err_detail or "").lower())
+
+    if pai_passed:
+        termination_stage = "accepted_pass"
+    elif is_infra_failure:
+        termination_stage = "generator_timeout" if is_timeout else "infra_failure"
+    elif err_type == "STUB_PROBE_FAILED":
+        termination_stage = "pre_solution_stub_probe"
+    elif err_type == "AST_SAFETY_VIOLATION":
+        termination_stage = "pre_solution_ast_violation"
+    elif err_type == "TEST_SUITE_INVALID":
+        termination_stage = "pre_solution_test_invalid"
+    elif "repair loop exhausted" in str(err_detail or "").lower():
+        termination_stage = "repair_exhausted"
+    else:
+        termination_stage = err_type or "failed"
+
+    # Generated test preview and hash
+    gen_test_hash = parsed_json.get("test_hash")
+    gen_test_preview = parsed_json.get("test_code_preview")
+    if not gen_test_hash and parsed_json.get("test_code"):
+        gen_test_hash = hashlib.sha256(parsed_json["test_code"].encode("utf-8")).hexdigest()
+        gen_test_preview = "\n".join(parsed_json["test_code"].splitlines()[:40])
+
+    stub_fail_info = None
+    if err_type == "STUB_PROBE_FAILED":
+        stub_fail_info = {
+            "failing_stub": parsed_json.get("failing_stub"),
+            "detail": parsed_json.get("detail"),
+        }
+
+    ast_violations = parsed_json.get("violations") if err_type == "AST_SAFETY_VIOLATION" else None
+
     # Grade against hidden reference tests INSIDE THE OS SANDBOX
     staged_sol = parsed_json.get("staged_solution") or (sol_path if os.path.exists(sol_path) else None)
     if staged_sol and os.path.exists(staged_sol):
@@ -525,6 +575,158 @@ def run_single_task_evaluation(
         host_ram_delta_mb=host_ram_delta,
         staged_solution_path=None,
         error_detail=err_detail,
+        termination_stage=termination_stage,
+        is_infra_failure=is_infra_failure,
+        generated_test_hash=gen_test_hash,
+        generated_test_preview=gen_test_preview,
+        stub_probe_failure=stub_fail_info,
+        ast_violations=ast_violations,
+    )
+
+
+def run_single_task_evaluation_gate_off(
+    task: Dict[str, Any],
+    arm: str,
+    model_name: str,
+    repeat_idx: int,
+    timeout_sec: float = 10.0,
+    memory_mb: float = 512.0,
+    model_timeout: Optional[float] = None,
+    temperature: Optional[float] = 0.0,
+    seed: Optional[int] = 42,
+) -> EvalRecord:
+    """
+    Executes a gate-off baseline evaluation for a single coding task:
+    prompts the model directly for the solution without writing model self-tests,
+    and grades directly inside the OS sandbox against the hidden reference tests.
+    """
+    task_id = str(task["id"])
+    task_name = str(task.get("name", task_id))
+    entry_point = str(task.get("entry_point", task_name))
+    task_prompt = str(task["prompt"])
+
+    # Measure RAM before
+    ram_before: Optional[float] = None
+    try:
+        from hardware_telemetry import HardwareTelemetry
+        telem = HardwareTelemetry()
+        ram_before = telem.get_system_snapshot().get("avail_ram_mb")
+    except Exception:
+        ram_before = None
+
+    start_time = time.monotonic()
+
+    sol_prompt = (
+        f"Write a Python solution for the following task:\n{task_prompt}\n\n"
+        "Requirements:\n"
+        "- Implement all required functions and classes in module 'solution'.\n"
+        f"- The solution must provide entry point '{entry_point}'.\n"
+        "- Return ONLY the Python solution code enclosed in ```python ... ``` without explanations.\n"
+    )
+
+    temp_out = tempfile.mkdtemp(prefix=f"pai_eval_gateoff_{task_id}_r{repeat_idx}_")
+    sol_path = os.path.join(temp_out, "solution.py")
+
+    err_detail = None
+    ast_violations = None
+    termination_stage = "gate_off_eval"
+    is_infra_failure = False
+
+    try:
+        raw_sol = pai.call_model_generate(
+            model_name=model_name,
+            prompt=sol_prompt,
+            timeout=model_timeout,
+            temperature=temperature,
+            seed=seed,
+        )
+        sol_code = pai.extract_python_code(raw_sol)
+
+        from ast_guard import check_source
+        guard_rep = check_source(sol_code)
+        if not guard_rep.ok:
+            ast_violations = [str(x) for x in guard_rep.violations]
+            err_detail = f"AST_SAFETY_VIOLATION: {ast_violations}"
+            termination_stage = "pre_solution_ast_violation"
+            hidden_res = HiddenTestResult(
+                passed=False,
+                total_assertions=len(HIDDEN_TESTS.get(task_id, [])),
+                passed_assertions=0,
+                error=err_detail,
+            )
+        else:
+            with open(sol_path, "w", encoding="utf-8") as f:
+                f.write(sol_code)
+
+            hidden_res = run_hidden_tests(
+                task_id=task_id,
+                entry_point=entry_point,
+                solution_path=sol_path,
+                memory_mb=memory_mb,
+                timeout_sec=timeout_sec,
+            )
+            if hidden_res.passed:
+                termination_stage = "accepted_pass"
+            else:
+                termination_stage = "hidden_test_failed"
+                err_detail = hidden_res.error or "Hidden assertions failed"
+    except Exception as e:
+        is_timeout = "timeout" in str(e).lower() or "timed out" in str(e).lower()
+        is_infra_failure = is_timeout or ("http error" in str(e).lower())
+        termination_stage = "generator_timeout" if is_timeout else "infra_failure"
+        err_detail = f"GENERATOR_ERROR: {e}"
+        hidden_res = HiddenTestResult(
+            passed=False,
+            total_assertions=len(HIDDEN_TESTS.get(task_id, [])),
+            passed_assertions=0,
+            error=err_detail,
+        )
+
+    wall_time = time.monotonic() - start_time
+
+    # Measure RAM after
+    host_ram_delta: Optional[float] = None
+    if ram_before is not None:
+        try:
+            ram_after = telem.get_system_snapshot().get("avail_ram_mb")
+            if ram_after is not None:
+                host_ram_delta = round(abs(ram_before - ram_after), 2)
+        except Exception:
+            host_ram_delta = None
+
+    shutil.rmtree(temp_out, ignore_errors=True)
+    digest = query_model_digest(model_name)
+
+    passed = hidden_res.passed
+    return EvalRecord(
+        task_id=task_id,
+        task_name=task_name,
+        entry_point=entry_point,
+        repeat_idx=repeat_idx,
+        arm=arm,
+        model=model_name,
+        model_digest=digest,
+        temperature=temperature,
+        seed=seed,
+        exit_code=0 if passed else 1,
+        pai_verdict="PASS" if passed else "FAIL",
+        pass_at_1_zero_shot=passed,
+        pass_at_1_repair3=passed,
+        total_repairs=0,
+        iterations=1,
+        hidden_test_result=hidden_res,
+        is_false_accept=False,
+        is_false_reject=False,
+        wall_time_sec=wall_time,
+        host_ram_delta_mb=host_ram_delta,
+        staged_solution_path=None,
+        error_detail=err_detail,
+        termination_stage=termination_stage,
+        is_infra_failure=is_infra_failure,
+        generated_test_hash=None,
+        generated_test_preview=None,
+        stub_probe_failure=None,
+        ast_violations=ast_violations,
     )
 
 
@@ -544,6 +746,11 @@ def _compute_group_metrics(records: List[EvalRecord], arm: str, model: str) -> D
         fa_count = sum(1 for r in r_recs if r.is_false_accept)
         fr_count = sum(1 for r in r_recs if r.is_false_reject)
         hidden_pass_count = sum(1 for r in r_recs if r.hidden_test_result.passed)
+        infra_count = sum(1 for r in r_recs if r.is_infra_failure)
+        pre_sol_count = sum(
+            1 for r in r_recs
+            if (r.termination_stage or "").startswith("pre_solution_")
+        )
 
         per_repeat_stats.append({
             "repeat_idx": r_idx,
@@ -558,6 +765,10 @@ def _compute_group_metrics(records: List[EvalRecord], arm: str, model: str) -> D
             "false_accept_rate": round(fa_count / total_r, 4) if total_r else 0.0,
             "false_reject_count": fr_count,
             "false_reject_rate": round(fr_count / total_r, 4) if total_r else 0.0,
+            "infra_failures_count": infra_count,
+            "infra_failures_rate": round(infra_count / total_r, 4) if total_r else 0.0,
+            "pre_solution_rejections_count": pre_sol_count,
+            "pre_solution_rejections_rate": round(pre_sol_count / total_r, 4) if total_r else 0.0,
         })
 
     # Across-repeats task flips (only valid within same arm/model group)
@@ -574,21 +785,36 @@ def _compute_group_metrics(records: List[EvalRecord], arm: str, model: str) -> D
         if has_flip:
             total_flips += 1
 
+    total_records = len(records)
+    total_infra = sum(1 for r in records if r.is_infra_failure)
+    total_pre_sol = sum(1 for r in records if (r.termination_stage or "").startswith("pre_solution_"))
+    stages_breakdown: Dict[str, int] = {}
+    for r in records:
+        stage = r.termination_stage or "unknown"
+        stages_breakdown[stage] = stages_breakdown.get(stage, 0) + 1
+
     mean_zshot = sum(s["pass_at_1_zero_shot_rate"] for s in per_repeat_stats) / len(per_repeat_stats) if per_repeat_stats else 0.0
     mean_rep3 = sum(s["pass_at_1_repair3_rate"] for s in per_repeat_stats) / len(per_repeat_stats) if per_repeat_stats else 0.0
     mean_fa = sum(s["false_accept_rate"] for s in per_repeat_stats) / len(per_repeat_stats) if per_repeat_stats else 0.0
     mean_fr = sum(s["false_reject_rate"] for s in per_repeat_stats) / len(per_repeat_stats) if per_repeat_stats else 0.0
+    mean_infra = sum(s["infra_failures_rate"] for s in per_repeat_stats) / len(per_repeat_stats) if per_repeat_stats else 0.0
+    mean_pre_sol = sum(s["pre_solution_rejections_rate"] for s in per_repeat_stats) / len(per_repeat_stats) if per_repeat_stats else 0.0
 
     return {
         "arm": arm,
         "model": model,
         "num_tasks": num_tasks,
         "num_repeats": num_repeats,
-        "total_runs": len(records),
+        "total_runs": total_records,
         "mean_pass_at_1_zero_shot": round(mean_zshot, 4),
         "mean_pass_at_1_repair3": round(mean_rep3, 4),
         "mean_false_accept_rate": round(mean_fa, 4),
         "mean_false_reject_rate": round(mean_fr, 4),
+        "total_infra_failures": total_infra,
+        "infra_failure_rate": round(total_infra / total_records, 4) if total_records else 0.0,
+        "pre_solution_rejection_count": total_pre_sol,
+        "pre_solution_rejection_rate": round(total_pre_sol / total_records, 4) if total_records else 0.0,
+        "termination_stages_breakdown": stages_breakdown,
         "total_flipping_tasks": total_flips,
         "flipping_task_ids": [t for t, v in flips_by_task.items() if v["flipped"]],
         "per_repeat_breakdown": per_repeat_stats,
@@ -642,6 +868,30 @@ def compute_eval_metrics_from_jsonl(jsonl_path: str) -> Dict[str, Any]:
                 passed_assertions=h_data.get("passed_assertions", 0),
                 error=h_data.get("error"),
             )
+
+            err_detail = data.get("error_detail")
+            err_d = str(err_detail or "")
+            is_infra = bool(data.get("is_infra_failure", False))
+            if not is_infra and ("timed out" in err_d.lower() or "timeout" in err_d.lower()):
+                is_infra = True
+
+            term_stage = data.get("termination_stage")
+            if not term_stage:
+                if data.get("pai_verdict") == "PASS":
+                    term_stage = "accepted_pass"
+                elif is_infra:
+                    term_stage = "generator_timeout"
+                elif "STUB_PROBE_FAILED" in err_d:
+                    term_stage = "pre_solution_stub_probe"
+                elif "AST_SAFETY_VIOLATION" in err_d:
+                    term_stage = "pre_solution_ast_violation"
+                elif "TEST_SUITE_INVALID" in err_d:
+                    term_stage = "pre_solution_test_invalid"
+                elif "repair loop exhausted" in err_d.lower():
+                    term_stage = "repair_exhausted"
+                else:
+                    term_stage = "failed"
+
             rec = EvalRecord(
                 task_id=data["task_id"],
                 task_name=data.get("task_name", data["task_id"]),
@@ -664,7 +914,13 @@ def compute_eval_metrics_from_jsonl(jsonl_path: str) -> Dict[str, Any]:
                 wall_time_sec=float(data.get("wall_time_sec", 0.0)),
                 host_ram_delta_mb=float(data["host_ram_delta_mb"]) if data.get("host_ram_delta_mb") is not None else None,
                 staged_solution_path=data.get("staged_solution_path"),
-                error_detail=data.get("error_detail"),
+                error_detail=err_detail,
+                termination_stage=term_stage,
+                is_infra_failure=is_infra,
+                generated_test_hash=data.get("generated_test_hash"),
+                generated_test_preview=data.get("generated_test_preview"),
+                stub_probe_failure=data.get("stub_probe_failure"),
+                ast_violations=data.get("ast_violations"),
             )
             records.append(rec)
     return compute_eval_metrics(records)
@@ -679,6 +935,8 @@ def run_eval_suite(
     timeout_sec: float = 10.0,
     memory_mb: float = 512.0,
     max_repairs: int = 3,
+    model_timeout: Optional[float] = None,
+    gate_off: bool = False,
     temperature: Optional[float] = 0.0,
     seed: Optional[int] = 42,
     verbose: bool = True,
@@ -686,6 +944,7 @@ def run_eval_suite(
     """
     Executes complete evaluation suite across N repeats and saves raw JSONL records.
     Verifies frozen dataset hashes at startup.
+    Supports gated production pipeline or gate-off baseline arm.
     """
     root = find_project_root()
     # 1. Startup hash verification
@@ -698,6 +957,8 @@ def run_eval_suite(
     if repeats < 1:
         raise ValueError(f"repeats must be >= 1, got {repeats}")
 
+    is_gate_off = gate_off or arm.startswith("gate_off")
+
     all_records: List[EvalRecord] = []
 
     jsonl_file = None
@@ -708,22 +969,37 @@ def run_eval_suite(
     try:
         for r_idx in range(1, repeats + 1):
             if verbose:
-                print(f"=== Starting Repeat {r_idx} / {repeats} (arm: {arm}, model: {model_name}) ===")
+                mode_str = "gate-off baseline" if is_gate_off else "gated pipeline"
+                print(f"=== Starting Repeat {r_idx} / {repeats} (arm: {arm}, mode: {mode_str}, model: {model_name}) ===")
             for t_idx, task in enumerate(tasks, 1):
                 tid = task["id"]
                 if verbose:
                     print(f"  [{t_idx}/{len(tasks)}] Evaluating {tid} ({task.get('name')})...", end="", flush=True)
-                rec = run_single_task_evaluation(
-                    task=task,
-                    arm=arm,
-                    model_name=model_name,
-                    repeat_idx=r_idx,
-                    timeout_sec=timeout_sec,
-                    memory_mb=memory_mb,
-                    max_repairs=max_repairs,
-                    temperature=temperature,
-                    seed=seed,
-                )
+                if is_gate_off:
+                    rec = run_single_task_evaluation_gate_off(
+                        task=task,
+                        arm=arm,
+                        model_name=model_name,
+                        repeat_idx=r_idx,
+                        timeout_sec=timeout_sec,
+                        memory_mb=memory_mb,
+                        model_timeout=model_timeout,
+                        temperature=temperature,
+                        seed=seed,
+                    )
+                else:
+                    rec = run_single_task_evaluation(
+                        task=task,
+                        arm=arm,
+                        model_name=model_name,
+                        repeat_idx=r_idx,
+                        timeout_sec=timeout_sec,
+                        memory_mb=memory_mb,
+                        max_repairs=max_repairs,
+                        model_timeout=model_timeout,
+                        temperature=temperature,
+                        seed=seed,
+                    )
                 all_records.append(rec)
                 if verbose:
                     print(f" {rec.pai_verdict} (hidden: {'PASS' if rec.hidden_test_result.passed else 'FAIL'}, {rec.wall_time_sec:.1f}s)")
@@ -743,11 +1019,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="PAI Evaluation Harness (M2b)")
     parser.add_argument("--run-eval", action="store_true", help="Execute evaluation run")
     parser.add_argument("--tasks", type=str, default=None, help="Path to coding tasks JSON file")
-    parser.add_argument("--arm", type=str, default="english", choices=["english", "singlish"], help="Arm name")
+    parser.add_argument("--arm", type=str, default="english", choices=["english", "singlish", "gate_off_english", "gate_off_singlish"], help="Arm name")
+    parser.add_argument("--gate-off", action="store_true", help="Run gate-off baseline (direct solution generation without model self-tests)")
     parser.add_argument("--model", type=str, default="qwen2.5-coder:7b", help="Candidate model name")
     parser.add_argument("--repeats", type=int, default=3, help="Number of repeats (default: 3)")
     parser.add_argument("--temperature", type=float, default=0.0, help="Generation temperature (default: 0.0)")
     parser.add_argument("--seed", type=int, default=42, help="Generation seed (default: 42)")
+    parser.add_argument("--model-timeout", type=float, default=None, help="Model generation HTTP request timeout in seconds")
     parser.add_argument("--out-jsonl", type=str, default=None, help="Output path for raw JSONL records")
     parser.add_argument("--compute-metrics", type=str, default=None, help="Recompute metrics from raw JSONL file")
     parser.add_argument("--json", action="store_true", help="Output metrics summary in JSON format")
@@ -764,9 +1042,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     if args.run_eval:
         root = find_project_root()
+        is_singlish = args.arm in ("singlish", "gate_off_singlish")
         default_tasks = (
             os.path.join(root, "research", "eval_sets", "coding_tasks_singlish.json")
-            if args.arm == "singlish"
+            if is_singlish
             else os.path.join(root, "research", "eval_sets", "coding_tasks.json")
         )
         tasks_path = args.tasks or default_tasks
@@ -781,6 +1060,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 model_name=args.model,
                 repeats=args.repeats,
                 out_jsonl_path=out_jsonl,
+                model_timeout=args.model_timeout,
+                gate_off=args.gate_off,
                 temperature=args.temperature,
                 seed=args.seed,
             )
@@ -809,6 +1090,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"pass@1 (repair<=3)    : {metrics['mean_pass_at_1_repair3'] * 100:.1f}%")
                 print(f"False-accept rate     : {metrics['mean_false_accept_rate'] * 100:.1f}%")
                 print(f"False-reject rate     : {metrics['mean_false_reject_rate'] * 100:.1f}%")
+                print(f"Infra failure rate    : {metrics.get('infra_failure_rate', 0.0) * 100:.1f}% ({metrics.get('total_infra_failures', 0)} runs)")
+                print(f"Pre-solution rejects  : {metrics.get('pre_solution_rejection_rate', 0.0) * 100:.1f}% ({metrics.get('pre_solution_rejection_count', 0)} runs)")
                 print(f"Flipping tasks count  : {metrics['total_flipping_tasks']}")
                 print(f"Significance note     : {metrics['significance_disclaimer']}")
         return 0

@@ -682,6 +682,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_code.add_argument("--overwrite", action="store_true", help="Permit overwriting existing files in --out")
     p_code.add_argument("--temperature", type=float, default=None, help="Generation temperature (e.g. 0.0)")
     p_code.add_argument("--seed", type=int, default=None, help="Generation seed for determinism (e.g. 42)")
+    p_code.add_argument("--model-timeout", type=float, default=None, help="Model generation HTTP request timeout in seconds")
     p_code.add_argument("--json", action="store_true", help="Output execution diagnostics in JSON format")
 
     # Deferred execution commands (M2+)
@@ -791,6 +792,7 @@ def cmd_code(args) -> int:
     # 6. If model-written tests needed: generate, freeze, and probe
     temperature = getattr(args, "temperature", None)
     seed = getattr(args, "seed", None)
+    model_timeout = getattr(args, "model_timeout", None)
 
     if suite is None:
         test_prompt = (
@@ -801,10 +803,11 @@ def cmd_code(args) -> int:
             "- Return ONLY the Python test code enclosed in ```python ... ``` without explanations.\n"
         )
         try:
-            raw_tests = call_model_generate(model_name, test_prompt, temperature=temperature, seed=seed)
+            raw_tests = call_model_generate(model_name, test_prompt, timeout=model_timeout, temperature=temperature, seed=seed)
         except Exception as e:
+            is_timeout = "timeout" in str(e).lower() or "timed out" in str(e).lower()
             if getattr(args, "json", False):
-                print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e)}, indent=2))
+                print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e), "is_timeout": is_timeout}, indent=2))
             else:
                 print(f"Error: Model failed to generate test suite: {e}", file=sys.stderr)
             return 2
@@ -813,7 +816,13 @@ def cmd_code(args) -> int:
             suite = loop.prepare_test_suite(model_test_code=test_code)
         except (VacuousTestError, TestSyntaxError, Exception) as e:
             if getattr(args, "json", False):
-                print(json.dumps({"success": False, "error": "TEST_SUITE_INVALID", "detail": str(e)}, indent=2))
+                print(json.dumps({
+                    "success": False,
+                    "error": "TEST_SUITE_INVALID",
+                    "detail": str(e),
+                    "test_code": test_code,
+                    "test_code_preview": "\n".join(test_code.splitlines()[:40]),
+                }, indent=2))
             else:
                 print(f"Error: Model generated invalid test suite: {e}", file=sys.stderr)
             return 1
@@ -825,7 +834,15 @@ def cmd_code(args) -> int:
         probe_res = loop.run_stub_probe(suite, allow_weak_tests=allow_weak)
         if not probe_res.passed:
             if getattr(args, "json", False):
-                print(json.dumps({"success": False, "error": "STUB_PROBE_FAILED", "detail": probe_res.detail}, indent=2))
+                print(json.dumps({
+                    "success": False,
+                    "error": "STUB_PROBE_FAILED",
+                    "detail": probe_res.detail,
+                    "failing_stub": probe_res.failing_stub,
+                    "test_code": suite.test_code,
+                    "test_hash": suite.test_hash,
+                    "test_code_preview": "\n".join(suite.test_code.splitlines()[:40]),
+                }, indent=2))
             else:
                 print(f"Stub probe failed: {probe_res.detail}", file=sys.stderr)
             return 1
@@ -843,10 +860,19 @@ def cmd_code(args) -> int:
         "- Return ONLY the Python solution code enclosed in ```python ... ``` without explanations.\n"
     )
     try:
-        raw_sol = call_model_generate(model_name, sol_prompt, temperature=temperature, seed=seed)
+        raw_sol = call_model_generate(model_name, sol_prompt, timeout=model_timeout, temperature=temperature, seed=seed)
     except Exception as e:
+        is_timeout = "timeout" in str(e).lower() or "timed out" in str(e).lower()
         if getattr(args, "json", False):
-            print(json.dumps({"success": False, "error": "GENERATOR_ERROR", "detail": str(e)}, indent=2))
+            print(json.dumps({
+                "success": False,
+                "error": "GENERATOR_ERROR",
+                "detail": str(e),
+                "is_timeout": is_timeout,
+                "test_code": suite.test_code,
+                "test_hash": suite.test_hash,
+                "test_code_preview": "\n".join(suite.test_code.splitlines()[:40]),
+            }, indent=2))
         else:
             print(f"Error: Model failed to generate initial solution: {e}", file=sys.stderr)
         return 2
@@ -858,7 +884,14 @@ def cmd_code(args) -> int:
     if not guard_rep.ok:
         v_details = [str(x) for x in guard_rep.violations]
         if getattr(args, "json", False):
-            print(json.dumps({"success": False, "error": "AST_SAFETY_VIOLATION", "violations": v_details}, indent=2))
+            print(json.dumps({
+                "success": False,
+                "error": "AST_SAFETY_VIOLATION",
+                "violations": v_details,
+                "test_code": suite.test_code if suite else None,
+                "test_hash": suite.test_hash if suite else None,
+                "test_code_preview": "\n".join(suite.test_code.splitlines()[:40]) if suite else None,
+            }, indent=2))
         else:
             print(f"Error: Solution rejected by AST safety guard: {v_details}", file=sys.stderr)
         return 1
@@ -875,7 +908,7 @@ def cmd_code(args) -> int:
             "- Modify the solution so that all tests pass.\n"
             "- Return ONLY the Python code enclosed in ```python ... ``` without explanations.\n"
         )
-        raw_rep = call_model_generate(model_name, rep_prompt, temperature=temperature, seed=seed)
+        raw_rep = call_model_generate(model_name, rep_prompt, timeout=model_timeout, temperature=temperature, seed=seed)
         rep_code = extract_python_code(raw_rep)
         if not rep_code or not rep_code.strip():
             raise ValueError("Model returned empty code during repair")
@@ -893,6 +926,9 @@ def cmd_code(args) -> int:
     )
 
     # 8. Handle result and safe staging
+    test_code_preview = "\n".join(suite.test_code.splitlines()[:40]) if suite else None
+    test_hash = suite.test_hash if suite else None
+
     if repair_result.success:
         try:
             sol_dest, test_dest = stage_artifacts(
@@ -907,6 +943,8 @@ def cmd_code(args) -> int:
                     "success": False,
                     "error": "COLLISION",
                     "detail": str(e),
+                    "test_hash": test_hash,
+                    "test_code_preview": test_code_preview,
                     "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
                     "pass_at_1_repair3": repair_result.pass_at_1_repair3,
                 }, indent=2))
@@ -919,6 +957,8 @@ def cmd_code(args) -> int:
                     "success": False,
                     "error": "STAGING_VIOLATION",
                     "detail": str(e),
+                    "test_hash": test_hash,
+                    "test_code_preview": test_code_preview,
                     "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
                     "pass_at_1_repair3": repair_result.pass_at_1_repair3,
                 }, indent=2))
@@ -933,6 +973,8 @@ def cmd_code(args) -> int:
                 "selected_model": model_name,
                 "staged_solution": sol_dest,
                 "staged_tests": test_dest,
+                "test_hash": test_hash,
+                "test_code_preview": test_code_preview,
                 "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
                 "pass_at_1_repair3": repair_result.pass_at_1_repair3,
                 "total_repairs": repair_result.total_repairs,
@@ -955,6 +997,8 @@ def cmd_code(args) -> int:
                 "success": False,
                 "status": "FAIL",
                 "selected_model": model_name,
+                "test_hash": test_hash,
+                "test_code_preview": test_code_preview,
                 "pass_at_1_zero_shot": repair_result.pass_at_1_zero_shot,
                 "pass_at_1_repair3": repair_result.pass_at_1_repair3,
                 "total_repairs": repair_result.total_repairs,

@@ -495,7 +495,108 @@ class TestEvalHarness(unittest.TestCase):
         self.assertFalse(rec.pass_at_1_repair3)
         self.assertFalse(rec.is_false_accept)
         self.assertIn("GENERATOR_ERROR", str(rec.error_detail))
+        self.assertTrue(rec.is_infra_failure)
+        self.assertEqual(rec.termination_stage, "infra_failure")
+
+    def test_infra_failure_diagnostics_and_partitioning(self):
+        """Verifies infra failures (timeouts/HTTP 500) are partitioned and reported separately."""
+        # 1. Simulate timeout record
+        rec_timeout = eval_harness.EvalRecord(
+            task_id="code_07", task_name="t7", entry_point="t7", repeat_idx=1, arm="english", model="m1",
+            model_digest="d1", temperature=0.0, seed=42, exit_code=2, pai_verdict="FAIL",
+            pass_at_1_zero_shot=False, pass_at_1_repair3=False, total_repairs=0, iterations=1,
+            hidden_test_result=eval_harness.HiddenTestResult(passed=False, total_assertions=3, passed_assertions=0),
+            is_false_accept=False, is_false_reject=False, wall_time_sec=60.1, host_ram_delta_mb=None,
+            error_detail="GENERATOR_ERROR: HTTP request timed out after 60.0s",
+            termination_stage="generator_timeout",
+            is_infra_failure=True,
+        )
+
+        # 2. Simulate task failure record (repair loop exhausted)
+        rec_task_fail = eval_harness.EvalRecord(
+            task_id="code_01", task_name="t1", entry_point="t1", repeat_idx=1, arm="english", model="m1",
+            model_digest="d1", temperature=0.0, seed=42, exit_code=1, pai_verdict="FAIL",
+            pass_at_1_zero_shot=False, pass_at_1_repair3=False, total_repairs=3, iterations=4,
+            hidden_test_result=eval_harness.HiddenTestResult(passed=False, total_assertions=5, passed_assertions=2),
+            is_false_accept=False, is_false_reject=False, wall_time_sec=5.0, host_ram_delta_mb=None,
+            error_detail="Repair loop exhausted without passing tests",
+            termination_stage="repair_exhausted",
+            is_infra_failure=False,
+        )
+
+        metrics = eval_harness.compute_eval_metrics([rec_timeout, rec_task_fail])
+        self.assertEqual(metrics["total_infra_failures"], 1)
+        self.assertEqual(metrics["infra_failure_rate"], 0.5)
+        self.assertEqual(metrics["pre_solution_rejection_count"], 0)
+        self.assertEqual(metrics["termination_stages_breakdown"]["generator_timeout"], 1)
+        self.assertEqual(metrics["termination_stages_breakdown"]["repair_exhausted"], 1)
+
+    def test_gate_off_baseline_evaluation(self):
+        """Gate-off baseline evaluates direct solution generation against hidden tests in sandbox."""
+        def handle(req):
+            prompt = req.get("prompt", "")
+            # Verify gate-off asks directly for solution, never for test suite
+            self.assertIn("Write a Python solution", prompt)
+            self.assertNotIn("Write a Python test suite", prompt)
+            return 200, {
+                "response": (
+                    "```python\n"
+                    "def parse_simple_csv(text):\n"
+                    "    if not text.strip():\n"
+                    "        return []\n"
+                    "    lines = [line.strip() for line in text.strip().split('\\n') if line.strip()]\n"
+                    "    return [line.split(',') for line in lines]\n"
+                    "```"
+                )
+            }
+
+        self.mock_server.handler_fn = handle
+
+        task = {
+            "id": "code_01",
+            "name": "parse_simple_csv",
+            "entry_point": "parse_simple_csv",
+            "prompt": "Write a Python function `parse_simple_csv(text: str) -> list`",
+        }
+
+        rec = eval_harness.run_single_task_evaluation_gate_off(
+            task=task,
+            arm="gate_off_english",
+            model_name="test-model",
+            repeat_idx=1,
+        )
+
+        self.assertIsNone(rec.generated_test_hash)
+        self.assertIsNone(rec.generated_test_preview)
+        self.assertEqual(rec.pai_verdict, "PASS" if rec.hidden_test_result.passed else "FAIL")
+        self.assertEqual(rec.arm, "gate_off_english")
+        self.assertIn(rec.termination_stage, ("accepted_pass", "hidden_test_failed"))
+
+    def test_diagnostic_fields_captured_in_eval_record(self):
+        """EvalRecord serialization includes all new diagnostic fields."""
+        rec = eval_harness.EvalRecord(
+            task_id="code_03", task_name="t3", entry_point="t3", repeat_idx=1, arm="english", model="m1",
+            model_digest="sha256:abc", temperature=0.0, seed=42, exit_code=1, pai_verdict="FAIL",
+            pass_at_1_zero_shot=False, pass_at_1_repair3=False, total_repairs=0, iterations=1,
+            hidden_test_result=eval_harness.HiddenTestResult(passed=False, total_assertions=1, passed_assertions=0),
+            is_false_accept=False, is_false_reject=False, wall_time_sec=1.5, host_ram_delta_mb=0.5,
+            error_detail="Stub probe failed",
+            termination_stage="pre_solution_stub_probe",
+            is_infra_failure=False,
+            generated_test_hash="sha256:1234",
+            generated_test_preview="def test_foo(): pass",
+            stub_probe_failure={"failing_stub": "stub_1", "detail": "Assertion failed"},
+            ast_violations=None,
+        )
+        d = rec.to_dict()
+        self.assertEqual(d["termination_stage"], "pre_solution_stub_probe")
+        self.assertFalse(d["is_infra_failure"])
+        self.assertEqual(d["generated_test_hash"], "sha256:1234")
+        self.assertEqual(d["generated_test_preview"], "def test_foo(): pass")
+        self.assertEqual(d["stub_probe_failure"]["failing_stub"], "stub_1")
+        self.assertIsNone(d["ast_violations"])
 
 
 if __name__ == "__main__":
     unittest.main()
+
