@@ -5,7 +5,7 @@
 ### Evaluation Artifacts & Evidence (`docs/evidence/`)
 - **English Arm Records (`docs/evidence/eval_qwen2.5_coder_7b_english.jsonl`)**: Evaluated 20 coding tasks across 3 repeats (60 runs) using `qwen2.5-coder:7b`. Pass@1 zero-shot: 20.0%, pass@1 repair<=3: 20.0%, False-accept rate: 0.0%, False-reject rate: 0.0%, 2 flipping tasks.
 - **Singlish Arm Records (`docs/evidence/eval_qwen2.5_coder_7b_singlish.jsonl`)**: Evaluated 20 coding tasks across 3 repeats (60 runs) using `qwen2.5-coder:7b`. Pass@1 zero-shot: 5.0%, pass@1 repair<=3: 10.0%, False-accept rate: 0.0%, False-reject rate: 0.0%, 0 flipping tasks.
-- **Verification Boundary Integrity**: 0.0% false-accept rate confirmed across all 120 live model runs, demonstrating 100% agreement between model self-tests and hidden reference test assertions.
+- **Verification Observations**: 0 false accepts observed among 18 accepted runs (12 English, 6 Singlish). 32 runs rejected pre-solution on stub probe or AST safety; 9 runs ended in model timeouts. No claim of comprehensive boundary integrity.
 
 ### Windows Sandbox IPC & Deadlock Resolution (`research/sandbox_win32.py`, `research/verify_loop.py`, `research/pai.py`)
 - **Pipe Buffer Saturation Deadlock**: Expanded Win32 anonymous pipe buffer to `max(65536, self.max_output_bytes)` and replaced blocking synchronous wait with active 50 ms polling and pipe draining in `Win32Sandbox`, eliminating deadlock on large test assertion diffs.

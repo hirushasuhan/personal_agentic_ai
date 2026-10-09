@@ -797,9 +797,39 @@ During the real-model evaluation run, multi-assertion test suites writing detail
 | Evidence Artifact | `docs/evidence/eval_qwen2.5_coder_7b_english.jsonl` | `docs/evidence/eval_qwen2.5_coder_7b_singlish.jsonl` | Committed raw JSONL evidence |
 
 ### Analysis & Key Findings
-1. **Zero False Accepts Across 120 Runs**: The sandbox and verification boundary achieved a 0.0% false-accept rate across all 120 runs. Whenever candidate code passed the model's generated self-tests and the verification loop, it also passed 100% of the hidden reference tests. Conversely, whenever the code was defective, it was caught without any false positive escapes.
-2. **Language Disparity (`English: 20%` vs `Singlish: 10%`)**: `qwen2.5-coder:7b` showed a measurable degradation when instructions were phrased in Singlish prose (from 20% down to 10% on `pass@1 repair<=3`), confirming the motivation for the Milestone M2c Singlish bridge (translating Singlish instructions to structured English task specs prior to code generation).
-3. **Singlish Prompt Consistency**: The Singlish arm demonstrated zero task flips across all 3 repeats (`total_flipping_tasks = 0`), indicating deterministic model responses to the Singlish task phrasing.
+1. **0 False Accepts Observed Among 18 Accepted Runs**: Across 18 accepted solutions (12 English, 6 Singlish), all 18 passed the hidden reference tests (0 false accepts among accepted runs). The 32 pre-solution rejections (STUB_PROBE_FAILED or AST_SAFETY_VIOLATION) produced no candidate solution, so false-rejection cannot be assessed against reference tests for those runs. 9 runs ended in 60s model generator timeouts (code_07).
+2. **Language Disparity (`English: 20%` vs `Singlish: 10%`)**: `qwen2.5-coder:7b` showed a measurable degradation when instructions were phrased in Singlish prose (from 20% down to 10% on `pass@1 repair<=3`), providing the initial motivation for the Milestone M2c Singlish bridge (translating Singlish instructions to structured English task specs prior to code generation).
+3. **Temperature 0 / Seed 42 Determinism**: All repeats were executed at temperature 0 with seed 42 (not independent samples). The absence of flips on Singlish reflects deterministic model generation rather than an inherent linguistic property. English flips (2 tasks: code_06, code_13) may reflect generation timing/timeouts or numeric nondeterminism.
 4. **Owner Review Status**: Status of `coding_tasks_singlish.json` remains "agent-authored, owner-reviewed: 0/20" pending owner review.
 
+## M2b real-model evaluation review (commits f8f5b64, eeb96dd, 7218c5a)
+
+Reviewer environment: Ubuntu 22.04.5, Python 3.10.12. Full suite: 324 tests, OK, 13 skipped (includes the Windows pipe and quota change in `sandbox_win32.py`/`verify_loop.py`, which the reviewer did not run on Windows).
+
+### Recomputation
+`python3 eval_harness.py --compute-metrics` on both committed JSONL files reproduces the reported figures: English 60 runs, pass@1 zero-shot 0.20, repair<=3 0.20, false-accept 0.0, false-reject 0.0, flipping tasks code_06 and code_13; Singlish 60 runs, 0.05, 0.10, 0.0, 0.0, no flips. Digest `dae161e2...` and temperature 0.0 / seed 42 are recorded in every row; hidden-test passes equal PASS verdicts in both arms (12 and 6).
+
+### What the numbers show
+- Accepted runs: 12 (English) and 6 (Singlish). All 18 passed the hidden tests. With 18 accepted solutions, mostly on tasks code_02, code_12 and code_18, this is a small base; it supports "no false accept observed in 18 accepted runs", not a general statement about the boundary.
+- Where runs ended (from `exit_code` and `error_detail`): English 36 exit 2 (33 repair loop exhausted, 3 generator timeouts), 12 exit 1 (all `STUB_PROBE_FAILED`). Singlish 28 exit 2 (22 repair loop exhausted, 6 generator timeouts), 26 exit 1 (20 `STUB_PROBE_FAILED`, 6 `AST_SAFETY_VIOLATION`).
+- 12 English and 20 Singlish runs were rejected before any solution existed. The false-reject metric cannot see these runs (no staged solution, so no hidden-test result), so "false-reject 0.0" does not describe them. The repair loop exhausted in 33 and 22 runs: the hidden tests were not passed there either, which fits a model-capability limit, but this was not separated from weak model-written tests.
+- 9 runs (3 English, 6 Singlish) ended in `GENERATOR_ERROR` after a 60 s model call timeout, all on code_07. These are infrastructure failures counted as task failures.
+- All repeats ran at temperature 0 with seed 42, so repeats are not independent samples. Flips (English: 2 tasks) and their absence (Singlish) cannot be read as a property of the language; the English flips may come from timeouts or numeric nondeterminism and were not checked.
+- The Singlish gain from repair (zero-shot 0.05 to 0.10) is one task (code_12, three repeats). It is not evidence about the repair loop.
+- `pai code` accepted 20% (English) and 10% (Singlish) of runs. The M1 bake-off measured the same model at 12/20 by direct generation graded on hidden tests. The two figures measure different things (gated acceptance versus raw solution correctness); there is no gate-off baseline in this run, so the effect of the gate and the effect of the model cannot be separated.
+
+### Reviewer probes
+Suites written as module-level asserts, `test_` functions, `unittest` classes, with a `__main__` block, or with loops each pass the stub probe on Linux. The `TEST_SUITE_INVALID ... AssertionError` rejections in the JSONL (code_03, code_06) were therefore not reproduced; the generated test suites were not stored, so the cause is not known.
+
+### Wording in the owner's documents that the data does not support
+`CHANGELOG.md` ([0.7.14]) and `PROJECT_REVIEW.md` state 100% boundary integrity, 100% agreement between model self-tests and hidden tests, and that defective code was caught without escapes. The data supports: 0 false accepts among 18 accepted runs, and no information about defective code that was rejected before a solution existed. The claim that Singlish responses are more deterministic is also unsupported (see temperature note above).
+
+### Status
+Harness and recorded runs accepted as descriptive evidence. M2b close-out accepted once the wording above is corrected and the follow-ups below are scheduled. The Singlish bridge decision (M2c) cannot be made from these numbers.
+
+### Follow-ups
+1. Store, per run, the generated test suite (or its hash and first 40 lines), the stage at which the run ended, and the stub name and error type for `STUB_PROBE_FAILED`; record the AST violation rule for `AST_SAFETY_VIOLATION`.
+2. Report infrastructure failures (model timeout) separately from task failures; make the model call timeout a flag.
+3. Add a gate-off baseline arm (generate directly, grade on hidden tests) for both English and Singlish, then M2c arms on the same basis.
+4. Time-box one day to analyse the 32 pre-solution rejections and decide how `pai code` should behave when the 7B model writes unusable tests (stronger test prompt, user-supplied tests, or a fallback).
 
