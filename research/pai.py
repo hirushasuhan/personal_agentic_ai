@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import platform
 import statistics
@@ -704,6 +705,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_docs.add_argument("--question", type=str, default=None, help="Targeted question about the document")
     p_docs.add_argument("--extract-table", action="store_true", help="Extract tabular data from document")
     p_docs.add_argument("--export", type=str, default=None, help="Export extracted table to file (formula-escaped if CSV)")
+    p_docs.add_argument("--overwrite", action="store_true", help="Permit overwriting existing file in --export (cannot overwrite input document)")
     p_docs.add_argument("--sample-size", type=int, default=100, help="Maximum rows to sample for large CSV files (default: 100)")
     p_docs.add_argument("--sampling-method", type=str, default="head", choices=["head", "random_seed"], help="Sampling method for large CSV (head or random_seed)")
     p_docs.add_argument("--model", type=str, default=None, help="Candidate model name override")
@@ -1281,6 +1283,166 @@ def cmd_analyze(args) -> int:
     return 0
 
 
+def is_plain_number(val: str) -> bool:
+    """Returns True if string represents a plain numeric literal (not formula or NaN/inf)."""
+    v = val.strip()
+    if not v or v.lower() in ("nan", "inf", "-inf", "+inf"):
+        return False
+    try:
+        float(v)
+        return True
+    except ValueError:
+        return False
+
+
+def is_formula_like_cell(raw_cell: Any) -> bool:
+    """
+    Determines if a CSV cell value resembles a formula trigger or DDE execution vector:
+    1. Starts with tab (\t), carriage return (\r), or newline (\n).
+    2. Starts with '=' or '@' (including when preceded by leading spaces).
+    3. Starts with '+' or '-' (including when preceded by leading spaces), UNLESS
+       the cell represents a valid plain number (e.g. -5, +123, -3.14).
+    Leading space decision: Leading space before '=', '@', '+', '-' is treated as an
+    evasion vector and evaluated on the trimmed prefix, while preserving cell content.
+    """
+    if raw_cell is None:
+        return False
+    s = str(raw_cell)
+    if not s:
+        return False
+
+    # Check leading control whitespace triggers
+    if s.startswith(("\t", "\r", "\n")):
+        return True
+
+    # Strip leading ASCII spaces for prefix evaluation
+    l_stripped = s.lstrip(" ")
+    if not l_stripped:
+        return False
+
+    if l_stripped.startswith(("=", "@")):
+        return True
+
+    if l_stripped.startswith(("+", "-")):
+        if is_plain_number(l_stripped):
+            return False
+        return True
+
+    return False
+
+
+def escape_formula_cell(raw_cell: Any) -> str:
+    """Safely escapes formula-like cell with leading single quote for CSV export."""
+    s = str(raw_cell) if raw_cell is not None else ""
+    if is_formula_like_cell(s):
+        return "'" + s
+    return s
+
+
+def compute_csv_column_profiles(rows: List[List[Any]]) -> List[Dict[str, Any]]:
+    """
+    Computes deterministic statistical profiles for CSV columns in Python:
+    type, count, null_count, distinct_count, min, max, mean (for numeric).
+    """
+    if not rows:
+        return []
+
+    headers = [str(c).strip() for c in rows[0]]
+    data_rows = rows[1:] if len(rows) > 1 else []
+
+    num_cols = len(headers)
+    profiles = []
+
+    for col_idx in range(num_cols):
+        col_name = headers[col_idx] or f"col_{col_idx}"
+        vals = []
+        for r in data_rows:
+            if col_idx < len(r):
+                vals.append(str(r[col_idx]).strip())
+            else:
+                vals.append("")
+
+        total_vals = len(vals)
+        non_empty = [v for v in vals if v != ""]
+        null_count = total_vals - len(non_empty)
+        distinct_count = len(set(non_empty))
+
+        # Infer type: integer, float, or string
+        inferred_type = "string"
+        numeric_vals = []
+        is_int = True
+        is_float = True
+
+        if non_empty:
+            for v in non_empty:
+                try:
+                    iv = int(v)
+                    numeric_vals.append(float(iv))
+                except ValueError:
+                    is_int = False
+                    try:
+                        fv = float(v)
+                        if math.isnan(fv) or math.isinf(fv):
+                            is_float = False
+                            break
+                        numeric_vals.append(fv)
+                    except ValueError:
+                        is_float = False
+                        break
+
+            if is_int:
+                inferred_type = "integer"
+            elif is_float:
+                inferred_type = "float"
+            else:
+                numeric_vals = []
+
+        col_profile: Dict[str, Any] = {
+            "name": col_name,
+            "inferred_type": inferred_type,
+            "count": len(non_empty),
+            "null_count": null_count,
+            "distinct_count": distinct_count,
+            "min": None,
+            "max": None,
+            "mean": None,
+        }
+
+        if numeric_vals:
+            col_profile["min"] = int(min(numeric_vals)) if is_int else round(min(numeric_vals), 4)
+            col_profile["max"] = int(max(numeric_vals)) if is_int else round(max(numeric_vals), 4)
+            col_profile["mean"] = round(sum(numeric_vals) / len(numeric_vals), 4)
+        elif non_empty:
+            col_profile["min"] = min(non_empty)
+            col_profile["max"] = max(non_empty)
+
+        profiles.append(col_profile)
+
+    return profiles
+
+
+def format_column_profiles_summary(profiles: List[Dict[str, Any]]) -> str:
+    """Formats column profiles into a clean summary block for prompt inclusion."""
+    lines = ["=== CSV COLUMN PROFILES (Deterministic Python Computed) ==="]
+    for p in profiles:
+        parts = [
+            f"Col: '{p['name']}'",
+            f"Type: {p['inferred_type']}",
+            f"Count: {p['count']}",
+            f"Nulls: {p['null_count']}",
+            f"Distinct: {p['distinct_count']}",
+        ]
+        if p["min"] is not None:
+            parts.append(f"Min: {p['min']}")
+        if p["max"] is not None:
+            parts.append(f"Max: {p['max']}")
+        if p["mean"] is not None:
+            parts.append(f"Mean: {p['mean']}")
+        lines.append("- " + " | ".join(parts))
+    lines.append("=== END COLUMN PROFILES ===\n")
+    return "\n".join(lines)
+
+
 def cmd_docs(args) -> int:
     enforce_sandbox_boundary()
     if not getattr(args, "json", False):
@@ -1363,6 +1525,40 @@ def cmd_docs(args) -> int:
             print(msg, file=sys.stderr)
         return 3
 
+    # Early validation of --export target before running model
+    export_path = getattr(args, "export", None)
+    if export_path:
+        abs_export = os.path.realpath(os.path.abspath(export_path))
+        abs_target = os.path.realpath(os.path.abspath(target_file))
+
+        # Refuse to overwrite input document file
+        if abs_export == abs_target:
+            msg = f"Refusing to export over input document file '{export_path}'."
+            if getattr(args, "json", False):
+                print(json.dumps({
+                    "success": False,
+                    "error": "COLLISION",
+                    "exit_code": 4,
+                    "detail": msg,
+                }, indent=2))
+            else:
+                print(f"Error: {msg}", file=sys.stderr)
+            return 4
+
+        # pai code staging rule: exit 4 on collision without --overwrite
+        if os.path.exists(abs_export) and not getattr(args, "overwrite", False):
+            msg = f"Refusing to overwrite existing export file '{export_path}'. Use --overwrite to replace."
+            if getattr(args, "json", False):
+                print(json.dumps({
+                    "success": False,
+                    "error": "COLLISION",
+                    "exit_code": 4,
+                    "detail": msg,
+                }, indent=2))
+            else:
+                print(f"Error: {msg}", file=sys.stderr)
+            return 4
+
     # 1. Ingest document via safe-ingestion module
     item, rejection = ingest_file(target_file)
     if rejection or not item:
@@ -1426,70 +1622,76 @@ def cmd_docs(args) -> int:
             sampled_rows = raw_rows
             sampling_info = f"full ({total_rows} rows)"
 
-        # Formula injection neutralization: cells starting with '=', '+', '-', '@'
-        formula_cells_count = 0
-        escaped_rows = []
-        for row in sampled_rows:
-            escaped_row = []
+        # Formula-like cells count across full document using unified helper
+        formula_like_count = 0
+        for row in raw_rows:
             for cell in row:
-                c_str = str(cell).strip()
-                if c_str and c_str[0] in ("=", "+", "-", "@"):
-                    formula_cells_count += 1
-                escaped_row.append(cell)
-            escaped_rows.append(escaped_row)
+                if is_formula_like_cell(cell):
+                    formula_like_count += 1
 
-        extracted_table_rows = escaped_rows
+        column_profiles = compute_csv_column_profiles(raw_rows)
+        extracted_table_rows = sampled_rows
+
         csv_metadata = {
             "total_rows": total_rows,
             "sampled_rows": len(sampled_rows),
             "sampling_method": sampling_info,
             "columns": len(raw_rows[0]) if raw_rows else 0,
-            "formula_cells_neutralized": formula_cells_count,
+            "formula_like_cells": formula_like_count,
+            "column_profiles": column_profiles,
         }
 
         buf_out = io.StringIO()
         writer = csv.writer(buf_out)
         for r in sampled_rows:
             writer.writerow(r)
-        doc_content_text = buf_out.getvalue()
+        csv_table_text = buf_out.getvalue()
+        profiles_text = format_column_profiles_summary(column_profiles)
+        doc_content_text = profiles_text + csv_table_text
     else:
         doc_content_text = item.text
 
-    # 3. Context coverage capping
+    # 3. Context coverage capping with real file size
+    real_file_size = os.path.getsize(target_file) if os.path.exists(target_file) else item.bytes_read
     char_budget = 24_000
-    doc_bytes = item.bytes_read
     truncated = False
     if len(doc_content_text) > char_budget:
         truncated = True
         doc_content_text = doc_content_text[:char_budget] + "\n... [DOCUMENT_BUDGET_TRUNCATED]"
 
+    included_bytes_count = len(doc_content_text.encode("utf-8"))
     coverage = {
-        "total_bytes": doc_bytes,
-        "included_bytes": len(doc_content_text.encode("utf-8")),
+        "total_bytes": real_file_size,
+        "included_bytes": included_bytes_count,
         "truncated": truncated or item.truncated,
         "char_budget": char_budget,
     }
 
     # 4. Handle table export if requested
-    export_path = getattr(args, "export", None)
     export_status = None
     if export_path:
         try:
             parent_d = os.path.dirname(os.path.abspath(export_path))
             if parent_d:
                 os.makedirs(parent_d, exist_ok=True)
+            exported_cells_escaped = 0
             with open(export_path, "w", newline="", encoding="utf-8") as f_exp:
                 exp_writer = csv.writer(f_exp)
                 for row in extracted_table_rows:
                     safe_row = []
                     for cell in row:
-                        s_cell = str(cell)
-                        if s_cell and s_cell.startswith(("=", "+", "-", "@")):
+                        s_cell = str(cell) if cell is not None else ""
+                        if is_formula_like_cell(s_cell):
                             safe_row.append("'" + s_cell)
+                            exported_cells_escaped += 1
                         else:
                             safe_row.append(s_cell)
                     exp_writer.writerow(safe_row)
-            export_status = {"exported_to": os.path.abspath(export_path), "rows": len(extracted_table_rows)}
+            export_status = {
+                "exported_to": os.path.abspath(export_path),
+                "rows": len(extracted_table_rows),
+                "cells_escaped": exported_cells_escaped,
+            }
         except Exception as e:
             export_status = {"error": f"Failed to export: {e}"}
 
@@ -1601,10 +1803,12 @@ def cmd_docs(args) -> int:
             print(f"Coverage             : COMPLETE ({coverage['total_bytes']} bytes)")
         if csv_metadata:
             print(f"CSV Metadata         : {csv_metadata['total_rows']} rows, {csv_metadata['columns']} columns (Sampling: {csv_metadata['sampling_method']})")
-            if csv_metadata["formula_cells_neutralized"] > 0:
-                print(f"Formula Cells Neutralized: {csv_metadata['formula_cells_neutralized']}")
+            if csv_metadata.get("formula_like_cells", 0) > 0:
+                print(f"Formula-like Cells   : {csv_metadata['formula_like_cells']}")
+            if csv_metadata.get("column_profiles"):
+                print(f"Column Profiles      : {len(csv_metadata['column_profiles'])} columns profiled via Python")
         if export_status:
-            print(f"Export               : {export_status}")
+            print(f"Export Target        : {export_status.get('exported_to')} ({export_status.get('rows')} rows, {export_status.get('cells_escaped', 0)} cells escaped)")
         print("-" * 64)
         print("MODEL ANALYSIS:")
         sanitized_summary = sanitize_terminal_output(raw_analysis.strip())

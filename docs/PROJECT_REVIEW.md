@@ -952,4 +952,51 @@ Quality of real-model summaries (no model on the reviewer host, and no frozen qu
 - Full test discovery: 371 tests pass (0 failures, 0 errors, 23 skipped on Windows).
 - Claims lint: zero unfalsifiable claims (`test_claims.py` passed cleanly).
 
+## M3 follow-up and M4 `pai docs` review (commits 482783a, b176e9a)
+
+Reviewer environment: Ubuntu 22.04.5, Python 3.10.12. Full suite: 371 tests, OK, 13 skipped (matches the owner's totals).
+
+### M3 follow-up (482783a): accepted
+Re-ran the 60-file folder probe: the JSON reports 10 files included and 50 omitted, the prompt carries a file manifest, and the text output states the coverage; a mock model reply with ESC and BEL sequences prints with none of them.
+
+### M4 `pai docs` (b176e9a): accepted with required fixes
+Verified: exit 3 for PDF and unsupported extensions, exit 1 for missing, empty and secret files, exit 5 on router refusal, nonce envelope with sanitised header, deterministic `random_seed` sampling with the method printed, coverage fields.
+
+Findings from reviewer probes (mock model, Linux):
+1. **Export overwrites without checks.** `pai docs data.csv --export data.csv` overwrote the input file with the escaped content (`-5` became `'-5`, `=1+1` became `'=1+1`); the source data was changed. `--export` onto an unrelated existing file also replaced it silently. Use the staging rule from `pai code`: refuse an existing target (exit 4) unless `--overwrite` is given, and refuse a target that resolves to the input path.
+2. **Escaping rules.** In the export, `-5` and `-5.25` (plain negative numbers) are turned into text, while ` =cmd` (leading space), a leading tab and a leading newline are not escaped. Escape cells whose first character is `=`, `@`, tab, CR or LF, and `+` or `-` only when the whole cell is not a plain number; decide on leading spaces and document it. The counter and the export use different rules (the counter strips, the export does not).
+3. **Field name.** `formula_cells_neutralized` counts cells that begin with `=`, `+`, `-` or `@`, but the prompt text is not changed; only the export is. Rename to `formula_like_cells` and report the exported-escaped count separately.
+4. **Terminal sanitiser gaps.** C1 control characters (U+0080 to U+009F, including U+009B) and bidirectional controls (U+202A to U+202E, U+2066 to U+2069, U+200E, U+200F) pass through `sanitize_terminal_output`. ESC sequences are removed, but a stripped OSC 8 hyperlink leaves its parameters as visible text. Remove C1 and bidi controls; remove complete OSC sequences before the character filter.
+5. `coverage.total_bytes` is the number of bytes read (capped at the per-file limit), not the file size. Report the real size.
+
+Recommended (not required): compute column profiles in Python (type, count, null count, min, max, mean, distinct count) and give them to the model and to the output; a 7B model should not be asked to calculate statistics from a 100-row sample.
+
+### Not verified
+Real-model answer quality for `pai docs` and `pai analyze`; Windows behaviour of the new tests.
+
+### Resolution of M4 required fixes
+1. **Export source file protection & collision handling**:
+   - Refuses exporting over the input document file itself (`abs_export == abs_target`), returning exit code 4 (`COLLISION`), even if `--overwrite` is specified.
+   - Refuses exporting over an existing destination file without `--overwrite`, returning exit code 4 (`COLLISION`).
+   - Adding `--overwrite` permits replacing existing destination files (non-input files).
+2. **Unified escaping rules & numeric protection**:
+   - Cells beginning with `=`, `@`, `\t`, `\r`, `\n` are escaped with `'`.
+   - Cells beginning with `+` or `-` are escaped ONLY if the cell value does NOT represent a plain valid number (via `is_plain_number`). Plain numbers like `-5`, `-5.25`, `+12345` are strictly preserved without leading quote corruption.
+   - Leading spaces before `=`, `@`, `+`, `-` are treated as potential spreadsheet formula evaluation evasion vectors and evaluated on the trimmed prefix.
+   - Counter and export are synchronized using single canonical helper `is_formula_like_cell`.
+3. **Field names & export reporting**:
+   - Renamed `formula_cells_neutralized` to `formula_like_cells` in `csv_metadata`.
+   - Reported count of cells actually escaped during export in `export.cells_escaped`.
+4. **Terminal sanitizer hardening**:
+   - Strips complete OSC escape sequences (`_OSC_ESCAPE_RE`) before character filtering, completely eliminating OSC 8 parameter / URL leaks.
+   - Strips 8-bit CSI (`\x9b`) and C1 control characters (U+0080 to U+009F).
+   - Strips Unicode bidirectional override controls (`\u202a`–`\u202e`, `\u2066`–`\u2069`, `\u200e`, `\u200f`, `\u061c`).
+5. **Real file size in coverage**:
+   - `coverage.total_bytes` reports actual file size on disk via `os.path.getsize()`.
+6. **Column profiling (Implemented)**:
+   - Added `compute_csv_column_profiles` in Python stdlib, calculating deterministic column profiles (type, count, null count, distinct count, min, max, mean) provided to prompt and `csv_metadata["column_profiles"]`.
+
+### Immediate Next Step
+- **Gate Recall Experiment (1–2 Day Time-Box)**: Immediate priority before advancing to Milestone M5 (`pai forecast`). Focuses on investigating and resolving the gap where `pai code` accepts only 3/12 English and 2/10 Singlish raw-solvable tasks due to model-written test failures, preserving the 0% false accept boundary.
+
 

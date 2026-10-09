@@ -218,24 +218,53 @@ class UntrustedContextAssembly:
 # -----------------------------------------------------------------------------
 # Sanitation & Normalization Helpers
 # -----------------------------------------------------------------------------
-_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
-_ANSI_ESCAPE_RE = re.compile(
-    r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\))"
-)
+# C0 control characters (excluding tab \t [0x09] and newline \n [0x0a])
+_C0_CONTROL_CHAR_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_CONTROL_CHAR_RE = _C0_CONTROL_CHAR_RE
+
+# Complete OSC escape sequences (e.g. \x1b]0;Title\x07 or \x1b]8;;url\x1b\ or 8-bit \x9d...)
+# Matches OSC prefix up to BEL (\x07), ST (\x1b\ or \x9c), or end of line/string.
+_OSC_ESCAPE_RE = re.compile(r"(?:\x1b\]|\x9d)[^\x07\x1b\x9c\r\n]*(?:\x07|\x1b\\|\x9c)?")
+
+# ANSI CSI sequences (7-bit \x1b[ and 8-bit \x9b)
+_CSI_ESCAPE_RE = re.compile(r"(?:\x1b\[|\x9b)[0-?]*[ -/]*[@-~]")
+
+# General 7-bit ESC sequences (\x1b followed by Fe / standard ESC bytes)
+_GENERIC_ESC_RE = re.compile(r"\x1b[@-~]")
+
+# C1 control characters (0x80 to 0x9f, including 0x9b 8-bit CSI and 0x9d 8-bit OSC)
+_C1_CONTROL_CHAR_RE = re.compile(r"[\x80-\x9f]")
+
+# Unicode Bidirectional (Bidi) text override and embedding controls:
+# U+061C (ALM), U+200E (LRM), U+200F (RLM), U+202A-U+202E (LRE, RLE, PDF, LRO, RLO),
+# U+2066-U+2069 (LRI, RLI, FSI, PDI)
+_BIDI_CONTROL_RE = re.compile(r"[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 def sanitize_terminal_output(text: str) -> str:
     """
     Sanitizes text intended for terminal display (model outputs, file paths, diagnostic text):
-    - Strips ANSI escape sequences (CSI color codes, OSC title changes, etc.).
-    - Strips non-printable ASCII control characters (including BEL, ESC, etc.), preserving '\n' and '\t'.
     - Normalizes carriage returns '\r\n' -> '\n'.
+    - Strips complete OSC escape sequences (window titles, OSC 8 hyperlinks, URL parameters).
+    - Strips ANSI CSI sequences (colors, cursor movements) including 8-bit CSI (\x9b).
+    - Strips remaining 7-bit ESC sequences.
+    - Strips C0 controls (preserving '\n' and '\t') and C1 controls (U+0080–U+009F).
+    - Strips Unicode bidirectional (bidi) override controls (U+202A–202E, U+2066–2069, U+200E/F).
     """
     if not text:
         return ""
     t = text.replace("\r\n", "\n").replace("\r", "\n")
-    t = _ANSI_ESCAPE_RE.sub("", t)
-    t = _CONTROL_CHAR_RE.sub("", t)
+    # 1. Complete OSC sequences (must run first so OSC 8 hyperlink URLs/parameters are wholly stripped)
+    t = _OSC_ESCAPE_RE.sub("", t)
+    # 2. CSI sequences
+    t = _CSI_ESCAPE_RE.sub("", t)
+    # 3. Generic remaining ESC sequences
+    t = _GENERIC_ESC_RE.sub("", t)
+    # 4. C0 and C1 control characters (preserves \n and \t)
+    t = _C0_CONTROL_CHAR_RE.sub("", t)
+    t = _C1_CONTROL_CHAR_RE.sub("", t)
+    # 5. Unicode Bidi override controls
+    t = _BIDI_CONTROL_RE.sub("", t)
     return t
 
 

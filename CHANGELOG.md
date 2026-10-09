@@ -7,12 +7,14 @@
 - **Exit Code Specification**: Explicit exit codes strictly enforced: `0` (success), `1` (input/file/secrets error), `2` (generator error), `3` (unsupported input type, e.g. PDF), `5` (router refusal).
 - **Explicit PDF Deferral**: PDF documents trigger exit code 3 (`UNSUPPORTED_DOCUMENT_TYPE`) pending future ADR review.
 - **Safe Ingestion & Secret Hygiene**: Files ingested via `ingest_file` with boundary verification and secret deny patterns (`is_secret_file`).
-- **CSV Formula Injection Defense**: Neutralizes formula execution triggers (`=`, `+`, `-`, `@`) as plain text in analysis prompts; metadata records neutralized formula counts.
-- **Safe CSV Export Escaping**: `--export <path>` neutralizes dangerous formula trigger cells with a leading single quote (`'`), preventing client-side spreadsheet execution.
+- **CSV Formula Injection Defense & Numeric Preservation**: Neutralizes formula triggers (`=`, `@`, `\t`, `\r`, `\n`) while strictly protecting valid negative and positive numbers (`-500`, `-5.25`, `+12345`) from string corruption; tracks `formula_like_cells` in metadata.
+- **Export Source Protection & Collision Rules**: `--export` strictly refuses overwriting the input document file (exit 4), enforces collision refusal without `--overwrite` (exit 4), and reports `cells_escaped` count in export status.
+- **Deterministic Python Column Profiles**: Computes Python stdlib statistical column profiles (type, count, nulls, distinct, min, max, mean) included in model prompt and `csv_metadata["column_profiles"]`.
 - **Large CSV Sampling**: Supports configurable `--sample-size` with `--sampling-method` (`head` or deterministic `random_seed`).
 - **Unforgeable Nonce Envelope**: Wraps untrusted file text in delimiters with per-call cryptographic nonce (`--- UNTRUSTED DATA BEGIN [{nonce}] ---`).
-- **Terminal Output Sanitization**: Strips ANSI escape sequences and non-printable control characters before terminal display in text mode.
-- **E2E Acceptance Suite**: 13 comprehensive end-to-end acceptance tests added in `research/tests/test_pai_docs_e2e.py`.
+- **Hardened Terminal Sanitization**: Strips complete OSC escape sequences (preventing OSC 8 parameter leakage), 8-bit CSI (`\x9b`), C1 controls (U+0080–U+009F), and Unicode Bidi controls (U+202A–202E, U+2066–2069, U+200E/F) while preserving tabs and newlines.
+- **Accurate Coverage Reporting**: Reports actual disk file size via `os.path.getsize()` in `coverage.total_bytes`.
+- **E2E Acceptance Suite**: 14 comprehensive end-to-end acceptance tests in `research/tests/test_pai_docs_e2e.py`.
 
 ### M3 Codebase Analysis Follow-ups (`research/ingest.py`, `research/pai.py`, `research/tests/test_pai_analyze_e2e.py`)
 - **Manifest & Coverage Reporting**: Inserted complete file manifest in model prompt and explicit `context_coverage` tracking in JSON and text output.
