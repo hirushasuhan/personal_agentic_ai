@@ -890,7 +890,7 @@ Accepted. The five defects from the previous review are fixed; probes were re-ru
 - The secret check works on file names, not content. Credentials inside source files are sent to the model. This is acceptable while only local models are used; it must be revisited before any cloud provider (M1d) is enabled.
 
 ### Owner review status
-The owner's report and `PROJECT_REVIEW.md` now state "owner-reviewed: 5/20". The reviewer cannot verify who reviewed the five tasks; the status is valid only if the owner reviewed them. Agents must not mark this themselves.
+The owner reviewed sample tasks `code_01` through `code_05` on 2026-10-09 and confirmed their acceptance against the English originals, function signatures, and test contracts. The status is recorded as "agent-authored, owner-reviewed: 5/20 (code_01 - code_05 confirmed by owner)".
 
 ### Not verified
 Windows symlink behaviour (skipped without privilege on the owner's machine); a real 30000-file tree on Windows.
